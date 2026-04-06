@@ -1,0 +1,6 @@
+hospital-bi-mvc/node_modules/
+hospital-bi-mvc/.env
+hospital-bi-mvc/**/__pycache__/
+hospital-bi-mvc/**/*.pyc
+hospital-bi-mvc/backend/.venv/
+hospital-bi-mvc/**/*.db

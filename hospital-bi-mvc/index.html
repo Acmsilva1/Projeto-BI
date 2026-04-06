@@ -1,0 +1,478 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR" class="h-full bg-slate-50 dark:bg-slate-950">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hospital BI - Painel de Gestao Estrategica</title>
+  
+  <!-- Tailwind CSS Renderizado -->
+  <link rel="stylesheet" href="css/style.css?v=2.2" />
+  
+  <!-- Fontes -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  
+  <!-- Chart.js & Plugins -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lucide@latest/dist/umd/lucide.min.js"></script>
+  
+  <style>
+    body { font-family: 'Outfit', sans-serif; }
+    .sidebar-transition { transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+  </style>
+</head>
+<body class="h-full overflow-hidden text-slate-900 dark:text-slate-100">
+
+  <div class="flex h-screen">
+    <!-- Sidebar -->
+    <aside id="sidebar" class="sidebar-transition w-64 bg-slate-900 flex-shrink-0 flex flex-col border-r border-slate-800">
+      <div class="h-16 flex items-center px-6 border-b border-slate-800">
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center text-white">
+            <i data-lucide="shield-check" class="w-5 h-5"></i>
+          </div>
+          <span class="text-white font-bold text-lg tracking-tight">MedSenior<span class="text-emerald-400">BI</span></span>
+        </div>
+      </div>
+      
+      <nav class="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+        <a href="#" id="nav-overview" data-section="overview" class="nav-item active flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors">
+          <i data-lucide="layout-dashboard" class="w-5 h-5"></i>
+          <span class="font-medium">Resumo Geral</span>
+        </a>
+        <a href="#" id="nav-ps" data-section="ps" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors">
+          <i data-lucide="stethoscope" class="w-5 h-5"></i>
+          <span class="font-medium">Pronto Socorro</span>
+        </a>
+        <a href="#" id="nav-cirurgias" data-section="cirurgias" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors">
+          <i data-lucide="scissors" class="w-5 h-5"></i>
+          <span class="font-medium">Centro Cirurgico</span>
+        </a>
+        <a href="#" id="nav-internacoes" data-section="internacoes" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors">
+          <i data-lucide="clipboard-list" class="w-5 h-5"></i>
+          <span class="font-medium">Internacoes (UTI/ENF)</span>
+        </a>
+      </nav>
+
+      <div class="p-4 border-t border-slate-800">
+        <div class="flex items-center gap-3 px-3 py-2 rounded-lg bg-slate-800/50">
+          <div class="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center text-xs font-bold text-white uppercase">AD</div>
+          <div class="flex-1 overflow-hidden">
+            <p class="text-xs text-white font-medium truncate">Admin Hospital</p>
+            <p class="text-[10px] text-slate-400 truncate">Gestor Master</p>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 flex flex-col min-w-0 bg-slate-50 dark:bg-slate-950 overflow-hidden">
+      <!-- Topbar -->
+      <header class="h-16 bg-white dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-800 px-6 flex items-center justify-between z-10">
+        <div class="flex items-center gap-4">
+          <button id="sidebarToggle" class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 transition-colors">
+            <i data-lucide="menu" class="w-5 h-5"></i>
+          </button>
+          <div class="hidden sm:flex flex-col">
+            <h2 id="breadcrumbSection" class="text-sm font-semibold text-slate-900 dark:text-white">Pronto Socorro</h2>
+            <p id="topbarDatetime" class="text-[10px] text-slate-400 font-mono italic">Aguardando...</p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-3">
+          <!-- Filtros Globais Glass -->
+          <div class="flex items-center gap-2 bg-slate-100 dark:bg-slate-800/50 p-1 rounded-xl border border-slate-200 dark:border-slate-800">
+            <select id="filterRegional" class="bg-transparent border-none text-xs font-medium focus:ring-0 text-slate-600 dark:text-slate-300 pr-8">
+              <option value="">Todas Regionais (MedSenior)</option>
+              <option value="ES">Espirito Santo (ES)</option>
+              <option value="DF">Distrito Federal (DF)</option>
+              <option value="RJ">Rio de Janeiro (RJ)</option>
+              <option value="MG">Minas Gerais (MG)</option>
+            </select>
+            <div class="w-px h-4 bg-slate-200 dark:bg-slate-700"></div>
+            <select id="filterUnidade" class="bg-transparent border-none text-xs font-medium focus:ring-0 text-slate-600 dark:text-slate-300 pr-8">
+              <option value="">Todas Unidades</option>
+            </select>
+            <div class="w-px h-4 bg-slate-200 dark:bg-slate-700"></div>
+            <select id="filterPeriod" class="bg-transparent border-none text-xs font-medium focus:ring-0 text-slate-600 dark:text-slate-300 pr-8">
+              <option value="30">Ultimos 30 dias</option>
+              <option value="90">Ultimos 90 dias</option>
+              <option value="365">Ano Atual</option>
+            </select>
+          </div>
+
+          <button id="refreshBtn" class="p-2 rounded-lg bg-hospital-500 hover:bg-hospital-600 text-white shadow-sm transition-all active:scale-95">
+            <i data-lucide="refresh-cw" class="w-5 h-5"></i>
+          </button>
+          
+          <div class="flex items-center gap-2 pl-2">
+            <span class="relative flex h-2 w-2">
+              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            </span>
+            <span class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">API Online</span>
+          </div>
+        </div>
+      </header>
+
+      <!-- Dashboard Scroll Area -->
+      <section id="dashboardContent" class="flex-1 overflow-y-auto p-6 space-y-6">
+        
+        <!-- SECAO: RESUMO GERAL -->
+        <div id="section-overview" class="dashboard-section hidden space-y-6">
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="card-premium">
+              <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Pacientes Ativos</p>
+              <h4 id="ov-kpi-pacientes" class="text-2xl font-bold text-slate-900 dark:text-white">--</h4>
+            </div>
+            <div class="card-premium">
+              <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Taxa de Ocupacao</p>
+              <h4 id="ov-kpi-ocupacao" class="text-2xl font-bold text-slate-900 dark:text-white">--%</h4>
+            </div>
+            <div class="card-premium">
+              <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Cirurgias no Mes</p>
+              <h4 id="ov-kpi-cirurgias" class="text-2xl font-bold text-slate-900 dark:text-white">--</h4>
+            </div>
+            <div class="card-premium">
+              <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Internacoes Totais</p>
+              <h4 id="ov-kpi-internacoes" class="text-2xl font-bold text-slate-900 dark:text-white">--</h4>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div class="card-premium">
+              <h3 class="text-sm font-semibold mb-4">Visao Total da Operacao</h3>
+              <div class="h-[280px]">
+                <canvas id="chartOverviewOperacao"></canvas>
+              </div>
+            </div>
+            <div class="card-premium">
+              <h3 class="text-sm font-semibold mb-4">Composicao de Internacao</h3>
+              <div class="h-[280px]">
+                <canvas id="chartOverviewInternacao"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <div class="card-premium">
+            <h3 class="text-sm font-semibold mb-4">Detalhe por Unidade (Colunas)</h3>
+            <div class="h-[340px]">
+              <canvas id="chartOverviewUnidades"></canvas>
+            </div>
+          </div>
+        </div>
+        
+        <!-- SECAO: PRONTO SOCORRO -->
+        <div id="section-ps" class="dashboard-section hidden space-y-6">
+          <!-- Regua de Controle de Metas (Simulacao Operacional) -->
+          <div class="card-premium bg-slate-900 border-slate-800">
+            <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-6">Configuracao de Metas Operacionais (SLA)</h3>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
+              <div class="space-y-3">
+                <div class="flex justify-between text-[11px] font-medium text-slate-300">
+                  <span>Meta Triagem</span>
+                  <span id="val-triagem" class="text-hospital-400 font-bold">12m</span>
+                </div>
+                <input type="range" id="range-triagem" min="5" max="30" value="12" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-hospital-500">
+              </div>
+              <div class="space-y-3">
+                <div class="flex justify-between text-[11px] font-medium text-slate-300">
+                  <span>Meta Consulta</span>
+                  <span id="val-consulta" class="text-hospital-400 font-bold">90m</span>
+                </div>
+                <input type="range" id="range-consulta" min="30" max="180" value="90" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-hospital-500">
+              </div>
+              <div class="space-y-3">
+                <div class="flex justify-between text-[11px] font-medium text-slate-300">
+                  <span>Meta Medicacao</span>
+                  <span id="val-medicacao" class="text-hospital-400 font-bold">30m</span>
+                </div>
+                <input type="range" id="range-medicacao" min="10" max="120" value="30" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-hospital-500">
+              </div>
+              <div class="space-y-3">
+                <div class="flex justify-between text-[11px] font-medium text-slate-300">
+                  <span>Meta Permanencia</span>
+                  <span id="val-permanencia" class="text-hospital-400 font-bold">3h</span>
+                </div>
+                <input type="range" id="range-permanencia" min="60" max="480" value="180" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-hospital-500">
+              </div>
+            </div>
+          </div>
+
+          <!-- KPI Row (PS Volumes) -->
+          <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="card-premium">
+              <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Atendimentos</p>
+              <h4 id="ps-vol-atend" class="text-2xl font-bold text-slate-900 dark:text-white">--</h4>
+            </div>
+            <div class="card-premium">
+              <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Evasao (Abandonos)</p>
+              <h4 id="ps-vol-evasao" class="text-2xl font-bold text-rose-500">--</h4>
+            </div>
+            <div class="card-premium">
+              <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Conversao Internacao</p>
+              <h4 id="ps-vol-conversao" class="text-2xl font-bold text-hospital-500">--%</h4>
+            </div>
+            <div class="card-premium">
+              <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Prescricoes / Exames</p>
+              <h4 id="ps-vol-presc" class="text-2xl font-bold text-slate-900 dark:text-white">--</h4>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="card-premium">
+              <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Tempo Permanencia PS</p>
+              <h4 id="ps-kpi-permanencia" class="text-2xl font-bold text-slate-900 dark:text-white">-- min</h4>
+            </div>
+            <div class="card-premium">
+              <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Tempo Consulta Medica</p>
+              <h4 id="ps-kpi-consulta" class="text-2xl font-bold text-slate-900 dark:text-white">-- min</h4>
+            </div>
+            <div class="card-premium">
+              <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Exames</p>
+              <h4 id="ps-kpi-exames" class="text-2xl font-bold text-slate-900 dark:text-white">--</h4>
+            </div>
+            <div class="card-premium">
+              <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Medicacao</p>
+              <h4 id="ps-kpi-medicacao" class="text-2xl font-bold text-slate-900 dark:text-white">--</h4>
+            </div>
+            <div class="card-premium">
+              <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Altas no PS</p>
+              <h4 id="ps-kpi-altas" class="text-2xl font-bold text-emerald-500">--</h4>
+            </div>
+            <div class="card-premium">
+              <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Obitos no PS</p>
+              <h4 id="ps-kpi-obitos" class="text-2xl font-bold text-rose-500">--</h4>
+            </div>
+          </div>
+
+          <!-- SLA Cards Grid -->
+          <div id="psSlaGrid" class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+            <!-- Renderizado via JS -->
+          </div>
+
+          <!-- Matrix View -->
+          <div class="card-premium overflow-hidden !p-0">
+            <div class="p-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
+              <h3 class="text-sm font-semibold">Matriz de Fora de SLA por Unidade</h3>
+              <span class="text-[10px] bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded text-slate-500 uppercase font-bold">Tempo Real</span>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-left border-collapse">
+                <thead class="bg-slate-50 dark:bg-slate-900/50 text-[10px] font-bold text-slate-400 uppercase">
+                  <tr>
+                    <th class="px-6 py-3">Unidade</th>
+                    <th class="px-6 py-3">Triagem</th>
+                    <th class="px-6 py-3">Consulta</th>
+                    <th class="px-6 py-3">Medicacao</th>
+                    <th class="px-6 py-3">Imagem</th>
+                    <th class="px-6 py-3">Alta</th>
+                  </tr>
+                </thead>
+                <tbody id="matrixUnidadesBody" class="text-xs text-slate-600 dark:text-slate-300 divide-y divide-slate-100 dark:divide-slate-800">
+                   <!-- Renderizado via JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- SECAO: CENTRO CIRURGICO -->
+        <div id="section-cirurgias" class="dashboard-section hidden space-y-6">
+           <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div class="lg:col-span-2 card-premium">
+                 <h3 class="text-sm font-semibold mb-4">Evolucao Mensal de Procedimentos</h3>
+                 <div class="h-[350px]">
+                    <canvas id="chartCirurgiasEvolucao"></canvas>
+                 </div>
+              </div>
+              <div class="card-premium">
+                 <h3 class="text-sm font-semibold mb-4">Mix por Especialidade</h3>
+                 <div class="h-[350px]">
+                    <canvas id="chartCirurgiasEspecialidade"></canvas>
+                 </div>
+              </div>
+           </div>
+        </div>
+
+        <!-- SECAO: FINANCEIRO -->
+        <div id="section-financeiro" class="dashboard-section hidden space-y-6">
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="lg:col-span-2 card-premium">
+              <h3 class="text-sm font-semibold mb-4 flex items-center gap-2">
+                <i data-lucide="line-chart" class="w-4 h-4 text-emerald-500"></i>
+                Fluxo de Caixa: Receitas vs Despesas
+              </h3>
+              <div class="h-[300px]">
+                <canvas id="chartFinanceiroResumo"></canvas>
+              </div>
+            </div>
+            <div class="card-premium">
+              <h3 class="text-sm font-semibold mb-4 flex items-center gap-2">
+                <i data-lucide="pie-chart" class="w-4 h-4 text-emerald-500"></i>
+                Distribuicao por Convenio
+              </h3>
+              <div class="h-[300px]">
+                <canvas id="chartConveniosFin"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div class="card-premium">
+              <h3 class="text-sm font-semibold mb-4 flex items-center gap-2">
+                <i data-lucide="alert-circle" class="w-4 h-4 text-rose-500"></i>
+                Motivos de Glosas (Top 5)
+              </h3>
+              <div class="h-[300px]">
+                <canvas id="chartGlosas"></canvas>
+              </div>
+            </div>
+            <div class="card-premium">
+              <h3 class="text-sm font-semibold mb-4 flex items-center gap-2">
+                <i data-lucide="trending-down" class="w-4 h-4 text-amber-500"></i>
+                Tendencia de Glosas (%)
+              </h3>
+              <div class="h-[300px]">
+                <canvas id="chartGlosaTendencia"></canvas>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div id="section-cc-detalhado" class="dashboard-section hidden space-y-6">
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+            <div class="card-premium">
+              <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Tempo de Cirurgia</p>
+              <h4 id="cc-kpi-tempo-cirurgia" class="text-2xl font-bold text-slate-900 dark:text-white">-- min</h4>
+            </div>
+            <div class="card-premium">
+              <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Tempo de Sala</p>
+              <h4 id="cc-kpi-tempo-sala" class="text-2xl font-bold text-slate-900 dark:text-white">-- min</h4>
+            </div>
+            <div class="card-premium">
+              <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Tempo de Anestesia</p>
+              <h4 id="cc-kpi-tempo-anestesia" class="text-2xl font-bold text-slate-900 dark:text-white">-- min</h4>
+            </div>
+            <div class="card-premium">
+              <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Total de Cirurgias</p>
+              <h4 id="cc-kpi-total" class="text-2xl font-bold text-slate-900 dark:text-white">--</h4>
+            </div>
+            <div class="card-premium">
+              <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Atraso > 30 min</p>
+              <h4 id="cc-kpi-atraso" class="text-2xl font-bold text-amber-500">--%</h4>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            <div class="card-premium">
+              <h3 class="text-xs font-bold text-slate-400 uppercase mb-6">Ociosidade de Sala</h3>
+              <div class="h-[180px] relative">
+                <canvas id="chartCcOciosidade"></canvas>
+                <div class="absolute inset-0 flex items-center justify-center flex-col pointer-events-none">
+                  <span class="text-2xl font-bold text-slate-900 dark:text-white">18.5%</span>
+                  <span class="text-[10px] text-slate-400">Tempo Vago</span>
+                </div>
+              </div>
+            </div>
+            <div class="lg:col-span-2 card-premium">
+              <h3 class="text-xs font-bold text-slate-400 uppercase mb-6">Media de Tempos (Caminhada do Paciente)</h3>
+              <div class="h-[200px]">
+                <canvas id="chartCcTemposMedios"></canvas>
+              </div>
+            </div>
+            <div class="card-premium">
+              <h3 class="text-xs font-bold text-slate-400 uppercase mb-4">Resumo Operacional</h3>
+              <table class="w-full text-[11px]">
+                <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                  <tr><td class="py-2 text-slate-400">Eletivas</td><td id="cc-resumo-eletivas" class="py-2 text-right font-bold">--</td></tr>
+                  <tr><td class="py-2 text-slate-400">Urgencias</td><td id="cc-resumo-urgencias" class="py-2 text-right font-bold">--</td></tr>
+                  <tr><td class="py-2 text-slate-400">Altas</td><td id="cc-resumo-altas" class="py-2 text-right font-bold text-emerald-500">--</td></tr>
+                  <tr><td class="py-2 text-slate-400">Obitos</td><td id="cc-resumo-obitos" class="py-2 text-right font-bold text-rose-500">--</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        </div>
+
+        <div id="section-internacoes" class="dashboard-section hidden space-y-6">
+          <!-- KPI Row (Internacoes) -->
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="card-premium border-l-4 border-l-hospital-500">
+              <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Qtd Internacoes</p>
+              <h4 id="int-kpi-total" class="text-2xl font-bold text-slate-900 dark:text-white">--</h4>
+              <p class="text-[10px] text-slate-400 font-medium">Censo Atual</p>
+            </div>
+            <div class="card-premium border-l-4 border-l-emerald-500">
+              <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Altas</p>
+              <h4 id="int-kpi-altas" class="text-2xl font-bold text-slate-900 dark:text-white">--</h4>
+              <p class="text-[10px] text-emerald-500 font-medium">Saida Assistencial</p>
+            </div>
+            <div class="card-premium border-l-4 border-l-rose-500">
+              <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Obitos</p>
+              <h4 id="int-kpi-obitos" class="text-2xl font-bold text-slate-900 dark:text-white">--</h4>
+              <p class="text-[10px] text-rose-500 font-medium">Desfecho Critico</p>
+            </div>
+            <div class="card-premium border-l-4 border-l-hospital-500">
+              <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Media de Permanencia</p>
+              <h4 id="int-kpi-permanencia" class="text-2xl font-bold text-slate-900 dark:text-white">-- dias</h4>
+              <p class="text-[10px] text-slate-400 font-medium">Eficiencia de Leito</p>
+            </div>
+          </div>
+
+          <div class="card-premium">
+            <h3 class="text-sm font-semibold mb-3">Composicao da Internacao</h3>
+            <table class="w-full text-xs">
+              <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                <tr><td class="py-2 text-slate-500">Pacientes Clinicos</td><td id="int-resumo-clinicos" class="py-2 text-right font-bold">--</td></tr>
+                <tr><td class="py-2 text-slate-500">Pacientes Cirurgicos</td><td id="int-resumo-cirurgicos" class="py-2 text-right font-bold">--</td></tr>
+                <tr><td class="py-2 text-slate-500">Origem Interna</td><td id="int-resumo-internos" class="py-2 text-right font-bold">--</td></tr>
+                <tr><td class="py-2 text-slate-500">Origem Externa</td><td id="int-resumo-externos" class="py-2 text-right font-bold">--</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="card-premium">
+              <h3 class="text-sm font-semibold mb-4">Desfecho da Internacao</h3>
+              <div class="h-[260px]">
+                <canvas id="chartInternacaoDesfecho"></canvas>
+              </div>
+            </div>
+            <div class="card-premium">
+              <h3 class="text-sm font-semibold mb-4">Perfil Assistencial</h3>
+              <div class="h-[260px]">
+                <canvas id="chartInternacaoPerfil"></canvas>
+              </div>
+            </div>
+            <div class="card-premium">
+              <h3 class="text-sm font-semibold mb-4">Origem do Paciente</h3>
+              <div class="h-[260px]">
+                <canvas id="chartInternacaoOrigem"></canvas>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </section>
+    </main>
+  </div>
+
+  <!-- Scripts: MVC Architecture -->
+  <script src="lib/api.js?v=2.2"></script>
+  <script src="modulos/kpi.js?v=2.2"></script>
+  <script src="modulos/ocupacao.js?v=2.2"></script>
+  <script src="modulos/cirurgia.js?v=2.2"></script>
+  <script src="modulos/tendencias.js?v=2.2"></script>
+  <script src="modulos/financeiro.js?v=2.2"></script>
+  <script src="modulos/ps.js?v=2.2"></script>
+  <script src="modulos/cc_detalhado.js?v=2.2"></script>
+  <script src="js/app.js?v=2.2"></script>
+
+</body>
+</html>
+
+
+
+

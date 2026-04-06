@@ -1,0 +1,25 @@
+﻿@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer components {
+  /* Estilos Globais Customizados  Hospital BI Dashboard */
+  .card-premium {
+    @apply bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden p-6;
+  }
+  
+  .glassmorphism {
+    @apply backdrop-blur-md bg-white/20 dark:bg-slate-900/20 border border-white/30 dark:border-slate-800/30;
+  }
+  
+  .badge-premium {
+    @apply px-2 py-1 rounded inline-flex items-center text-xs font-semibold;
+  }
+
+  #dashboardContent {
+    height: calc(100vh - 4rem); /* 100vh - header (h-16) */
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+

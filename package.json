@@ -1,0 +1,10 @@
+{
+  "name": "hospital-bi-root",
+  "version": "1.0.0",
+  "description": "Root entry point for Hospital BI",
+  "scripts": {
+    "backend": "cd hospital-bi-mvc && npm run backend",
+    "dev": "cd hospital-bi-mvc && npm run dev",
+    "seed": "cd hospital-bi-mvc && npm run seed"
+  }
+}

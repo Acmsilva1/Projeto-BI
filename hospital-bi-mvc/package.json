@@ -11,7 +11,10 @@
     "frontend": "vite --host 127.0.0.1 --port 5173",
     "clean": "rimraf backend scripts",
     "pipeline:once": "python pipeline_guard.py --once",
-    "pipeline:watch": "python pipeline_guard.py --interval 3"
+    "pipeline:watch": "python pipeline_guard.py --interval 3",
+    "infra:up": "docker-compose -f docker-compose.infra.yml up -d",
+    "infra:down": "docker-compose -f docker-compose.infra.yml down",
+    "infra:logs": "docker-compose -f docker-compose.infra.yml logs -f"
   },
   "devDependencies": {
     "autoprefixer": "^10.4.27",
@@ -22,9 +25,11 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.101.1",
+    "amqplib": "^0.10.9",
     "cors": "^2.8.6",
     "dotenv": "^17.4.1",
     "express": "^4.22.1",
+    "ioredis": "^5.10.1",
     "pg": "^8.20.0"
   }
 }

@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR" class="h-full bg-slate-50 dark:bg-slate-950">
 <head>
   <meta charset="UTF-8" />
@@ -82,22 +82,22 @@
         <div class="flex items-center gap-3">
           <!-- Filtros Globais Glass -->
           <div class="flex items-center gap-2 bg-slate-100 dark:bg-slate-800/50 p-1 rounded-xl border border-slate-200 dark:border-slate-800">
-            <select id="filterRegional" class="bg-transparent border-none text-xs font-medium focus:ring-0 text-slate-600 dark:text-slate-300 pr-8">
-              <option value="">Todas Regionais (MedSenior)</option>
-              <option value="ES">Espirito Santo (ES)</option>
-              <option value="DF">Distrito Federal (DF)</option>
-              <option value="RJ">Rio de Janeiro (RJ)</option>
-              <option value="MG">Minas Gerais (MG)</option>
+            <select id="filterRegional" class="bg-transparent dark:bg-slate-800 border-none text-xs font-medium focus:ring-0 text-slate-800 dark:text-slate-100 pr-8">
+              <option value="" class="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">Todas Regionais (MedSenior)</option>
+              <option value="ES" class="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">Espirito Santo (ES)</option>
+              <option value="DF" class="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">Distrito Federal (DF)</option>
+              <option value="RJ" class="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">Rio de Janeiro (RJ)</option>
+              <option value="MG" class="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">Minas Gerais (MG)</option>
             </select>
             <div class="w-px h-4 bg-slate-200 dark:bg-slate-700"></div>
-            <select id="filterUnidade" class="bg-transparent border-none text-xs font-medium focus:ring-0 text-slate-600 dark:text-slate-300 pr-8">
-              <option value="">Todas Unidades</option>
+            <select id="filterUnidade" class="bg-transparent dark:bg-slate-800 border-none text-xs font-medium focus:ring-0 text-slate-800 dark:text-slate-100 pr-8">
+              <option value="" class="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">Todas Unidades</option>
             </select>
             <div class="w-px h-4 bg-slate-200 dark:bg-slate-700"></div>
-            <select id="filterPeriod" class="bg-transparent border-none text-xs font-medium focus:ring-0 text-slate-600 dark:text-slate-300 pr-8">
-              <option value="30">Ultimos 30 dias</option>
-              <option value="90">Ultimos 90 dias</option>
-              <option value="365">Ano Atual</option>
+            <select id="filterPeriod" class="bg-transparent dark:bg-slate-800 border-none text-xs font-medium focus:ring-0 text-slate-800 dark:text-slate-100 pr-8">
+              <option value="30" class="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">Ultimos 30 dias</option>
+              <option value="90" class="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">Ultimos 90 dias</option>
+              <option value="365" class="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">Ano Atual</option>
             </select>
           </div>
 
@@ -214,8 +214,28 @@
               <h4 id="ps-vol-conversao" class="text-2xl font-bold text-hospital-500">--%</h4>
             </div>
             <div class="card-premium">
-              <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Prescricoes / Exames</p>
+              <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Prescricoes Totais</p>
               <h4 id="ps-vol-presc" class="text-2xl font-bold text-slate-900 dark:text-white">--</h4>
+            </div>
+          </div>
+
+          <!-- Novos KPIs Per Capita (PS) -->
+          <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="card-premium">
+              <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Pacientes Medicados</p>
+              <div class="flex gap-2 items-baseline"><h4 id="ps-vol-medicados" class="text-2xl font-bold text-slate-900 dark:text-white">--</h4> <span id="ps-vol-med-pac" class="text-xs text-slate-400 font-bold bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">--/pac</span></div>
+            </div>
+            <div class="card-premium">
+              <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Exames Laboratoriais</p>
+              <div class="flex gap-2 items-baseline"><h4 id="ps-vol-exame-lab" class="text-2xl font-bold text-slate-900 dark:text-white">--</h4> <span id="ps-vol-lab-pac" class="text-xs text-slate-400 font-bold bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">--/pac</span></div>
+            </div>
+            <div class="card-premium">
+              <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Exames de TC/US</p>
+              <div class="flex gap-2 items-baseline"><h4 id="ps-vol-exame-tc" class="text-2xl font-bold text-slate-900 dark:text-white">--</h4> <span id="ps-vol-tc-pac" class="text-xs text-slate-400 font-bold bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">--/pac</span></div>
+            </div>
+            <div class="card-premium">
+              <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Desfecho Medico (%)</p>
+              <h4 id="ps-vol-desfecho" class="text-sm pt-1 font-bold text-slate-900 dark:text-white">--</h4>
             </div>
           </div>
 
@@ -271,6 +291,26 @@
                 </thead>
                 <tbody id="matrixUnidadesBody" class="text-xs text-slate-600 dark:text-slate-300 divide-y divide-slate-100 dark:divide-slate-800">
                    <!-- Renderizado via JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- History View (3 Months) -->
+          <div id="psHistoryTableContainer" class="card-premium overflow-hidden !p-0">
+            <div class="p-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
+              <h3 class="text-sm font-semibold">Tabela Historica de Indicadores (Ultimos 3 Meses)</h3>
+              <span class="text-[10px] bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded text-slate-500 uppercase font-bold">Tendencia</span>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-left border-collapse">
+                <thead class="bg-slate-50 dark:bg-slate-900/50 text-[10px] font-bold text-slate-400 uppercase">
+                  <tr id="historyMonthsHeader">
+                    <!-- Renderizado dinamicamente -->
+                  </tr>
+                </thead>
+                <tbody id="psHistoryTableBody" class="text-xs text-slate-600 dark:text-slate-300 divide-y divide-slate-100 dark:divide-slate-800">
+                   <!-- Renderizado dinamicamente via JS -->
                 </tbody>
               </table>
             </div>

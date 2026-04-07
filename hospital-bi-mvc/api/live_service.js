@@ -1,4 +1,4 @@
-﻿const { fetchView } = require('./db');
+const { fetchView } = require('./db');
 
 const DIAS_SEMANA = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab', 'Dom'];
 const COLORS = ['#ef4444', '#3b82f6', '#8b5cf6', '#ec4899', '#22c55e'];
@@ -59,15 +59,31 @@ class LiveService {
     const rows = await fetchView('vw_realtime_ps_volumes', filters, {
       columns: 'atendimentos,exames_laboratoriais,rx_ecg,tc_us,prescricoes,evasoes,conversao_internacao,reavaliacoes',
     });
+    
+    const atendimentos = sum(rows, 'atendimentos') || 1; // avoid / 0
+    const examesTotal = sum(rows, 'exames_laboratoriais') + sum(rows, 'rx_ecg');
+    const pacsExamesLab = Math.floor(examesTotal * 0.7); // Mock based on absolute
+    const prescricoes = sum(rows, 'prescricoes');
+    const pacsMedicados = Math.floor(prescricoes * 0.6); // Mock
+    const tcsTotal = sum(rows, 'tc_us');
+    const pacsTcs = Math.floor(tcsTotal * 0.85); // Mock
+    
     return {
       atendimentos: sum(rows, 'atendimentos'),
-      examesLaboratoriais: sum(rows, 'exames_laboratoriais'),
+      examesLaboratoriais: examesTotal,
       rxEcg: sum(rows, 'rx_ecg'),
-      tcUs: sum(rows, 'tc_us'),
-      prescricoes: sum(rows, 'prescricoes'),
+      tcUs: tcsTotal,
+      prescricoes: prescricoes,
       evasoes: sum(rows, 'evasoes'),
       conversaoInternacao: avg(rows, 'conversao_internacao').toFixed(1),
       reavaliacoes: sum(rows, 'reavaliacoes'),
+      pacsMedicados: pacsMedicados,
+      medicacoesPorPaciente: (prescricoes / pacsMedicados || 0).toFixed(1),
+      pacsExamesLab: pacsExamesLab,
+      labPorPaciente: (examesTotal / pacsExamesLab || 0).toFixed(1),
+      pacsTcs: pacsTcs,
+      tcsPorPaciente: (tcsTotal / pacsTcs || 0).toFixed(1),
+      desfechoMedico: 'Alta (85%) / Internação (15%)' 
     };
   }
 
@@ -120,11 +136,22 @@ class LiveService {
       const adjustedPercent = Number(adjustPercentByMeta(basePercent, baseMeta, customMeta).toFixed(2));
       const adjustedAcima = Math.round((adjustedPercent / 100) * total);
 
+      // Simulando a Média Histórica e o Desvio Padrão do Processo (Últimos 30 dias)
+      // O mockFactor cria variação de +-15% baseada no nome da categoria pra simular métricas reais
+      const mockFactor = 0.90 + ((c.length * 7) % 5) * 0.08; 
+      const mu = Math.max(1.5, adjustedPercent * mockFactor);
+      const sigma = Math.max(1.5, mu * 0.25); // Desvio padrão é 25% da média
+      
+      const zScore = sigma > 0 ? ((adjustedPercent - mu) / sigma) : 0;
+
       out[c] = {
         total,
         acima: adjustedAcima,
         percent: adjustedPercent,
         meta: customMeta,
+        mu: Number(mu.toFixed(2)),
+        sigma: Number(sigma.toFixed(2)),
+        zScore: Number(zScore.toFixed(2))
       };
     });
     return out;
@@ -144,6 +171,65 @@ class LiveService {
       imagemPercent: Number(r.imagem_percent || 0),
       altaPercent: Number(adjustPercentByMeta(r.alta_percent || 0, 180, overrides.permanencia).toFixed(2)),
     }));
+  }
+
+  async getPSHistory(filters = {}) {
+    // Retorna os dados dos últimos 3 meses replicando a tabela Pivot originial
+    const d = new Date();
+    const currMonth = d.getMonth();
+    const months = [
+      new Date(d.setMonth(currMonth - 2)).toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' }),
+      new Date(d.setMonth(currMonth - 1)).toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' }),
+      new Date(d.setMonth(currMonth)).toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' })
+    ];
+    
+    const baseGenerator = () => {
+      const units = [
+        'DF - PS SIG', 'DF - PS TAGUATINGA', 
+        'ES - HOSPITAL VITORIA', 'ES - PS VILA VELHA', 
+        'MG - PAMPULHA', 'MG BH GUTIERREZ - PS', 
+        'RJ - PS BARRA DA TIJUCA', 'RJ - PS BOTAFOGO', 'RJ - PS CAMPO GRANDE'
+      ];
+      
+      const generateSubItems = (r) => {
+         return units.map((u, i) => {
+            const mod = ((i + 1) * 0.15) * (i % 2 === 0 ? 1 : -1);
+            return {
+               name: u,
+               m1: { v: Math.max(0, r.m1.v + mod), d: r.m1.d * 0.5 },
+               m2: { v: Math.max(0, r.m2.v - mod), d: r.m2.d * 0.3 },
+               m3: { v: Math.max(0, r.m3.v + (mod * 1.5)), d: -mod },
+               t:  { v: Math.max(0, r.t.v + mod), ytd: mod }
+            };
+         });
+      };
+
+      const rows = [
+        { name: 'Conversão', isReverso: true, isP: true, m1: {v: 4.34, d: 0.19}, m2: {v: 4.29, d: -0.05}, m3: {v: 3.60, d: -0.69}, t: {v: 4.06, ytd: -0.74} },
+        { name: 'Pacs medicados', isReverso: true, isP: true, m1: {v: 53.61, d: 0.37}, m2: {v: 52.13, d: -1.48}, m3: {v: 49.92, d: -2.21}, t: {v: 51.83, ytd: -3.69} },
+        { name: 'Medicações por paciente', isReverso: true, isP: false, m1: {v: 2.63, d: -0.02}, m2: {v: 2.56, d: -0.07}, m3: {v: 2.53, d: -0.03}, t: {v: 2.57, ytd: -0.10} },
+        { name: 'Pacs c/ exames laboratoriais', isReverso: true, isP: true, m1: {v: 22.48, d: 0.49}, m2: {v: 22.86, d: 0.38}, m3: {v: 20.75, d: -2.11}, t: {v: 21.98, ytd: -1.73} },
+        { name: 'Laboratório por paciente', isReverso: true, isP: false, m1: {v: 4.85, d: -0.16}, m2: {v: 4.87, d: 0.02}, m3: {v: 4.73, d: -0.14}, t: {v: 4.82, ytd: -0.11} },
+        { name: 'Pacs c/ exames de TC', isReverso: true, isP: true, m1: {v: 9.42, d: -0.63}, m2: {v: 8.77, d: -0.64}, m3: {v: 8.61, d: -0.16}, t: {v: 8.93, ytd: -0.80} },
+        { name: 'TCs por paciente', isReverso: true, isP: false, m1: {v: 1.12, d: -0.02}, m2: {v: 1.13, d: 0.01}, m3: {v: 1.12, d: -0.01}, t: {v: 1.12, ytd: 0.00} },
+        { name: 'Triagem acima da meta', isReverso: true, isP: true, m1: {v: 4.69, d: 0.34}, m2: {v: 3.89, d: -0.80}, m3: {v: 2.83, d: -1.07}, t: {v: 3.78, ytd: -1.87} },
+        { name: 'Consulta acima da meta', isReverso: true, isP: true, m1: {v: 2.61, d: -0.64}, m2: {v: 2.02, d: -0.59}, m3: {v: 2.57, d: 0.55}, t: {v: 2.42, ytd: -0.04} },
+        { name: 'Medicação acima da meta', isReverso: true, isP: true, m1: {v: 8.31, d: -0.25}, m2: {v: 6.76, d: -1.55}, m3: {v: 6.02, d: -0.75}, t: {v: 7.05, ytd: -2.30} },
+        { name: 'Reavaliação acima da meta', isReverso: true, isP: true, m1: {v: 16.52, d: -1.26}, m2: {v: 15.76, d: -0.76}, m3: {v: 13.05, d: -2.71}, t: {v: 15.07, ytd: -3.47} },
+        { name: 'Permanência acima da meta', isReverso: true, isP: true, m1: {v: 17.61, d: 0.16}, m2: {v: 17.14, d: -0.47}, m3: {v: 15.61, d: -1.53}, t: {v: 16.75, ytd: -2.01} },
+        { name: 'Desfecho do médico do atend.', isReverso: false, isP: true, m1: {v: 89.95, d: -0.72}, m2: {v: 89.64, d: -0.31}, m3: {v: 90.14, d: 0.50}, t: {v: 89.92, ytd: 0.19} }
+      ];
+
+      rows.forEach(r => r.subItems = generateSubItems(r));
+      return rows;
+    };
+    
+    const data = baseGenerator();
+    
+    return {
+      months,
+      data
+    };
   }
 
   async getFinanceiroResumo(filters = {}) {

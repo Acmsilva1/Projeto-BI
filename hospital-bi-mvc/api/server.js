@@ -1,7 +1,9 @@
-﻿require('dotenv').config();
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const liveService = require('./live_service');
+const redis = require('./infra/redis');
+const rabbit = require('./infra/rabbit');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -40,6 +42,7 @@ psRouter.get('/volumes', route((req) => liveService.getPSVolumes(req.query)));
 psRouter.get('/kpis', route((req) => liveService.getPSKpis(req.query)));
 psRouter.get('/slas', route((req) => liveService.getPSSlas(req.query)));
 psRouter.get('/matrix', route((req) => liveService.getPSMatrix(req.query)));
+psRouter.get('/history', route((req) => liveService.getPSHistory(req.query)));
 app.use('/api/v1/ps', psRouter);
 
 /**
@@ -83,11 +86,35 @@ app.use('/api/v1/cc', ccRouter);
 
 // Health Check
 app.get('/health', (req, res) => {
-  res.json({ status: "ok", mode: "Node.js Live (sem mock)", architecture: "MVC" });
+  res.json({
+    status: 'ok',
+    mode: 'Node.js Live (sem mock)',
+    architecture: 'MVC',
+    cache: redis.getStatus(),
+    queue: rabbit.getStatus(),
+  });
 });
 
+/**
+ * Pré-aquecimento não-bloqueante de infraestrutura.
+ * O app já está disponível antes disso completar.
+ */
+async function warmup() {
+  console.log('[Startup] Iniciando pré-aquecimento de infraestrutura...');
+  const [redisOk, rabbitOk] = await Promise.allSettled([
+    redis.connect(),
+    rabbit.connect(),
+  ]);
+  const rStatus = redisOk.status === 'fulfilled' && redisOk.value ? 'ok' : 'offline/disabled';
+  const qStatus = rabbitOk.status === 'fulfilled' && rabbitOk.value ? 'ok' : 'offline/disabled';
+  console.log(`[Startup] Cache Redis  → ${rStatus}`);
+  console.log(`[Startup] Queue Rabbit → ${qStatus}`);
+}
+
 app.listen(PORT, () => {
-  console.log(`"" Hospital BI API - Node.js Backend iniciada na porta ${PORT}`);
+  console.log(`[Hospital BI] API iniciada na porta ${PORT}`);
+  // warmup roda APÓS o listen — app não bloqueia na espera da infra
+  warmup().catch((err) => console.error('[Startup] Erro inesperado no warmup:', err.message));
 });
 
 

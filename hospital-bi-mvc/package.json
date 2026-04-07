@@ -9,7 +9,9 @@
     "css:watch": ".\\node_modules\\.bin\\tailwindcss -i ./css/input.css -o ./css/style.css --watch",
     "css:build": ".\\node_modules\\.bin\\tailwindcss -i ./css/input.css -o ./css/style.css --minify",
     "frontend": "vite --host 127.0.0.1 --port 5173",
-    "clean": "rimraf backend scripts"
+    "clean": "rimraf backend scripts",
+    "pipeline:once": "python pipeline_guard.py --once",
+    "pipeline:watch": "python pipeline_guard.py --interval 3"
   },
   "devDependencies": {
     "autoprefixer": "^10.4.27",

@@ -1,0 +1,77 @@
+
+[2026-04-07T11:06:05.934734+00:00] EVENTO cdfc58613113 -> FALHOU
+  + adicionados: 40, removidos: 0, modificados: 0
+  - backend_syntax_manager_service: OK (rc=0, 1.345s)
+  - backend_syntax_cron_service: OK (rc=0, 0.127s)
+  - frontend_build: ERRO (rc=None, 0.009s)
+  - encoding_scan: 56 problema(s)
+
+[2026-04-07T11:07:02.992050+00:00] EVENTO cdfc58613113 -> FALHOU
+  + adicionados: 40, removidos: 0, modificados: 0
+  - backend_syntax_manager_service: OK (rc=0, 0.102s)
+  - backend_syntax_cron_service: OK (rc=0, 0.082s)
+  - frontend_build: ERRO (rc=1, 0.975s)
+  - encoding_scan: 56 problema(s)
+
+[2026-04-07T11:21:16.066509+00:00] EVENTO cdfc58613113 -> FALHOU
+  + adicionados: 40, removidos: 0, modificados: 0
+  - backend_syntax_manager_service: OK (rc=0, 0.083s)
+  - backend_syntax_cron_service: OK (rc=0, 0.09s)
+  - frontend_build: ERRO (rc=1, 0.93s)
+  - encoding_scan: 56 problema(s)
+
+[2026-04-07T11:26:00.068761+00:00] EVENTO cdfc58613113 -> FALHOU
+  + adicionados: 40, removidos: 0, modificados: 0
+  - backend_syntax_manager_service: OK (rc=0, 0.176s)
+  - backend_syntax_cron_service: OK (rc=0, 0.122s)
+  - frontend_build: OK (rc=0, 6.906s)
+  - encoding_scan: 56 problema(s)
+
+[2026-04-07T11:29:34.449348+00:00] EVENTO cdfc58613113 -> FALHOU
+  + adicionados: 40, removidos: 0, modificados: 0
+  - backend_syntax_manager_service: ERRO (rc=1, 0.093s)
+  - backend_syntax_cron_service: OK (rc=0, 0.092s)
+  - frontend_build: ERRO (rc=1, 0.981s)
+  - encoding_scan: 56 problema(s)
+
+[2026-04-07T11:35:40.171526+00:00] EVENTO cdfc58613113 -> FALHOU
+  + adicionados: 40, removidos: 0, modificados: 0
+  - backend_syntax_manager_service: ERRO (rc=1, 0.111s)
+  - backend_syntax_cron_service: OK (rc=0, 0.116s)
+  - frontend_build: ERRO (rc=1, 1.1s)
+  - encoding_scan: 3 problema(s)
+
+[2026-04-07T11:38:42.590884+00:00] EVENTO cdfc58613113 -> FALHOU
+  + adicionados: 40, removidos: 0, modificados: 0
+  - backend_syntax_manager_service: ERRO (rc=1, 0.152s)
+  - backend_syntax_cron_service: OK (rc=0, 0.104s)
+  - frontend_build: ERRO (rc=1, 4.744s)
+  - encoding_scan: 3 problema(s)
+
+[2026-04-07T11:52:26.215432+00:00] EVENTO cdfc58613113 -> FALHOU
+  + adicionados: 40, removidos: 0, modificados: 0
+  - backend_syntax_manager_service: OK (rc=0, 0.141s)
+  - backend_syntax_cron_service: OK (rc=0, 0.144s)
+  - frontend_build: ERRO (rc=1, 6.844s)
+  - encoding_scan: 2 problema(s)
+
+[2026-04-07T12:01:51.612811+00:00] EVENTO cdfc58613113 -> FALHOU
+  + adicionados: 40, removidos: 0, modificados: 0
+  - backend_syntax_manager_service: OK (rc=0, 0.151s)
+  - backend_syntax_cron_service: OK (rc=0, 0.119s)
+  - frontend_build: ERRO (rc=1, 3.943s)
+  - encoding_scan: OK
+
+[2026-04-07T12:08:53.375676+00:00] EVENTO cdfc58613113 -> PASSOU
+  + adicionados: 40, removidos: 0, modificados: 0
+  - backend_syntax_manager_service: OK (rc=0, 1.263s)
+  - backend_syntax_cron_service: OK (rc=0, 0.088s)
+  - frontend_build: OK (rc=0, 6.796s)
+  - encoding_scan: OK
+
+[2026-04-07T12:09:45.736624+00:00] EVENTO cdfc58613113 -> FALHOU
+  + adicionados: 40, removidos: 0, modificados: 0
+  - backend_syntax_manager_service: OK (rc=0, 0.106s)
+  - backend_syntax_cron_service: OK (rc=0, 0.108s)
+  - frontend_build: ERRO (rc=1, 0.965s)
+  - encoding_scan: OK

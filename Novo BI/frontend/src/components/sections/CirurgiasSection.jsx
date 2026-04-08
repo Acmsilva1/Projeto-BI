@@ -10,20 +10,17 @@ const CirurgiasSection = ({ filters }) => {
   const { data: kpis, loading: lKpi }= useApi('cc/kpis',                params);
 
   const espChart = useMemo(() => ({
-    labels: (esp || []).map(e => e.especialidade),
-    values: (esp || []).map(e => Number(e.quantidade || 0)),
+    labels: esp?.labels || [],
+    values: esp?.dados || [],
   }), [esp]);
 
-  const evoChart = useMemo(() => {
-    const sorted = [...(evo || [])].sort((a, b) => a.mesRef < b.mesRef ? -1 : 1);
-    return {
-      labels: sorted.map(e => new Date(e.mesRef).toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' })),
-      datasets: [
-        { label: 'Eletivas',   data: sorted.map(e => Number(e.eletivas  || 0)) },
-        { label: 'Urgências',  data: sorted.map(e => Number(e.urgencias || 0)) },
-      ],
-    };
-  }, [evo]);
+  const evoChart = useMemo(() => ({
+    labels: evo?.labels || [],
+    datasets: [
+      { label: 'Eletivas',   data: evo?.eletivas  || [] },
+      { label: 'Urgências',  data: evo?.urgencias || [] },
+    ],
+  }), [evo]);
 
   return (
     <div className="space-y-5 animate-fade-in-up">

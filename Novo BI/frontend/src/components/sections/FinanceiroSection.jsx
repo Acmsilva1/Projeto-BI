@@ -11,41 +11,36 @@ const FinanceiroSection = ({ filters }) => {
   const { data: glosas,   loading: lGlo } = useApi('financeiro/glosas',   params);
 
   /* ── Formatação dos dados de gráficos ── */
-  const resumoChart = useMemo(() => {
-    const rows = [...(resumo || [])].sort((a, b) => a.mesRef < b.mesRef ? -1 : 1);
-    return {
-      labels: rows.map(r =>
-        new Date(r.mesRef).toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' })
-      ),
-      datasets: [
-        { label: 'Receita',  data: rows.map(r => Number(r.receita  || 0)) },
-        { label: 'Despesa',  data: rows.map(r => Number(r.despesa  || 0)) },
-      ],
-    };
-  }, [resumo]);
+  const resumoChart = useMemo(() => ({
+    labels: resumo?.labels || [],
+    datasets: [
+      { label: 'Receita',  data: resumo?.receitas || [] },
+      { label: 'Despesa',  data: resumo?.despesas || [] },
+    ],
+  }), [resumo]);
 
   const convenioChart = useMemo(() => ({
-    labels: (convenio || []).map(c => c.convenio),
-    values: (convenio || []).map(c => Number(c.valor || 0)),
+    labels: convenio?.labels || [],
+    values: convenio?.valores || [],
   }), [convenio]);
 
   const glosasChart = useMemo(() => ({
-    labels: (glosas || []).map(g => g.motivo),
-    values: (glosas || []).map(g => Number(g.valor || 0)),
+    labels: (glosas?.porMotivo || []).map(g => g.motivo),
+    values: (glosas?.porMotivo || []).map(g => Number(g.valor || 0)),
   }), [glosas]);
 
   /* ── KPIs sintéticos da view ── */
   const totalReceita = useMemo(() =>
-    (resumo || []).reduce((acc, r) => acc + Number(r.receita || 0), 0),
+    (resumo?.receitas || []).reduce((acc, r) => acc + Number(r || 0), 0),
   [resumo]);
 
   const totalDespesa = useMemo(() =>
-    (resumo || []).reduce((acc, r) => acc + Number(r.despesa || 0), 0),
+    (resumo?.despesas || []).reduce((acc, r) => acc + Number(r || 0), 0),
   [resumo]);
 
   const mediaGlosa = useMemo(() => {
-    if (!resumo?.length) return null;
-    return (resumo.reduce((a, r) => a + Number(r.glosaPercent || 0), 0) / resumo.length).toFixed(1);
+    if (!resumo?.glosasPercent?.length) return null;
+    return (resumo.glosasPercent.reduce((a, r) => a + Number(r || 0), 0) / resumo.glosasPercent.length).toFixed(1);
   }, [resumo]);
 
   const fmt = (v) => (v / 1_000_000).toFixed(1);

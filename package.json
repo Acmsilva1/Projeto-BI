@@ -6,5 +6,8 @@
     "backend": "cd hospital-bi-mvc && npm run backend",
     "dev": "cd hospital-bi-mvc && npm run dev",
     "seed": "cd hospital-bi-mvc && npm run seed"
+  },
+  "dependencies": {
+    "dotenv": "^17.4.1"
   }
 }

@@ -1,49 +1,72 @@
-# Documentação do Projeto - Hospital BI MVC
+# Documentação - Hospital BI (Node.js + React)
 
-Este projeto é uma plataforma de Business Intelligence para gestão hospitalar, focada em performance e real-time data.
+Esta documentação reflete a nova arquitetura 100% JavaScript do Hospital BI.
+A aplicação agora utiliza Node.js para interface com o PostgreSQL + Redis + RabbitMQ, e React + Vite no frontend para entregar dashboards interativos no padrão Power BI.
 
-## 🏗️ Arquitetura (Padrão DevOps)
+## Requisitos de Sistema
+- Node.js v18+ 
+- Docker Compose (para Redis e RabbitMQ)
+- Python 3.10+ (Apenas para o guardião do repositório)
 
-A estrutura segue a organização simplificada e modular:
+## Stack Tecnológica
+- **Backend:** Node.js (Express), pg (PostgreSQL), amqplib (RabbitMQ), redis.
+- **Frontend:** React 18, Vite 8, TailwindCSS, ECharts (via echarts-for-react), Lucide React.
+- **Banco de Dados:** PostgreSQL (Tabelas fato e views em `sql/database/`).
 
--   **/frontend**: Interface do usuário (React + Vite + Tailwind CSS).
--   **/backend**: Lógica de integração e serviços (Node.js Maestro + Python Nerd no Porão).
--   **/sql**: Inteligência de dados, incluindo Views, Functions e Migrations.
--   **/logs**: Arquivos de auditoria LGPD, logs de sistema e eventos jsonl.
--   **/docs**: Documentação técnica adicional.
+## Estrutura de Diretórios
+```
+.
+├── backend/                  # Servidor Express.js (Maestro)
+│   ├── infra/                # Serviços RabbitMQ e Redis
+│   ├── db.js                 # Pool de conexão PostgreSQL
+│   ├── live_service.js       # Lógica centralizada de negócio e cache
+│   └── server.js             # Entrypoint da API e definição de rotas
+├── frontend/                 # Aplicação React (SPA)
+│   ├── src/                  # Código-fonte React
+│   │   ├── components/       # Componentes reaproveitáveis (Charts, KpiCard, Layouts)
+│   │   │   ├── charts/       # DynamicChart (Troca de barra/linha/pizza via hover)
+│   │   │   └── sections/     # Módulos do Dashboard (Overview, PS, CC, etc.)
+│   │   ├── hooks/            # Custom hooks (Ex: useApi.js)
+│   │   ├── index.css         # Reset global e classes utilitárias baseadas em Tailwind
+│   │   ├── App.jsx           # Shell principal (Roteamento simples, controle de estados)
+│   │   └── main.jsx          # Entrypoint do React
+│   ├── index.html            # Template base do Vite
+│   ├── tailwind.config.js    # Config do Tailwind (.js ESM)
+│   └── vite.config.js        # Config principal do Vite e alias
+├── sql/                      # Scripts e objetos do banco
+│   └── database/             # Views, Tópicos Fato e Tabelas Dimensão separadas por arquivos (Controle de Versão Unitário)
+├── docker-compose.yml        # Configuração da Infraestrutura (Redis + RabbitMQ)
+├── pipeline_guard.py         # Script Python do CI/CD (Garante cobertura de código e padronização)
+└── pipeline_guard_config.json# Arquivo de config do pipeline local
+```
 
-## 🛠️ Tech Stack
+## Guia Rápido de Execução
 
-### Frontend
-- **Framework**: React.js
-- **Build Tool**: Vite
-- **Styling**: Tailwind CSS
-- **Porta Padrão**: 1573
+### 1. Iniciar Infraestrutura
+Suba os serviços locais (RabbitMQ + Redis) usando o script npm da pasta `frontend`:
+```cmd
+cd "Novo BI/frontend"
+npm run infra:up
+```
 
-### Backend
-- **Node.js (Maestro)**: Express.js, ioredis, amqplib, pg.
-- **Python (Nerd no Porão)**: FastAPI, Scripts de automação.
-- **Database**: PostgreSQL (Via Supabase ou Local).
-- **Cache**: Redis.
-- **Message Broker**: RabbitMQ.
+### 2. Instalar Dependências Frontend
+*O backend dispensa a pasta node_modules própria para uso em nuvem, rodando os scripts diretamente com o do frontend onde as dependências pesadas ficam.*
+```cmd
+cd "Novo BI/frontend"
+npm i
+```
 
-### DevOps & Monitoring
-- **Orquestração**: Docker Compose.
-- **Segurança**: Auditoria LGPD integrada.
-- **Monitoramento**: Pipeline Guard (Python) para integridade de dados.
+### 3. Rodar o Ambiente Local (Dev)
+Inicia de forma simultânea o `server.js` do Node e o `vite` dev-server do React. (A API responde na `3001` e o Vite faz proxy para ela devidamente):
+```cmd
+cd "Novo BI/frontend"
+npm run dev
+```
 
-## 🚀 Como Executar
-
-### Pré-requisitos
-- Node.js installed
-- Docker & Docker Compose
-- Teoria Python 3.10+
-
-### Comandos Principais (na pasta /frontend)
-- `npm run dev`: Inicia frontend, backend e watchers de CSS simultaneamente.
-- `npm run infra:up`: Sobe Redis e RabbitMQ via Docker.
-- `npm run pipeline:watch`: Inicia o monitoramento da integridade da pipeline.
-
----
-Mantido por: Agente DevOps Antigravity
-Última Atualização: Abril 2026
+### 4. Build de Produção
+Para fins de otimização em release:
+```cmd
+cd "Novo BI/frontend"
+npm run build
+```
+O framework do Vite (`npm run build`) gerará as saídas minificadas, quebrando os chunks apropriadamente (ex. extração limpa do Echarts/React para cache).

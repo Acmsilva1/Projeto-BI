@@ -1,17 +1,18 @@
 /** @type {import('tailwindcss').Config} */
-module.exports = {
+export default {
   content: [
     "./index.html",
+    "./src/**/*.{js,jsx,ts,tsx}",
     "./js/**/*.js",
     "./modulos/**/*.js",
     "./lib/**/*.js",
-    "./components/**/*.js"
   ],
+  darkMode: 'class',
   theme: {
     extend: {
       colors: {
         hospital: {
-          50: '#f0f9ff',
+          50:  '#f0f9ff',
           100: '#e0f2fe',
           200: '#bae6fd',
           300: '#7dd3fc',
@@ -28,9 +29,12 @@ module.exports = {
         }
       },
       backgroundImage: {
-        'glass-gradient': 'linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05))',
-      }
+        'glass-gradient': 'linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05))',
+      },
+      fontFamily: {
+        sans: ['Outfit', 'sans-serif'],
+      },
     },
   },
   plugins: [],
-}
+};

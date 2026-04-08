@@ -1,15 +1,22 @@
-require('dotenv').config();
+require('dotenv').config({ path: require('path').join(__dirname, '../frontend/.env') });
 const express = require('express');
-const cors = require('cors');
+const cors    = require('cors');
 const liveService = require('./live_service');
-const redis = require('./infra/redis');
-const rabbit = require('./infra/rabbit');
+const redis   = require('./infra/redis');
+const rabbit  = require('./infra/rabbit');
 
-const app = express();
+const app  = express();
 const PORT = process.env.PORT || 3001;
 
-// Middleware
-app.use(cors());
+// CORS — aceita o dev do Vite e origin do front em produção
+const ALLOWED = [
+  'http://127.0.0.1:5174',
+  'http://localhost:5174',
+  'http://127.0.0.1:1573',
+  process.env.FRONTEND_URL,
+].filter(Boolean);
+
+app.use(cors({ origin: ALLOWED, credentials: true }));
 app.use(express.json());
 app.get('/favicon.ico', (_, res) => res.status(204).end());
 

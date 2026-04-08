@@ -1,15 +1,17 @@
 {
   "name": "hospital_bi_mvc",
   "version": "2.0.0",
-  "description": "Hospital BI - 100% Node.js MVC & Tailwind",
+  "type": "module",
+  "description": "Hospital BI — Node.js + React + ECharts",
   "main": "../backend/server.js",
   "scripts": {
-    "dev": "concurrently \"npm run api\" \"npm run css:watch\" \"npm run frontend\"",
+    "dev": "concurrently \"npm run api\" \"npm run vite\"",
+    "vite": "vite",
     "api": "node ../backend/server.js",
-    "css:watch": ".\\node_modules\\.bin\\tailwindcss -i ./css/input.css -o ./css/style.css --watch",
-    "css:build": ".\\node_modules\\.bin\\tailwindcss -i ./css/input.css -o ./css/style.css --minify",
-    "frontend": "vite --host 127.0.0.1 --port 1573",
-    "clean": "rimraf ../backend scripts",
+    "build": "vite build",
+    "preview": "vite preview",
+    "css:watch": ".\\node_modules\\.bin\\tailwindcss -i ./src/index.css -o ./src/output.css --watch",
+    "css:build": ".\\node_modules\\.bin\\tailwindcss -i ./src/index.css -o ./src/output.css --minify",
     "pipeline:once": "python ../pipeline_guard.py --once",
     "pipeline:watch": "python ../pipeline_guard.py --interval 3",
     "infra:up": "docker-compose -f ../docker-compose.yml up -d",
@@ -17,19 +19,25 @@
     "infra:logs": "docker-compose -f ../docker-compose.yml logs -f"
   },
   "devDependencies": {
+    "@vitejs/plugin-react": "^6.0.1",
     "autoprefixer": "^10.4.27",
     "concurrently": "^8.2.2",
     "postcss": "^8.5.8",
     "tailwindcss": "^3.4.19",
-    "vite": "^5.4.21"
+    "vite": "^8.0.7"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.101.1",
     "amqplib": "^0.10.9",
     "cors": "^2.8.6",
     "dotenv": "^17.4.1",
+    "echarts": "^6.0.0",
+    "echarts-for-react": "^3.0.6",
     "express": "^4.22.1",
     "ioredis": "^5.10.1",
-    "pg": "^8.20.0"
+    "lucide-react": "^1.7.0",
+    "pg": "^8.20.0",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4"
   }
 }

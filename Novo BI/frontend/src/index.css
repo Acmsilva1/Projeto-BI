@@ -1,0 +1,86 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-family: 'Outfit', sans-serif;
+  }
+  body {
+    @apply bg-slate-950 text-slate-100 antialiased;
+  }
+}
+
+@layer components {
+  .card-premium {
+    @apply bg-slate-900 border border-slate-800 rounded-xl shadow-sm hover:shadow-lg hover:border-slate-700 transition-all duration-300 p-6;
+  }
+
+  .glassmorphism {
+    @apply backdrop-blur-md bg-white/5 border border-white/10;
+  }
+
+  .badge-premium {
+    @apply px-2 py-0.5 rounded-md inline-flex items-center text-[10px] font-bold uppercase tracking-wider;
+  }
+
+  .nav-item {
+    @apply flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-400 
+           hover:text-white hover:bg-slate-800 transition-all duration-200 text-sm font-medium;
+  }
+
+  .nav-item.active {
+    @apply bg-hospital-500/10 text-hospital-400 border border-hospital-500/20;
+  }
+
+  .kpi-card {
+    @apply card-premium flex flex-col gap-1 relative overflow-hidden;
+  }
+
+  .kpi-card::before {
+    content: '';
+    @apply absolute top-0 left-0 w-0.5 h-full bg-hospital-500 opacity-0 transition-opacity duration-300;
+  }
+
+  .kpi-card:hover::before {
+    @apply opacity-100;
+  }
+
+  .status-dot {
+    @apply relative flex h-2 w-2;
+  }
+
+  .status-dot-ping {
+    @apply animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75;
+  }
+
+  .status-dot-core {
+    @apply relative inline-flex rounded-full h-2 w-2 bg-emerald-500;
+  }
+}
+
+/* Scrollbar customizada */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: #0f172a;
+}
+::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 2px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
+
+/* Animações de entrada */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.35s ease-out both;
+}

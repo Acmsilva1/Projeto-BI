@@ -7,16 +7,22 @@
 import React, { useMemo } from 'react';
 import KpiCard from '../KpiCard';
 import DynamicChart from '../charts/DynamicChart';
+import IndicadoresGeraisTable from '../IndicadoresGeraisTable';
+import SectionBanner from '../SectionBanner';
 import { useApi } from '../../hooks/useApi';
 
 const OverviewSection = ({ filters }) => {
-  const params = useMemo(() => ({ period: filters.period, regional: filters.regional }), [filters]);
+  const params = useMemo(
+    () => ({ period: filters.period, regional: filters.regional, unidade: filters.unidade }),
+    [filters],
+  );
 
   const { data: kpi,       loading: lKpi }       = useApi('kpi',           params);
   const { data: psKpis,   loading: lPs  }        = useApi('ps/kpis',        params);
   const { data: intRes,   loading: lInt }        = useApi('ocupacao/resumo', params);
   const { data: ccKpis,   loading: lCc  }        = useApi('cc/kpis',        params);
   const { data: unidades, loading: lUni }        = useApi('kpi/unidades',   params);
+  const { data: indicadores, loading: lInd }    = useApi('overview/indicadores', params);
 
   /* ── Dados para gráficos ── */
   const operacaoChart = useMemo(() => ({
@@ -49,6 +55,10 @@ const OverviewSection = ({ filters }) => {
 
   return (
     <div className="space-y-5 animate-fade-in-up">
+      <SectionBanner titulo="Resumo gerencial" subtitulo="Indicadores consolidados · visão executiva" cor="amber" />
+
+      <IndicadoresGeraisTable data={indicadores} loading={lInd} />
+
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard label="Pacientes Ativos"  value={kpi?.pacientesAtivos?.valor}  loading={lKpi} accent="hospital" />

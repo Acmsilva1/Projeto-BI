@@ -1,10 +1,14 @@
 import React, { useMemo } from 'react';
 import KpiCard from '../KpiCard';
 import DynamicChart from '../charts/DynamicChart';
+import SectionBanner from '../SectionBanner';
 import { useApi } from '../../hooks/useApi';
 
 const FinanceiroSection = ({ filters }) => {
-  const params = useMemo(() => ({ period: filters.period, regional: filters.regional }), [filters]);
+  const params = useMemo(
+    () => ({ period: filters.period, regional: filters.regional, unidade: filters.unidade }),
+    [filters],
+  );
 
   const { data: resumo,   loading: lRes } = useApi('financeiro/resumo',  params);
   const { data: convenio, loading: lCon } = useApi('financeiro/convenio', params);
@@ -47,7 +51,8 @@ const FinanceiroSection = ({ filters }) => {
 
   return (
     <div className="space-y-5 animate-fade-in-up">
-      {/* KPIs */}
+      <SectionBanner titulo="Financeiro" subtitulo="Receitas, despesas, convênios e glosas" cor="amber" />
+
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard label="Receita Total (R$)"  value={fmt(totalReceita)} suffix="M"  loading={lRes} accent="emerald" />
         <KpiCard label="Despesa Total (R$)"  value={fmt(totalDespesa)} suffix="M"  loading={lRes} accent="rose" />

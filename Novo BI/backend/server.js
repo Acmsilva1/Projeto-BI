@@ -42,6 +42,7 @@ const route = (handler) => async (req, res) => {
  */
 app.get('/api/v1/kpi', route((req) => liveService.getKPIs(req.query)));
 app.get('/api/v1/kpi/unidades', route((req) => liveService.getKpiUnidades(req.query)));
+app.get('/api/v1/overview/indicadores', route((req) => liveService.getIndicadoresGerais(req.query)));
 
 /**
  * Roteador Pronto Socorro (PS)
@@ -52,6 +53,10 @@ psRouter.get('/kpis', route((req) => liveService.getPSKpis(req.query)));
 psRouter.get('/slas', route((req) => liveService.getPSSlas(req.query)));
 psRouter.get('/matrix', route((req) => liveService.getPSMatrix(req.query)));
 psRouter.get('/history', route((req) => liveService.getPSHistory(req.query)));
+psRouter.get('/perfil', route((req) => liveService.getPSPerfil(req.query)));
+psRouter.get('/fluxos', route((req) => liveService.getPSFluxos(req.query)));
+psRouter.get('/medicacao', route((req) => liveService.getPSMedicacao(req.query)));
+psRouter.get('/conversao', route((req) => liveService.getPSConversao(req.query)));
 app.use('/api/v1/ps', psRouter);
 
 /**

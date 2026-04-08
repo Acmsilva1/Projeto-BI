@@ -487,6 +487,329 @@ class LiveService {
     });
     return [...grouped.values()];
   }
+
+  async getPSPerfil(filters = {}) {
+    try {
+      const rows = await fetchView('vw_realtime_ps_perfil', filters, {});
+      const groups = {
+        faixa_etaria: new Map(),
+        sexo: new Map(),
+        desfecho_medico: new Map(),
+      };
+      rows.forEach((r) => {
+        const cat = r.perfil_categoria;
+        const m = groups[cat];
+        if (!m) return;
+        const k = r.perfil_valor;
+        m.set(k, (m.get(k) || 0) + Number(r.quantidade || 0));
+      });
+      const toArr = (map) =>
+        [...map.entries()]
+          .map(([label, value]) => ({ label, value }))
+          .sort((a, b) => b.value - a.value);
+      return {
+        faixaEtaria: toArr(groups.faixa_etaria),
+        sexo: toArr(groups.sexo),
+        desfechoMedico: toArr(groups.desfecho_medico),
+      };
+    } catch (_) {
+      return { faixaEtaria: [], sexo: [], desfechoMedico: [] };
+    }
+  }
+
+  async getPSFluxos(filters = {}) {
+    try {
+      const rows = await fetchView('vw_realtime_ps_fluxos', filters, {});
+      const cell = new Map();
+      const cellCal = new Map();
+      rows.forEach((r) => {
+        const key = `${r.dia_semana}:${r.hora_dia}`;
+        const cur = cell.get(key) || { atendimentos: 0, tempoSum: 0, n: 0 };
+        cur.atendimentos += Number(r.atendimentos || 0);
+        cur.tempoSum += Number(r.tempo_medio_min || 0);
+        cur.n += 1;
+        cell.set(key, cur);
+        const rd = r.referencia_data ? new Date(r.referencia_data) : null;
+        if (rd && !Number.isNaN(rd.getTime())) {
+          const dom = rd.getDate();
+          const h = Number(r.hora_dia);
+          const ck = `${dom}:${h}`;
+          const cc = cellCal.get(ck) || { atendimentos: 0 };
+          cc.atendimentos += Number(r.atendimentos || 0);
+          cellCal.set(ck, cc);
+        }
+      });
+      const horasCal = [];
+      for (let h = 0; h <= 23; h += 1) horasCal.push(h);
+      const diasNoMes = 31;
+      const heatmapCalendario = {
+        horasLabels: horasCal.map((h) => `${String(h).padStart(2, '0')}:00`),
+        diasLabels: Array.from({ length: diasNoMes }, (_, i) => String(i + 1)),
+        atendimentos: [],
+      };
+      for (let dom = 1; dom <= diasNoMes; dom += 1) {
+        const row = [];
+        for (const h of horasCal) {
+          row.push(cellCal.get(`${dom}:${h}`)?.atendimentos || 0);
+        }
+        heatmapCalendario.atendimentos.push(row);
+      }
+      const horas = [];
+      for (let h = 7; h <= 22; h += 1) horas.push(h);
+      const diasLabels = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+      const heatmapAtend = [];
+      const heatmapTempo = [];
+      for (let d = 0; d <= 6; d += 1) {
+        const rowA = [];
+        const rowT = [];
+        for (const h of horas) {
+          const c = cell.get(`${d}:${h}`) || { atendimentos: 0, tempoSum: 0, n: 0 };
+          rowA.push(c.atendimentos);
+          rowT.push(c.n ? Number((c.tempoSum / c.n).toFixed(1)) : 0);
+        }
+        heatmapAtend.push(rowA);
+        heatmapTempo.push(rowT);
+      }
+      const resumoPorHora = horas.map((h) => {
+        let atend = 0;
+        let tempoSum = 0;
+        let n = 0;
+        for (let d = 0; d <= 6; d += 1) {
+          const c = cell.get(`${d}:${h}`) || { atendimentos: 0, tempoSum: 0, n: 0 };
+          atend += c.atendimentos;
+          if (c.n) {
+            tempoSum += c.tempoSum;
+            n += c.n;
+          }
+        }
+        return {
+          hora: h,
+          atendimentos: atend,
+          tempoMedioMin: n ? Number((tempoSum / n).toFixed(1)) : 0,
+        };
+      });
+      return {
+        diasLabels,
+        horasLabels: horas.map(String),
+        heatmapAtendimentos: heatmapAtend,
+        heatmapTempoMedioMin: heatmapTempo,
+        resumoPorHora,
+        heatmapCalendario,
+      };
+    } catch (_) {
+      return {
+        diasLabels: [],
+        horasLabels: [],
+        heatmapAtendimentos: [],
+        heatmapTempoMedioMin: [],
+        resumoPorHora: [],
+        heatmapCalendario: { horasLabels: [], diasLabels: [], atendimentos: [] },
+      };
+    }
+  }
+
+  async getPSMedicacao(filters = {}) {
+    try {
+      const rows = await fetchView('vw_realtime_ps_medicacao', filters, {});
+      const byVia = new Map();
+      const velocidade = { rapida: 0, lenta: 0 };
+      const byMed = new Map();
+      rows.forEach((r) => {
+        const q = Number(r.quantidade || 0);
+        byVia.set(r.via, (byVia.get(r.via) || 0) + q);
+        const vl = String(r.velocidade || '').toLowerCase();
+        if (vl === 'rápida' || vl === 'rapida') velocidade.rapida += q;
+        else if (vl === 'lenta') velocidade.lenta += q;
+        byMed.set(r.medicamento, (byMed.get(r.medicamento) || 0) + q);
+      });
+      const top10 = [...byMed.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10)
+        .map(([medicamento, quantidade]) => ({ medicamento, quantidade }));
+      return {
+        porVia: [...byVia.entries()]
+          .map(([via, quantidade]) => ({ via, quantidade }))
+          .sort((a, b) => b.quantidade - a.quantidade),
+        velocidade,
+        top10,
+      };
+    } catch (_) {
+      return { porVia: [], velocidade: { rapida: 0, lenta: 0 }, top10: [] };
+    }
+  }
+
+  async getPSConversao(filters = {}) {
+    try {
+      const rows = await fetchView('vw_realtime_ps_conversao', filters, { orderBy: 'referencia_data', ascending: true });
+      const byMonth = new Map();
+      rows.forEach((r) => {
+        const k = r.referencia_data;
+        if (!byMonth.has(k)) byMonth.set(k, { atendimentos: 0, internacoes: 0 });
+        const b = byMonth.get(k);
+        b.atendimentos += Number(r.atendimentos || 0);
+        b.internacoes += Number(r.internacoes || 0);
+      });
+      const months = [...byMonth.keys()].sort();
+      const labels = months.map((d) => monthLabel(d));
+      const taxaConversaoPct = months.map((m) => {
+        const x = byMonth.get(m);
+        return x.atendimentos ? Number(((x.internacoes / x.atendimentos) * 100).toFixed(2)) : 0;
+      });
+      const atendimentos = months.map((m) => byMonth.get(m).atendimentos);
+      const internacoes = months.map((m) => byMonth.get(m).internacoes);
+      const sorted = [...rows].sort((a, b) => String(b.referencia_data).localeCompare(String(a.referencia_data)));
+      const lastRef = sorted[0]?.referencia_data;
+      const porUnidadeUltimoMes = lastRef
+        ? rows
+            .filter((r) => r.referencia_data === lastRef)
+            .map((r) => ({
+              unidade: r.unidade_nome,
+              taxaPct: Number(r.taxa_conversao_pct || 0),
+              atendimentos: Number(r.atendimentos || 0),
+              internacoes: Number(r.internacoes || 0),
+              tempoMedioPsInternacaoHoras:
+                r.tempo_medio_ps_internacao_horas != null
+                  ? Number(r.tempo_medio_ps_internacao_horas)
+                  : null,
+            }))
+            .sort((a, b) => b.atendimentos - a.atendimentos)
+        : [];
+      const totA = porUnidadeUltimoMes.reduce((s, x) => s + x.atendimentos, 0);
+      const totI = porUnidadeUltimoMes.reduce((s, x) => s + x.internacoes, 0);
+      const taxaGlobal = totA ? Number(((totI / totA) * 100).toFixed(2)) : 0;
+      let wTempo = 0;
+      let wIntern = 0;
+      porUnidadeUltimoMes.forEach((x) => {
+        const h = x.tempoMedioPsInternacaoHoras;
+        const intr = Number(x.internacoes || 0);
+        if (h != null && !Number.isNaN(h) && intr > 0) {
+          wTempo += h * intr;
+          wIntern += intr;
+        }
+      });
+      const tempoMedioPsInternacaoHoras =
+        wIntern > 0 ? Number((wTempo / wIntern).toFixed(2)) : null;
+      return {
+        labels,
+        taxaConversaoPct,
+        atendimentos,
+        internacoes,
+        porUnidadeUltimoMes,
+        kpis: {
+          quantidadeAtendimentos: totA,
+          quantidadeInternacoes: totI,
+          taxaConversaoPct: taxaGlobal,
+          tempoMedioPsInternacaoHoras,
+        },
+      };
+    } catch (_) {
+      return {
+        labels: [],
+        taxaConversaoPct: [],
+        atendimentos: [],
+        internacoes: [],
+        porUnidadeUltimoMes: [],
+        kpis: {
+          quantidadeAtendimentos: 0,
+          quantidadeInternacoes: 0,
+          taxaConversaoPct: 0,
+          tempoMedioPsInternacaoHoras: null,
+        },
+      };
+    }
+  }
+
+  _normUnidadeNome(s) {
+    return String(s || '')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  async getIndicadoresGerais(filters = {}) {
+    try {
+      const unidades = await this.getKpiUnidades(filters);
+      const conv = await this.getPSConversao(filters);
+      const convRows = conv.porUnidadeUltimoMes || [];
+      const byName = new Map();
+      convRows.forEach((r) => {
+        byName.set(this._normUnidadeNome(r.unidade), r);
+      });
+      const linhas = unidades.map((u) => {
+        const nome = u.unidadeNome || '';
+        let c = byName.get(this._normUnidadeNome(nome));
+        if (!c) {
+          c = convRows.find(
+            (r) =>
+              this._normUnidadeNome(r.unidade).includes(this._normUnidadeNome(nome).slice(0, 12)) ||
+              this._normUnidadeNome(nome).includes(this._normUnidadeNome(r.unidade).slice(0, 12)),
+          );
+        }
+        const atend = c ? Number(c.atendimentos || 0) : null;
+        const inter = c ? Number(c.internacoes || 0) : null;
+        const pctConv = c ? Number(c.taxaPct || 0) : null;
+        const tempoH =
+          c && c.tempoMedioPsInternacaoHoras != null ? Number(c.tempoMedioPsInternacaoHoras) : null;
+        return {
+          unidade: nome,
+          regional: u.regional || '',
+          ocupacaoPct: Number(u.taxaOcupacao || 0),
+          pacientesAtivos: Number(u.pacientesAtivos || 0),
+          cirurgiasMes: Number(u.cirurgiasMes || 0),
+          leitosDisponiveis: Number(u.leitosDisponiveis || 0),
+          atendimentosPs: atend,
+          internacoes: inter,
+          pctConversao: pctConv,
+          tempoMedioPsInternacaoHoras: tempoH,
+        };
+      });
+      const tot = linhas.reduce(
+        (acc, r) => {
+          const intr = r.internacoes || 0;
+          const th = r.tempoMedioPsInternacaoHoras;
+          let wT = acc._wTempo;
+          let wI = acc._wIntern;
+          if (th != null && !Number.isNaN(th) && intr > 0) {
+            wT += th * intr;
+            wI += intr;
+          }
+          return {
+            atendimentosPs: acc.atendimentosPs + (r.atendimentosPs || 0),
+            internacoes: acc.internacoes + intr,
+            pacientesAtivos: acc.pacientesAtivos + r.pacientesAtivos,
+            cirurgiasMes: acc.cirurgiasMes + r.cirurgiasMes,
+            _wTempo: wT,
+            _wIntern: wI,
+          };
+        },
+        {
+          atendimentosPs: 0,
+          internacoes: 0,
+          pacientesAtivos: 0,
+          cirurgiasMes: 0,
+          _wTempo: 0,
+          _wIntern: 0,
+        },
+      );
+      const pctConvTotal =
+        tot.atendimentosPs > 0 ? Number(((tot.internacoes / tot.atendimentosPs) * 100).toFixed(2)) : null;
+      const tempoPonderado =
+        tot._wIntern > 0 ? Number((tot._wTempo / tot._wIntern).toFixed(2)) : null;
+      const { _wTempo, _wIntern, ...totClean } = tot;
+      return {
+        linhas,
+        totais: {
+          ...totClean,
+          pctConversao: pctConvTotal,
+          tempoMedioPsInternacaoHoras: tempoPonderado,
+        },
+      };
+    } catch (_) {
+      return { linhas: [], totais: {} };
+    }
+  }
 }
 
 module.exports = new LiveService();

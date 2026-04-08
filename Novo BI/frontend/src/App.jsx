@@ -14,9 +14,9 @@ const InternacoesSection= lazy(() => import('./components/sections/InternacoesSe
 const FinanceiroSection = lazy(() => import('./components/sections/FinanceiroSection'));
 
 const SECTION_LABELS = {
-  overview:    'Resumo Geral',
-  ps:          'Pronto Socorro',
-  cirurgias:   'Centro Cirúrgico',
+  overview:    'Resumo geral',
+  ps:          'Pronto Socorro (PS)',
+  cirurgias:   'Centro Cirúrgico (CC)',
   internacoes: 'Internações / UTI',
   financeiro:  'Financeiro',
 };

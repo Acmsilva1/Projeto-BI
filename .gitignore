@@ -1,6 +1,27 @@
-hospital-bi-mvc/node_modules/
-hospital-bi-mvc/.env
-hospital-bi-mvc/**/__pycache__/
-hospital-bi-mvc/**/*.pyc
-hospital-bi-mvc/backend/.venv/
-hospital-bi-mvc/**/*.db
+# Node
+**/node_modules/
+**/dist/
+
+# Python
+**/.venv/
+**/__pycache__/
+**/*.pyc
+
+# Environment
+**/.env
+**/.env.local
+**/.env.*
+
+# Logs & DB
+**/logs/*.log
+**/logs/*.jsonl
+**/*.db
+**/*.sqlite3
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/

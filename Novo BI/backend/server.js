@@ -45,6 +45,16 @@ app.get('/api/v1/overview/indicadores', route((req) => liveService.getIndicadore
 app.get('/api/v1/overview/metas-volumes', route((req) => liveService.getOverviewMetasVolumes(req.query)));
 
 /**
+ * Gerência — matriz Metas por volumes + unidades com PS (filtro topo)
+ */
+app.get('/api/v1/gerencia/unidades-ps', route((req) => liveService.getGerenciaUnidadesPs(req.query)));
+app.get('/api/v1/gerencia/metas-por-volumes', route((req) => liveService.getGerenciaMetasPorVolumes(req.query)));
+app.get(
+  '/api/v1/gerencia/metas-por-volumes/indicador/:indicadorKey/unidades',
+  route((req) => liveService.getGerenciaMetasPorVolumesPorIndicador(req.params.indicadorKey, req.query)),
+);
+
+/**
  * Roteador Pronto Socorro (PS)
  */
 const psRouter = express.Router();

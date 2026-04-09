@@ -1,12 +1,11 @@
 import React from 'react';
-import ModuleShell from '../ModuleShell';
+import MetasPorVolumesTable from '../MetasPorVolumesTable';
 
-/** Consome JSON: GET /api/v1/kpi, overview/indicadores, overview/metas-volumes → { ok, data }. */
-export default function OverviewSection() {
+/** Visão Gerência — matriz “Metas por volumes” (GET /api/v1/gerencia/metas-por-volumes). */
+export default function OverviewSection({ filters }) {
   return (
-    <ModuleShell
-      title="Gerência"
-      subtitle="Implemente no backend o payload em data para essas rotas; o hook useApi já espera resposta JSON { ok: true, data }. Para gráficos, importe de @/graficos (ex.: LineModel, ChartRenderer) quando ligar os dados."
-    />
+    <div className="flex flex-col gap-6">
+      <MetasPorVolumesTable filters={filters} />
+    </div>
   );
 }

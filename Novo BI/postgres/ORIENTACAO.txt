@@ -34,3 +34,19 @@ React
     não substitui ETL nem substitui views bem modeladas no Postgres.
 
 ================================================================================
+API Gerência (contratos JSON — dados zerados até as views)
+================================================================================
+
+  GET /api/v1/gerencia/unidades-ps
+    → data[] : { unidadeId, unidadeNome, regional }  (só unidades com PS)
+
+  GET /api/v1/gerencia/metas-por-volumes
+    → matriz “Metas por volumes”: months[], mesKeys[], data[] (indicadores +
+      m1/m2/m3/t + subItems[] por unidade no drill)
+
+  GET /api/v1/gerencia/metas-por-volumes/indicador/:indicadorKey/unidades
+    → drill opcional por indicador: { indicadorKey, indicadorNome, unidades[] }
+
+  GET /api/v1/overview/metas-volumes  (alias do mesmo payload da matriz)
+
+================================================================================

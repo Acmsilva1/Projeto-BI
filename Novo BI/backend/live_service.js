@@ -33,6 +33,116 @@ const emptySla = () => ({
 
 const slaKeys = ['triagem', 'consulta', 'medicacao', 'reavaliacao', 'rx_ecg', 'tc_us', 'permanencia'];
 
+/** Indicadores da matriz “Metas por volumes” (alinhado ao modelo Power BI). */
+const METAS_POR_VOLUMES_INDICADORES = [
+  { key: 'conversao', name: 'Conversão', isReverso: true, isP: true },
+  { key: 'pacs_medicados', name: 'Pacs medicados', isReverso: true, isP: true },
+  { key: 'medicacoes_por_paciente', name: 'Medicações por paciente', isReverso: true, isP: false },
+  { key: 'pacs_exames_lab', name: 'Pacs c/ exames laboratoriais', isReverso: true, isP: true },
+  { key: 'lab_por_paciente', name: 'Laboratório por paciente', isReverso: true, isP: false },
+  { key: 'pacs_exames_tc', name: 'Pacs c/ exames de TC', isReverso: true, isP: true },
+  { key: 'tcs_por_paciente', name: 'TCs por paciente', isReverso: true, isP: false },
+  { key: 'triagem_acima_meta', name: 'Triagem acima da meta', isReverso: true, isP: true },
+  { key: 'consulta_acima_meta', name: 'Consulta acima da meta', isReverso: true, isP: true },
+  { key: 'medicacao_acima_meta', name: 'Medicação acima da meta', isReverso: true, isP: true },
+  { key: 'reavaliacao_acima_meta', name: 'Reavaliação acima da meta', isReverso: true, isP: true },
+  { key: 'permanencia_acima_meta', name: 'Permanência acima da meta', isReverso: true, isP: true },
+  { key: 'desfecho_medico', name: 'Desfecho do médico do atend.', isReverso: false, isP: true },
+];
+
+function emptyMetasMonthCells() {
+  const z = () => ({ v: 0, d: 0 });
+  return {
+    m1: z(),
+    m2: z(),
+    m3: z(),
+    t: { v: 0, ytd: 0, sec: '(0)' },
+  };
+}
+
+function defaultRollingMonths() {
+  const months = [];
+  const mesKeys = [];
+  for (let i = 2; i >= 0; i -= 1) {
+    const d = new Date();
+    d.setMonth(d.getMonth() - i, 1);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    mesKeys.push(`${y}-${m}`);
+    months.push(
+      d
+        .toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' })
+        .replace(/\./g, '')
+        .replace(/^\w/, (c) => c.toUpperCase()),
+    );
+  }
+  return { months, mesKeys };
+}
+
+/**
+ * Unidades PS de demonstração (mesmo padrão visual do Power BI: UF - Nome).
+ * Substituir por fetchView quando o Postgres estiver ligado.
+ */
+const DEMO_UNIDADES_PS = [
+  { unidadeId: 'df-ps-sig', unidadeNome: 'PS SIG', regional: 'DF' },
+  { unidadeId: 'es-hosp-vitoria', unidadeNome: 'HOSPITAL VITORIA', regional: 'ES' },
+  { unidadeId: 'mg-pampulha', unidadeNome: 'PAMPULHA', regional: 'MG' },
+  { unidadeId: 'rj-ps-botafogo', unidadeNome: 'PS BOTAFOGO', regional: 'RJ' },
+  { unidadeId: 'rj-ps-ipanema', unidadeNome: 'PS IPANEMA', regional: 'RJ' },
+];
+
+function labelUnidadePs(u) {
+  return `${u.regional} - ${u.unidadeNome}`;
+}
+
+/** Lista para filtro do cabeçalho: respeita regional; não filtra por unidade (o select precisa de todas da regional). */
+function listUnidadesPsParaFiltro(query = {}) {
+  let list = [...DEMO_UNIDADES_PS];
+  if (query.regional) list = list.filter((u) => u.regional === query.regional);
+  return list;
+}
+
+/** Unidades no contexto da matriz (regional + opcionalmente uma unidade só). */
+function filterUnidadesPsMatriz(query = {}) {
+  let list = [...DEMO_UNIDADES_PS];
+  if (query.regional) list = list.filter((u) => u.regional === query.regional);
+  if (query.unidade) list = list.filter((u) => u.unidadeId === query.unidade);
+  return list;
+}
+
+function subItemsMetasPorVolumesFromUnidades(units) {
+  return units.map((u) => ({
+    unidadeId: u.unidadeId,
+    name: labelUnidadePs(u),
+    ...emptyMetasMonthCells(),
+  }));
+}
+
+function metasPorVolumesMatrixForQuery(query = {}) {
+  const { months, mesKeys } = defaultRollingMonths();
+  const units = filterUnidadesPsMatriz(query);
+  const subTemplate = subItemsMetasPorVolumesFromUnidades(units);
+  const data = METAS_POR_VOLUMES_INDICADORES.map((ind) => ({
+    key: ind.key,
+    name: ind.name,
+    isReverso: ind.isReverso,
+    isP: ind.isP,
+    ...emptyMetasMonthCells(),
+    subItems: subTemplate.map((s) => ({ ...s })),
+  }));
+  return {
+    months,
+    mesKeys,
+    data,
+    meta: {
+      schemaVersion: 1,
+      titulo: 'Metas por volumes',
+      filtroUnidades: 'apenas_unidades_com_ps',
+      unidadesNoContexto: units.length,
+    },
+  };
+}
+
 class LiveService {
   async getKPIs() {
     return {
@@ -55,8 +165,37 @@ class LiveService {
     return { linhas: [], totais: {} };
   }
 
-  async getOverviewMetasVolumes() {
-    return { months: [], data: [] };
+  async getOverviewMetasVolumes(query = {}) {
+    return this.getGerenciaMetasPorVolumes(query);
+  }
+
+  /**
+   * Unidades que possuem PS — para o filtro do cabeçalho na visão Gerência.
+   * Mesmo shape de getKpiUnidades: { unidadeId, unidadeNome, regional }.
+   */
+  async getGerenciaUnidadesPs(query = {}) {
+    return listUnidadesPsParaFiltro(query);
+  }
+
+  /**
+   * Matriz consolidada “Metas por volumes” + drill por unidade (subItems).
+   */
+  async getGerenciaMetasPorVolumes(query = {}) {
+    return metasPorVolumesMatrixForQuery(query);
+  }
+
+  /**
+   * Drill explícito por indicador (opcional se a view principal não trouxer subItems).
+   * Query: ?period=&regional=&unidade=
+   */
+  async getGerenciaMetasPorVolumesPorIndicador(indicadorKey, filters) {
+    const ind = METAS_POR_VOLUMES_INDICADORES.find((x) => x.key === indicadorKey);
+    const units = filterUnidadesPsMatriz(filters || {});
+    return {
+      indicadorKey,
+      indicadorNome: ind?.name ?? null,
+      unidades: subItemsMetasPorVolumesFromUnidades(units),
+    };
   }
 
   async getPSVolumes() {
@@ -104,7 +243,7 @@ class LiveService {
   }
 
   async getPSHistory() {
-    return this.getOverviewMetasVolumes();
+    return this.getOverviewMetasVolumes({});
   }
 
   async getPSPerfil() {

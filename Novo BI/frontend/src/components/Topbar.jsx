@@ -28,7 +28,7 @@ const selectContrast =
   'focus:border-hospital-600 focus:ring-2 focus:ring-hospital-500/35 ' +
   'disabled:cursor-not-allowed disabled:opacity-60';
 
-const Topbar = ({ filters, onFilterChange, onRefresh, sectionLabel }) => {
+const Topbar = ({ activeSection, filters, onFilterChange, onRefresh, sectionLabel }) => {
   const [clock, setClock] = useState('');
   const [unidades, setUnidades] = useState([]);
   const [unidadesReady, setUnidadesReady] = useState(false);
@@ -43,11 +43,14 @@ const Topbar = ({ filters, onFilterChange, onRefresh, sectionLabel }) => {
     return () => clearInterval(id);
   }, []);
 
+  const unidadesEndpoint =
+    activeSection === 'gerencia' ? 'gerencia/unidades-ps' : 'kpi/unidades';
+
   useEffect(() => {
     setUnidadesReady(false);
     const q = buildApiQuery(filters.regional ? { regional: filters.regional } : {});
     const ac = new AbortController();
-    fetch(`${getApiV1Base()}/kpi/unidades${q}`, { signal: ac.signal })
+    fetch(`${getApiV1Base()}/${unidadesEndpoint}${q}`, { signal: ac.signal })
       .then((r) => r.text())
       .then((raw) => {
         if (ac.signal.aborted) return;
@@ -66,15 +69,23 @@ const Topbar = ({ filters, onFilterChange, onRefresh, sectionLabel }) => {
         if (!ac.signal.aborted) setUnidadesReady(true);
       });
     return () => ac.abort();
-  }, [filters.regional]);
+  }, [filters.regional, unidadesEndpoint]);
 
-  const unidadesSorted = useMemo(
-    () =>
-      [...unidades].sort((a, b) =>
-        String(a.unidadeNome || '').localeCompare(String(b.unidadeNome || ''), 'pt-BR'),
-      ),
-    [unidades],
-  );
+  const unidadesSorted = useMemo(() => {
+    return [...unidades].sort((a, b) => {
+      const ra = String(a.regional || '');
+      const rb = String(b.regional || '');
+      if (ra !== rb) return ra.localeCompare(rb, 'pt-BR');
+      return String(a.unidadeNome || '').localeCompare(String(b.unidadeNome || ''), 'pt-BR');
+    });
+  }, [unidades]);
+
+  const labelUnidadeOption = (u) => {
+    const uf = String(u.regional || '').trim();
+    const nome = String(u.unidadeNome || '').trim();
+    if (uf && nome) return `${uf} - ${nome}`;
+    return nome || uf || String(u.unidadeId || '');
+  };
 
   useEffect(() => {
     if (!unidadesReady || !filters.unidade) return;
@@ -116,7 +127,12 @@ const Topbar = ({ filters, onFilterChange, onRefresh, sectionLabel }) => {
             aria-label="Filtrar por unidade"
             value={filters.unidade}
             onChange={(e) => onFilterChange({ unidade: e.target.value })}
-            title={unidadesSorted.find((u) => u.unidadeId === filters.unidade)?.unidadeNome || ''}
+            title={
+              (() => {
+                const u = unidadesSorted.find((x) => x.unidadeId === filters.unidade);
+                return u ? labelUnidadeOption(u) : '';
+              })()
+            }
           >
             <option value="" className="bg-white text-slate-900">
               Todas as unidades
@@ -126,9 +142,9 @@ const Topbar = ({ filters, onFilterChange, onRefresh, sectionLabel }) => {
                 key={u.unidadeId}
                 value={u.unidadeId}
                 className="bg-white text-slate-900"
-                title={u.unidadeNome}
+                title={labelUnidadeOption(u)}
               >
-                {u.unidadeNome}
+                {labelUnidadeOption(u)}
               </option>
             ))}
           </select>

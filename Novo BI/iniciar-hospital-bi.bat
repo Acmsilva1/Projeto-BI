@@ -1,17 +1,14 @@
 @echo off
 chcp 65001 >nul
-setlocal EnableDelayedExpansion
+setlocal
 
-rem Raiz = pasta Novo BI (onde está este .bat)
+rem Único ponto de entrada: API (3001) + Vite (5173)
 set "ROOT=%~dp0"
 set "FRONT=%ROOT%frontend"
 set "FREE_PORTS=%ROOT%scripts\free-ports.ps1"
 
 if not exist "%FRONT%\package.json" (
-  echo.
-  echo [ERRO] Não encontrei o frontend em:
-  echo        "%FRONT%"
-  echo.
+  echo [ERRO] Frontend não encontrado: "%FRONT%"
   pause
   exit /b 1
 )
@@ -24,7 +21,7 @@ if not exist "%FREE_PORTS%" (
 
 where npm >nul 2>&1
 if errorlevel 1 (
-  echo [ERRO] npm não está no PATH. Instale o Node.js e reabra o terminal.
+  echo [ERRO] npm não está no PATH.
   pause
   exit /b 1
 )
@@ -44,12 +41,18 @@ echo   API ^(Express^) :  http://127.0.0.1:3001
 echo   App ^(Vite^)    :  http://127.0.0.1:5173
 echo ============================================
 echo.
-echo Limpando portas 3001 e 5173 antes de iniciar...
+echo [1/3] Liberando portas 3001 e 5173...
 powershell -NoProfile -ExecutionPolicy Bypass -File "%FREE_PORTS%"
-echo.
-echo Abrindo janela de desenvolvimento ^(Ctrl+C para encerrar^).
-echo.
 
-start "Hospital BI — API 3001 ^| Vite 5173" cmd /k ""%FRONT%\run-dev.bat""
+cd /d "%FRONT%"
+echo.
+echo [2/3] Iniciando stack ^(Ctrl+C para encerrar^).
+echo.
+npm run dev
 
+echo.
+echo [3/3] Encerrado — liberando portas...
+powershell -NoProfile -ExecutionPolicy Bypass -File "%FREE_PORTS%"
+echo Pronto.
+pause
 exit /b 0

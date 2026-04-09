@@ -1,36 +1,17 @@
 /**
- * Sidebar — Navegação agrupada como no Power BI: visão executiva, PS / CC / Internação, financeiro.
+ * Sidebar — Navegação principal (lista única; título da área só no Topbar).
  */
 import React from 'react';
 import {
   LayoutDashboard, Stethoscope, Scissors, ClipboardList,
-  DollarSign, ChevronLeft, ShieldCheck
+  ChevronLeft, ShieldCheck
 } from 'lucide-react';
 
-const GROUPS = [
-  {
-    key: 'exec',
-    label: 'Visão executiva',
-    items: [
-      { key: 'overview', label: 'Resumo geral', Icon: LayoutDashboard },
-    ],
-  },
-  {
-    key: 'assist',
-    label: 'Operação assistencial',
-    items: [
-      { key: 'ps', label: 'Pronto Socorro (PS)', Icon: Stethoscope },
-      { key: 'cirurgias', label: 'Centro Cirúrgico (CC)', Icon: Scissors },
-      { key: 'internacoes', label: 'Internações / UTI', Icon: ClipboardList },
-    ],
-  },
-  {
-    key: 'adm',
-    label: 'Administrativo',
-    items: [
-      { key: 'financeiro', label: 'Financeiro', Icon: DollarSign },
-    ],
-  },
+const NAV = [
+  { key: 'gerencia', label: 'Gerência', Icon: LayoutDashboard },
+  { key: 'ps', label: 'Pronto Socorro', Icon: Stethoscope },
+  { key: 'cirurgias', label: 'Centro Cirúrgico', Icon: Scissors },
+  { key: 'internacoes', label: 'Internação', Icon: ClipboardList },
 ];
 
 const Sidebar = ({ activeSection, onNavigate, collapsed, onToggle }) => (
@@ -49,32 +30,23 @@ const Sidebar = ({ activeSection, onNavigate, collapsed, onToggle }) => (
       )}
     </div>
 
-    <nav className="flex-1 px-2 py-3 space-y-4 overflow-y-auto">
-      {GROUPS.map((group) => (
-        <div key={group.key}>
-          {!collapsed && (
-            <p className="px-3 mb-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-600">
-              {group.label}
-            </p>
-          )}
-          <div className="space-y-0.5">
-            {group.items.map(({ key, label, Icon }) => (
-              <button
-                key={key}
-                onClick={() => onNavigate(key)}
-                title={collapsed ? label : undefined}
-                className={`w-full nav-item ${activeSection === key ? 'active' : ''} ${collapsed ? 'justify-center px-0' : ''}`}
-              >
-                <Icon size={18} className="shrink-0" />
-                {!collapsed && <span className="truncate text-left">{label}</span>}
-              </button>
-            ))}
-          </div>
-        </div>
+    <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto">
+      {NAV.map(({ key, label, Icon }) => (
+        <button
+          key={key}
+          type="button"
+          onClick={() => onNavigate(key)}
+          title={collapsed ? label : undefined}
+          className={`w-full nav-item ${activeSection === key ? 'active' : ''} ${collapsed ? 'justify-center px-0' : ''}`}
+        >
+          <Icon size={18} className="shrink-0" />
+          {!collapsed && <span className="truncate text-left">{label}</span>}
+        </button>
       ))}
     </nav>
 
     <button
+      type="button"
       onClick={onToggle}
       className="h-12 flex items-center justify-center border-t border-slate-800 text-slate-500 hover:text-white hover:bg-slate-800 transition-colors"
     >

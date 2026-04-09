@@ -7,26 +7,23 @@ import Sidebar from './components/Sidebar';
 import Topbar  from './components/Topbar';
 
 // Lazy-load das seções → cada bundle só carrega quando necessário
-const OverviewSection   = lazy(() => import('./components/sections/OverviewSection'));
+const GerenciaSection   = lazy(() => import('./components/sections/OverviewSection'));
 const PsSection         = lazy(() => import('./components/sections/PsSection'));
 const CirurgiasSection  = lazy(() => import('./components/sections/CirurgiasSection'));
 const InternacoesSection= lazy(() => import('./components/sections/InternacoesSection'));
-const FinanceiroSection = lazy(() => import('./components/sections/FinanceiroSection'));
 
 const SECTION_LABELS = {
-  overview:    'Resumo geral',
-  ps:          'Pronto Socorro (PS)',
-  cirurgias:   'Centro Cirúrgico (CC)',
-  internacoes: 'Internações / UTI',
-  financeiro:  'Financeiro',
+  gerencia:    'Gerência',
+  ps:          'Pronto Socorro',
+  cirurgias:   'Centro Cirúrgico',
+  internacoes: 'Internação',
 };
 
 const SECTIONS = {
-  overview:    OverviewSection,
+  gerencia:    GerenciaSection,
   ps:          PsSection,
   cirurgias:   CirurgiasSection,
   internacoes: InternacoesSection,
-  financeiro:  FinanceiroSection,
 };
 
 const SectionLoader = () => (
@@ -40,9 +37,8 @@ const SectionLoader = () => (
 );
 
 export default function App() {
-  const [section,   setSection]   = useState('overview');
+  const [section,   setSection]   = useState('gerencia');
   const [collapsed, setCollapsed] = useState(false);
-  const [apiOnline, setApiOnline] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
   const [filters, setFilters] = useState({ period: 30, regional: '', unidade: '' });
 
@@ -54,7 +50,7 @@ export default function App() {
     setRefreshKey(k => k + 1);
   }, []);
 
-  const ActiveSection = SECTIONS[section] || OverviewSection;
+  const ActiveSection = SECTIONS[section] || GerenciaSection;
 
   return (
     <div className="flex h-screen overflow-hidden bg-slate-950 text-slate-100">
@@ -71,7 +67,6 @@ export default function App() {
           filters={filters}
           onFilterChange={handleFilterChange}
           onRefresh={handleRefresh}
-          apiOnline={apiOnline}
         />
 
         {/* Dashboard Scroll */}

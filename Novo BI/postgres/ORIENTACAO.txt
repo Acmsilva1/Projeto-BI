@@ -1,0 +1,36 @@
+================================================================================
+DADOS E ETL — responsabilidade do PostgreSQL (Supabase / DW)
+================================================================================
+
+O que fica AQUI (versionamento no Git):
+  • Scripts SQL de referência: views, materialized views, funções, grants.
+  • Coloque arquivos em postgres/sql/ (ex.: 001_vw_kpi.sql).
+  • A execução real do ETL/carga é no ambiente do banco (Airbyte, dbt, job
+    agendado, etc.) — não no Node.js.
+
+Regra de ouro:
+  • Cálculo pesado, agregação, join grande, janela temporal, deduplicação:
+    tudo no Postgres (ou ferramenta de ETL que alimenta o Postgres).
+  • A view exposta ao app já deve devolver linhas no formato “pronto para o
+    painel” (colunas com nomes estáveis), para o BI não reprocessar no API.
+
+================================================================================
+Node.js (Express) — fino e rápido
+================================================================================
+
+  • Só: SELECT em views via Supabase (db.js → fetchView).
+  • Filtros de tela (regional, unidade, período) viram .eq / .gte na query.
+  • Mapeamento permitido: renomear campos, tipos simples, montar objeto JSON
+    a partir de cada LINHA — complexidade O(n) nas linhas retornadas.
+  • Evitar: re-agregar no JavaScript, simular GROUP BY, carregar fatos brutos
+    gigantes para processar no servidor — isso gera delay e carga desnecessária.
+
+================================================================================
+React
+================================================================================
+
+  • Consome { ok, data }.
+  • A escolha de gráfico (pipeline/viz.mjs) é heurística leve no cliente —
+    não substitui ETL nem substitui views bem modeladas no Postgres.
+
+================================================================================

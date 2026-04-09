@@ -2,21 +2,14 @@
   "name": "hospital_bi_mvc",
   "version": "2.0.0",
   "type": "module",
-  "description": "Hospital BI — Node.js + React + ECharts",
+  "description": "Hospital BI — Node.js + React (shell)",
   "main": "../backend/server.js",
   "scripts": {
     "dev": "concurrently \"npm run api\" \"npm run vite\"",
     "vite": "vite",
     "api": "node ../backend/server.js",
     "build": "vite build",
-    "preview": "vite preview",
-    "css:watch": ".\\node_modules\\.bin\\tailwindcss -i ./src/index.css -o ./src/output.css --watch",
-    "css:build": ".\\node_modules\\.bin\\tailwindcss -i ./src/index.css -o ./src/output.css --minify",
-    "pipeline:once": "python ../pipeline_guard.py --once",
-    "pipeline:watch": "python ../pipeline_guard.py --interval 3",
-    "infra:up": "docker-compose -f ../docker-compose.yml up -d",
-    "infra:down": "docker-compose -f ../docker-compose.yml down",
-    "infra:logs": "docker-compose -f ../docker-compose.yml logs -f"
+    "preview": "vite preview"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^6.0.1",
@@ -27,18 +20,10 @@
     "vite": "^8.0.7"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.101.1",
-    "amqplib": "^0.10.9",
-    "cors": "^2.8.6",
-    "dotenv": "^17.4.1",
     "echarts": "^6.0.0",
     "echarts-for-react": "^3.0.6",
-    "express": "^4.22.1",
-    "ioredis": "^5.10.1",
     "lucide-react": "^1.7.0",
-    "pg": "^8.20.0",
     "react": "^19.2.4",
-    "react-dom": "^19.2.4",
-    "redis": "^5.11.0"
+    "react-dom": "^19.2.4"
   }
 }

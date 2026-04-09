@@ -2,8 +2,6 @@ require('dotenv').config({ path: require('path').join(__dirname, '.env') });
 const express = require('express');
 const cors    = require('cors');
 const liveService = require('./live_service');
-const redis   = require('./infra/redis');
-const rabbit  = require('./infra/rabbit');
 
 const app  = express();
 const PORT = process.env.PORT || 3001;
@@ -22,6 +20,7 @@ app.use(cors({ origin: ALLOWED, credentials: true }));
 app.use(express.json());
 app.get('/favicon.ico', (_, res) => res.status(204).end());
 
+/** Rotas: Postgres entrega via views; handler só orquestra fetch + shape leve de resposta. */
 const route = (handler) => async (req, res) => {
   try {
     const data = await handler(req, res);
@@ -43,6 +42,7 @@ const route = (handler) => async (req, res) => {
 app.get('/api/v1/kpi', route((req) => liveService.getKPIs(req.query)));
 app.get('/api/v1/kpi/unidades', route((req) => liveService.getKpiUnidades(req.query)));
 app.get('/api/v1/overview/indicadores', route((req) => liveService.getIndicadoresGerais(req.query)));
+app.get('/api/v1/overview/metas-volumes', route((req) => liveService.getOverviewMetasVolumes(req.query)));
 
 /**
  * Roteador Pronto Socorro (PS)
@@ -102,33 +102,13 @@ app.use('/api/v1/cc', ccRouter);
 app.get('/health', (req, res) => {
   res.json({
     status: 'ok',
-    mode: 'Node.js Live (sem mock)',
-    architecture: 'MVC',
-    cache: redis.getStatus(),
-    queue: rabbit.getStatus(),
+    api: 'v1',
+    description: 'Express JSON — implemente live_service para preencher /api/v1/*',
   });
 });
 
-/**
- * Pré-aquecimento não-bloqueante de infraestrutura.
- * O app já está disponível antes disso completar.
- */
-async function warmup() {
-  console.log('[Startup] Iniciando pré-aquecimento de infraestrutura...');
-  const [redisOk, rabbitOk] = await Promise.allSettled([
-    redis.connect(),
-    rabbit.connect(),
-  ]);
-  const rStatus = redisOk.status === 'fulfilled' && redisOk.value ? 'ok' : 'offline/disabled';
-  const qStatus = rabbitOk.status === 'fulfilled' && rabbitOk.value ? 'ok' : 'offline/disabled';
-  console.log(`[Startup] Cache Redis  → ${rStatus}`);
-  console.log(`[Startup] Queue Rabbit → ${qStatus}`);
-}
-
 app.listen(PORT, () => {
   console.log(`[Hospital BI] API iniciada na porta ${PORT}`);
-  // warmup roda APÓS o listen — app não bloqueia na espera da infra
-  warmup().catch((err) => console.error('[Startup] Erro inesperado no warmup:', err.message));
 });
 
 

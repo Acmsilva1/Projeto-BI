@@ -1,8 +1,10 @@
 /**
- * Topbar.jsx — Cabeçalho global com filtros + status
+ * Topbar.jsx — Cabeçalho global com filtros (regional, unidade, período)
+ * Selects com color-scheme claro + fundo branco para contraste no menu nativo.
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { RefreshCw } from 'lucide-react';
+import { getApiV1Base, buildApiQuery } from '../utils/apiBase';
 
 const REGIONAIS = [
   { value: '', label: 'Todas Regionais' },
@@ -13,13 +15,23 @@ const REGIONAIS = [
 ];
 
 const PERIODOS = [
-  { value: 30,  label: 'Últimos 30 dias' },
-  { value: 90,  label: 'Últimos 90 dias' },
+  { value: 30, label: 'Últimos 30 dias' },
+  { value: 90, label: 'Últimos 90 dias' },
   { value: 365, label: 'Ano Atual' },
 ];
 
-const Topbar = ({ filters, onFilterChange, onRefresh, sectionLabel, apiOnline }) => {
+/** Estilo alto contraste: lista nativa legível em SO com tema escuro */
+const selectContrast =
+  'max-w-[min(100%,14rem)] sm:max-w-[16rem] truncate rounded-lg border border-slate-300 bg-white px-2.5 py-2 ' +
+  'text-xs font-medium text-slate-900 shadow-sm outline-none cursor-pointer ' +
+  '[color-scheme:light] ' +
+  'focus:border-hospital-600 focus:ring-2 focus:ring-hospital-500/35 ' +
+  'disabled:cursor-not-allowed disabled:opacity-60';
+
+const Topbar = ({ filters, onFilterChange, onRefresh, sectionLabel }) => {
   const [clock, setClock] = useState('');
+  const [unidades, setUnidades] = useState([]);
+  const [unidadesReady, setUnidadesReady] = useState(false);
 
   useEffect(() => {
     const tick = () => {
@@ -31,57 +43,120 @@ const Topbar = ({ filters, onFilterChange, onRefresh, sectionLabel, apiOnline })
     return () => clearInterval(id);
   }, []);
 
-  const selectCls = 'bg-transparent border-none text-xs font-medium focus:ring-0 text-slate-200 cursor-pointer py-1';
+  useEffect(() => {
+    setUnidadesReady(false);
+    const q = buildApiQuery(filters.regional ? { regional: filters.regional } : {});
+    const ac = new AbortController();
+    fetch(`${getApiV1Base()}/kpi/unidades${q}`, { signal: ac.signal })
+      .then((r) => r.text())
+      .then((raw) => {
+        if (ac.signal.aborted) return;
+        try {
+          const j = raw ? JSON.parse(raw) : {};
+          if (j.ok && Array.isArray(j.data)) setUnidades(j.data);
+          else setUnidades([]);
+        } catch {
+          setUnidades([]);
+        }
+      })
+      .catch(() => {
+        if (!ac.signal.aborted) setUnidades([]);
+      })
+      .finally(() => {
+        if (!ac.signal.aborted) setUnidadesReady(true);
+      });
+    return () => ac.abort();
+  }, [filters.regional]);
+
+  const unidadesSorted = useMemo(
+    () =>
+      [...unidades].sort((a, b) =>
+        String(a.unidadeNome || '').localeCompare(String(b.unidadeNome || ''), 'pt-BR'),
+      ),
+    [unidades],
+  );
+
+  useEffect(() => {
+    if (!unidadesReady || !filters.unidade) return;
+    const ok = unidadesSorted.some((u) => u.unidadeId === filters.unidade);
+    if (!ok) onFilterChange({ unidade: '' });
+  }, [unidadesReady, unidadesSorted, filters.unidade, onFilterChange]);
 
   return (
     <header className="h-16 shrink-0 flex items-center justify-between px-6 bg-slate-900/60 border-b border-slate-800 backdrop-blur-sm z-10">
-      {/* Breadcrumb */}
-      <div className="flex flex-col">
-        <h1 className="text-sm font-bold text-white">{sectionLabel}</h1>
+      <div className="flex flex-col min-w-0">
+        <h1 className="text-sm font-bold text-white truncate">{sectionLabel}</h1>
         <p className="text-[10px] text-slate-500 font-mono">{clock}</p>
       </div>
 
-      {/* Controls */}
-      <div className="flex items-center gap-2">
-        {/* Filtros */}
-        <div className="flex items-center gap-2 bg-slate-800/60 border border-slate-700 px-3 py-1.5 rounded-xl">
+      <div className="flex items-center gap-2 shrink-0">
+        <div
+          className="flex flex-wrap items-center justify-end gap-2 rounded-xl border border-slate-700/90 bg-slate-800/50 px-2 py-1.5 sm:px-3 [color-scheme:light]"
+          role="group"
+          aria-label="Filtros do painel"
+        >
           <select
-            className={selectCls}
+            className={selectContrast}
+            aria-label="Filtrar por regional"
             value={filters.regional}
             onChange={(e) => onFilterChange({ regional: e.target.value, unidade: '' })}
           >
-            {REGIONAIS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+            {REGIONAIS.map((r) => (
+              <option key={r.value || 'all'} value={r.value} className="bg-white text-slate-900">
+                {r.label}
+              </option>
+            ))}
           </select>
 
-          <div className="w-px h-4 bg-slate-700" />
+          <div className="hidden sm:block w-px h-6 bg-slate-600 shrink-0" aria-hidden />
 
           <select
-            className={selectCls}
+            className={selectContrast}
+            style={{ maxWidth: 'min(100%, 18rem)' }}
+            aria-label="Filtrar por unidade"
+            value={filters.unidade}
+            onChange={(e) => onFilterChange({ unidade: e.target.value })}
+            title={unidadesSorted.find((u) => u.unidadeId === filters.unidade)?.unidadeNome || ''}
+          >
+            <option value="" className="bg-white text-slate-900">
+              Todas as unidades
+            </option>
+            {unidadesSorted.map((u) => (
+              <option
+                key={u.unidadeId}
+                value={u.unidadeId}
+                className="bg-white text-slate-900"
+                title={u.unidadeNome}
+              >
+                {u.unidadeNome}
+              </option>
+            ))}
+          </select>
+
+          <div className="hidden sm:block w-px h-6 bg-slate-600 shrink-0" aria-hidden />
+
+          <select
+            className={selectContrast}
+            aria-label="Período"
             value={filters.period}
             onChange={(e) => onFilterChange({ period: Number(e.target.value) })}
           >
-            {PERIODOS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+            {PERIODOS.map((p) => (
+              <option key={p.value} value={p.value} className="bg-white text-slate-900">
+                {p.label}
+              </option>
+            ))}
           </select>
         </div>
 
-        {/* Refresh */}
         <button
+          type="button"
           onClick={onRefresh}
           className="p-2 rounded-lg bg-hospital-500 hover:bg-hospital-600 text-white transition-all active:scale-90 shadow-md shadow-hospital-500/30"
+          aria-label="Atualizar dados"
         >
           <RefreshCw size={15} />
         </button>
-
-        {/* Status */}
-        <div className="flex items-center gap-2 pl-1">
-          <span className="relative flex h-2 w-2">
-            <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${apiOnline ? 'bg-emerald-400' : 'bg-rose-400'} opacity-75`} />
-            <span className={`relative inline-flex rounded-full h-2 w-2 ${apiOnline ? 'bg-emerald-500' : 'bg-rose-500'}`} />
-          </span>
-          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-            {apiOnline ? 'Online' : 'Offline'}
-          </span>
-        </div>
       </div>
     </header>
   );

@@ -1,4 +1,10 @@
-﻿const { createClient } = require('@supabase/supabase-js');
+﻿/**
+ * Acesso ao Postgres via Supabase PostgREST.
+ *
+ * Contrato: cada "view" já reflete ETL/agregação no banco. Este módulo só
+ * aplica filtros HTTP e faz SELECT — sem lógica pesada de BI aqui.
+ */
+const { createClient } = require('@supabase/supabase-js');
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_KEY;

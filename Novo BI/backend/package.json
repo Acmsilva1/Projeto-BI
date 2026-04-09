@@ -2,11 +2,9 @@
   "name": "backend",
   "version": "1.0.0",
   "description": "",
-  "main": "db.js",
+  "main": "server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node server.js",
-    "migrate:ps-upgrade": "node scripts/run_ps_upgrade_sql.js"
+    "start": "node server.js"
   },
   "keywords": [],
   "author": "",
@@ -14,11 +12,9 @@
   "type": "commonjs",
   "dependencies": {
     "@supabase/supabase-js": "^2.102.1",
-    "amqplib": "^1.0.3",
     "cors": "^2.8.6",
     "dotenv": "^17.4.1",
     "express": "^5.2.1",
-    "pg": "^8.20.0",
-    "redis": "^5.11.0"
+    "pg": "^8.20.0"
   }
 }

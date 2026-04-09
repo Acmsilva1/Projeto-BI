@@ -1,7 +1,16 @@
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
 export default defineConfig({
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, 'src'),
+    },
+  },
   plugins: [
     react(),
     {
@@ -22,7 +31,21 @@ export default defineConfig({
     port: 5173,
     strictPort: true,
     proxy: {
-      '/api': 'http://127.0.0.1:3001',
+      '/api': {
+        target: 'http://127.0.0.1:3001',
+        changeOrigin: true,
+      },
+    },
+  },
+  preview: {
+    host: '127.0.0.1',
+    port: 5173,
+    strictPort: true,
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:3001',
+        changeOrigin: true,
+      },
     },
   },
   build: {
@@ -30,7 +53,7 @@ export default defineConfig({
     rolldownOptions: {
       output: {
         manualChunks(id) {
-          if (id.includes('node_modules/echarts') || id.includes('node_modules/echarts-for-react')) {
+          if (id.includes('node_modules/echarts') || id.includes('node_modules/zrender')) {
             return 'vendor-echarts';
           }
           if (id.includes('node_modules/react-dom') || id.includes('node_modules/react/')) {

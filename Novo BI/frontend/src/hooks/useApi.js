@@ -7,17 +7,9 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { getApiV1Base, buildApiQuery } from '../utils/apiBase';
 
-const BASE_URL = 'http://127.0.0.1:3001/api/v1';
-
-// Normaliza filtros globais em query string
-function buildQuery(params = {}) {
-  const q = new URLSearchParams();
-  Object.entries(params).forEach(([k, v]) => {
-    if (v !== '' && v !== null && v !== undefined) q.set(k, v);
-  });
-  return q.toString() ? `?${q.toString()}` : '';
-}
+const BASE_URL = getApiV1Base();
 
 // Cache simples em memória (chave = url)
 const _cache = new Map();
@@ -29,7 +21,7 @@ export function useApi(endpoint, params = {}, { ttl = 30_000 } = {}) {
   const abortRef              = useRef(null);
 
   const fetchData = useCallback(async () => {
-    const url = `${BASE_URL}/${endpoint}${buildQuery(params)}`;
+    const url = `${BASE_URL}/${endpoint}${buildApiQuery(params)}`;
 
     // Cache hit
     const cached = _cache.get(url);
@@ -47,8 +39,20 @@ export function useApi(endpoint, params = {}, { ttl = 30_000 } = {}) {
     setError(null);
 
     try {
-      const res  = await fetch(url, { signal: abortRef.current.signal });
-      const json = await res.json();
+      const res = await fetch(url, { signal: abortRef.current.signal });
+      const raw = await res.text();
+      let json;
+      try {
+        json = raw ? JSON.parse(raw) : {};
+      } catch {
+        const hint =
+          raw.trimStart().startsWith('<!DOCTYPE') || raw.trimStart().startsWith('<html')
+            ? 'Recebeu página HTML em vez da API (proxy/backend). Em dev use npm run dev no front e deixe o Node na 3001, ou defina VITE_API_BASE.'
+            : 'Resposta não é JSON.';
+        throw new Error(
+          `${hint} (${res.status}) ${raw.slice(0, 120).replace(/\s+/g, ' ')}`,
+        );
+      }
 
       if (!json.ok) throw new Error(json.error || 'Erro na API');
 

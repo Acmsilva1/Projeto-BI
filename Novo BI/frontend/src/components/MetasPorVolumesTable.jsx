@@ -160,7 +160,7 @@ function DataRow({
 
 /**
  * Matriz “Metas por volumes” — GET /api/v1/gerencia/metas-por-volumes
- * Colunas Indicador + Unidade (como no Power BI) e painel de slicers locais.
+ * Drill por unidade (➕/➖); filtros vêm só do topo da tela.
  */
 export default function MetasPorVolumesTable({ filters }) {
   const params = useMemo(
@@ -174,37 +174,13 @@ export default function MetasPorVolumesTable({ filters }) {
 
   const { data, loading, error } = useApi('gerencia/metas-por-volumes', params);
   const [open, setOpen] = useState(() => new Set());
-  const [visInd, setVisInd] = useState(null);
-  const [visUni, setVisUni] = useState(null);
 
   const rows = data?.data ?? [];
 
   useEffect(() => {
     if (!data?.data?.length) return;
-    setVisInd(new Set(data.data.map((r) => r.key)));
-    const uids = [
-      ...new Set(
-        data.data.flatMap((r) => (r.subItems || []).map((s) => s.unidadeId).filter(Boolean)),
-      ),
-    ];
-    setVisUni(new Set(uids));
     setOpen(new Set());
   }, [data]);
-
-  const unidadeOptions = useMemo(() => {
-    const map = new Map();
-    rows.forEach((r) => {
-      (r.subItems || []).forEach((s) => {
-        if (s.unidadeId) map.set(s.unidadeId, s.name || s.unidadeId);
-      });
-    });
-    return [...map.entries()].sort((a, b) => String(a[1]).localeCompare(String(b[1]), 'pt-BR'));
-  }, [rows]);
-
-  const rowsFiltered = useMemo(() => {
-    if (!visInd) return rows;
-    return rows.filter((r) => visInd.has(r.key));
-  }, [rows, visInd]);
 
   const toggle = useCallback((id) => {
     setOpen((prev) => {
@@ -213,48 +189,6 @@ export default function MetasPorVolumesTable({ filters }) {
       else next.add(id);
       return next;
     });
-  }, []);
-
-  const toggleIndKey = useCallback(
-    (key) => {
-      setVisInd((prev) => {
-        const base = prev ?? new Set(rows.map((r) => r.key));
-        const next = new Set(base);
-        if (next.has(key)) next.delete(key);
-        else next.add(key);
-        return next;
-      });
-    },
-    [rows],
-  );
-
-  const toggleUniId = useCallback(
-    (uid) => {
-      setVisUni((prev) => {
-        const base = prev ?? new Set(unidadeOptions.map(([id]) => id));
-        const next = new Set(base);
-        if (next.has(uid)) next.delete(uid);
-        else next.add(uid);
-        return next;
-      });
-    },
-    [unidadeOptions],
-  );
-
-  const selectAllInd = useCallback(() => {
-    setVisInd(new Set(rows.map((r) => r.key)));
-  }, [rows]);
-
-  const clearAllInd = useCallback(() => {
-    setVisInd(new Set());
-  }, []);
-
-  const selectAllUni = useCallback(() => {
-    setVisUni(new Set(unidadeOptions.map(([id]) => id)));
-  }, [unidadeOptions]);
-
-  const clearAllUni = useCallback(() => {
-    setVisUni(new Set());
   }, []);
 
   const months = data?.months?.length ? data.months : ['Mês 1', 'Mês 2', 'Mês 3'];
@@ -285,94 +219,12 @@ export default function MetasPorVolumesTable({ filters }) {
           </h2>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <details className="group relative">
-            <summary className="flex cursor-pointer list-none items-center gap-2 rounded-lg border border-app-border border-l-[3px] border-l-pipeline-live/70 bg-app-elevated px-3 py-1.5 text-xs font-medium text-app-fg hover:border-l-pipeline-live hover:brightness-110 [&::-webkit-details-marker]:hidden">
-              <span className="text-base leading-none" aria-hidden>
-                📋
-              </span>
-              Indicadores e unidades
-              <span className="text-app-muted">▾</span>
-            </summary>
-            <div
-              className="absolute right-0 z-30 mt-1 w-[min(100vw-2rem,20rem)] max-h-[min(70vh,22rem)] overflow-y-auto rounded-xl border border-app-border bg-app-surface py-2 shadow-2xl shadow-black/40"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="border-b border-app-border px-3 pb-2">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-app-muted">Indicadores</span>
-                  <span className="flex gap-1">
-                    <button
-                      type="button"
-                      className="text-[10px] text-hospital-400 hover:underline"
-                      onClick={selectAllInd}
-                    >
-                      Todos
-                    </button>
-                    <button type="button" className="text-[10px] text-app-muted hover:underline" onClick={clearAllInd}>
-                      Nenhum
-                    </button>
-                  </span>
-                </div>
-                <ul className="mt-2 max-h-40 space-y-1 overflow-y-auto pr-1">
-                  {rows.map((r) => (
-                    <li key={r.key}>
-                      <label className="flex cursor-pointer items-start gap-2 rounded px-1 py-0.5 hover:bg-app-elevated app-transition">
-                        <input
-                          type="checkbox"
-                          className="mt-0.5 rounded border-app-border"
-                          checked={visInd == null ? true : visInd.has(r.key)}
-                          onChange={() => toggleIndKey(r.key)}
-                        />
-                        <span className="text-[11px] leading-snug text-app-fg">{r.name}</span>
-                      </label>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              <div className="px-3 pt-2">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-app-muted">Unidades (drill)</span>
-                  <span className="flex gap-1">
-                    <button
-                      type="button"
-                      className="text-[10px] text-hospital-400 hover:underline"
-                      onClick={selectAllUni}
-                    >
-                      Todas
-                    </button>
-                    <button type="button" className="text-[10px] text-app-muted hover:underline" onClick={clearAllUni}>
-                      Nenhuma
-                    </button>
-                  </span>
-                </div>
-                <ul className="mt-2 max-h-40 space-y-1 overflow-y-auto pr-1">
-                  {unidadeOptions.map(([id, label]) => (
-                    <li key={id}>
-                      <label className="flex cursor-pointer items-start gap-2 rounded px-1 py-0.5 hover:bg-app-elevated app-transition">
-                        <input
-                          type="checkbox"
-                          className="mt-0.5 rounded border-app-border"
-                          checked={visUni == null ? true : visUni.has(id)}
-                          onChange={() => toggleUniId(id)}
-                        />
-                        <span className="text-[11px] leading-snug text-app-fg">{label}</span>
-                      </label>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-          </details>
           {loading ? (
             <span className="flex items-center gap-2 text-xs text-app-muted">
               <Loader2 className="h-3.5 w-3.5 animate-spin text-pipeline-live" />
               Atualizando…
             </span>
-          ) : (
-          <span className="text-[10px] uppercase tracking-wider text-app-muted">
-            Filtro topo + slicers
-          </span>
-          )}
+          ) : null}
         </div>
       </div>
 
@@ -434,12 +286,10 @@ export default function MetasPorVolumesTable({ filters }) {
                   </tr>
                 ))
               : null}
-            {rowsFiltered.map((row) => {
+            {rows.map((row) => {
               const rid = row.key || row.name;
               const subs = row.subItems || [];
-              const subsFiltered =
-                visUni == null ? subs : subs.filter((s) => s.unidadeId && visUni.has(s.unidadeId));
-              const hasChildren = subsFiltered.length > 0;
+              const hasChildren = subs.length > 0;
               const expanded = open.has(rid);
 
               return (
@@ -456,7 +306,7 @@ export default function MetasPorVolumesTable({ filters }) {
                     showUnidadeColumn={drillAberto}
                   />
                   {expanded &&
-                    subsFiltered.map((sub, j) => (
+                    subs.map((sub, j) => (
                       <DataRow
                         key={`${rid}-${sub.unidadeId ?? j}`}
                         row={{ ...sub, isReverso: row.isReverso, isP: row.isP }}

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { Loader2 } from 'lucide-react';
 import { useApi } from '../hooks/useApi';
 
@@ -56,8 +56,6 @@ const STICKY_UN =
  * Jornada: tempo médio por etapa (min) — GET /api/v1/gerencia/tempo-medio-etapas
  */
 export default function TempoMedioEtapasTable({ filters }) {
-  const [fluxoDetalhado, setFluxoDetalhado] = useState(false);
-
   const params = useMemo(
     () => ({
       period: filters.period,
@@ -111,31 +109,12 @@ export default function TempoMedioEtapasTable({ filters }) {
             {data?.titulo || 'Tempo médio por etapa (min)'}
           </h2>
         </div>
-        <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-end">
-          <button
-            type="button"
-            onClick={() => setFluxoDetalhado((v) => !v)}
-            className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-medium transition-colors ${
-              fluxoDetalhado
-                ? 'border-pipeline-live bg-pipeline-live/15 text-pipeline-live'
-                : 'border-app-border bg-app-elevated text-app-fg hover:border-app-muted'
-            }`}
-          >
-            <span className="text-base leading-none" aria-hidden>
-              🗺️
-            </span>
-            Fluxo de atendimento
-          </button>
-          {loading ? <Loader2 className="h-4 w-4 animate-spin text-pipeline-live" aria-hidden /> : null}
-        </div>
+        {loading ? (
+          <div className="flex flex-wrap items-center justify-center sm:justify-end">
+            <Loader2 className="h-4 w-4 animate-spin text-pipeline-live" aria-hidden />
+          </div>
+        ) : null}
       </div>
-
-      {fluxoDetalhado ? (
-        <p className="border-b border-app-border border-l-2 border-l-pipeline-live bg-[color:color-mix(in_srgb,var(--dash-live)_06%,var(--app-elevated))] px-4 py-2 text-[10px] leading-snug text-app-muted">
-          Fluxo de atendimento: cada coluna representa uma transição na jornada (minutos médios). Valores acima do SLA
-          aparecem em vermelho (fora da meta); dentro do SLA, números em negrito no tom de destaque da tabela.
-        </p>
-      ) : null}
 
       <div className="overflow-x-auto">
         <table className="w-full min-w-[760px] border-collapse text-left text-[10px] sm:text-[11px]">
@@ -152,7 +131,7 @@ export default function TempoMedioEtapasTable({ filters }) {
                   className={`px-0.5 py-1.5 text-center text-[8px] font-semibold uppercase leading-tight sm:px-1 sm:text-[9px] md:text-[10px] ${colHeadClass()} ${
                     i < etapas.length - 1 ? COL_RULE : ''
                   }`}
-                  title={fluxoDetalhado ? e.label : undefined}
+                  title={e.label}
                 >
                   <span className="block leading-tight">{labelComSetaEmoji(e.label)}</span>
                   {e.icons?.length ? <HeaderIcons names={e.icons} /> : null}

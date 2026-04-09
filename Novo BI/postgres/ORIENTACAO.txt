@@ -49,4 +49,18 @@ API Gerência (contratos JSON — dados zerados até as views)
 
   GET /api/v1/overview/metas-volumes  (alias do mesmo payload da matriz)
 
+  GET /api/v1/gerencia/metricas-por-unidade
+    → colunas[] : { key, label, kind, pctSense?, pctGreenAt?, pctRedAt? }
+       kind pct: pctSense = high_good | low_good (verde/vermelho na UI).
+       Limiares podem vir da view por período quando o ETL os definir.
+
+  GET /api/v1/gerencia/metas-acompanhamento-gestao?metric=&period=&regional=&unidade=
+    → Painel “Metas de acompanhamento”: catalog[], gauge (global), metaRibbon,
+      months[], series[] por unidade (cor fixa). Valores zerados até a view
+      Postgres preencher.
+
+  GET /api/v1/gerencia/metas-conformes-por-unidade?period=&regional=&unidade=
+    → Gráfico “% metas conformes por unidade”: months[], isPercent, series[].
+      Zerado até a view Postgres; só filtros globais da tela.
+
 ================================================================================

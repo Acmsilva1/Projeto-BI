@@ -2,36 +2,32 @@
  * Sidebar — Navegação principal (lista única; título da área só no Topbar).
  */
 import React from 'react';
-import {
-  LayoutDashboard, Stethoscope, Scissors, ClipboardList,
-  ChevronLeft, ShieldCheck
-} from 'lucide-react';
+import ThemeSwitcher from './ThemeSwitcher';
 
 const NAV = [
-  { key: 'gerencia', label: 'Gerência', Icon: LayoutDashboard },
-  { key: 'ps', label: 'Pronto Socorro', Icon: Stethoscope },
-  { key: 'cirurgias', label: 'Centro Cirúrgico', Icon: Scissors },
-  { key: 'internacoes', label: 'Internação', Icon: ClipboardList },
+  { key: 'gerencia', label: 'Gerência', emoji: '📊' },
+  { key: 'ps', label: 'Pronto Socorro', emoji: '🚑' },
+  { key: 'cirurgias', label: 'Centro Cirúrgico', emoji: '✂️' },
+  { key: 'internacoes', label: 'Internação', emoji: '🛏️' },
 ];
 
 const Sidebar = ({ activeSection, onNavigate, collapsed, onToggle }) => (
   <aside
-    className={`${collapsed ? 'w-16' : 'w-60'} shrink-0 flex flex-col bg-slate-950 border-r border-slate-800
-                transition-all duration-300 ease-in-out`}
+    className={`${collapsed ? 'w-16' : 'w-60'} app-transition shrink-0 flex flex-col bg-app-surface border-r border-app-border ease-in-out [transition-property:width] [transition-duration:280ms] motion-reduce:transition-none`}
   >
-    <div className={`h-16 flex items-center border-b border-slate-800 ${collapsed ? 'justify-center px-0' : 'px-5 gap-3'}`}>
-      <div className="w-8 h-8 bg-hospital-500 rounded-lg flex items-center justify-center shrink-0 shadow-lg shadow-hospital-500/30">
-        <ShieldCheck size={16} className="text-white" />
+    <div className={`h-16 flex items-center border-b border-app-border ${collapsed ? 'justify-center px-0' : 'px-5 gap-3'}`}>
+      <div className="app-transition flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[color:var(--primary)] text-lg leading-none text-white shadow-lg ring-2 ring-[color:var(--primary)]/30">
+        <span aria-hidden>🛡️</span>
       </div>
       {!collapsed && (
-        <span className="text-white font-bold text-base tracking-tight">
-          MedSenior<span className="text-hospital-400">BI</span>
+        <span className="text-app-fg font-bold text-lg tracking-tight">
+          MedSenior<span className="text-[color:var(--primary)]">BI</span>
         </span>
       )}
     </div>
 
     <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto">
-      {NAV.map(({ key, label, Icon }) => (
+      {NAV.map(({ key, label, emoji }) => (
         <button
           key={key}
           type="button"
@@ -39,18 +35,24 @@ const Sidebar = ({ activeSection, onNavigate, collapsed, onToggle }) => (
           title={collapsed ? label : undefined}
           className={`w-full nav-item ${activeSection === key ? 'active' : ''} ${collapsed ? 'justify-center px-0' : ''}`}
         >
-          <Icon size={18} className="shrink-0" />
+          <span className="shrink-0 text-lg leading-none" aria-hidden>
+            {emoji}
+          </span>
           {!collapsed && <span className="truncate text-left">{label}</span>}
         </button>
       ))}
     </nav>
 
+    <ThemeSwitcher collapsed={collapsed} />
+
     <button
       type="button"
       onClick={onToggle}
-      className="h-12 flex items-center justify-center border-t border-slate-800 text-slate-500 hover:text-white hover:bg-slate-800 transition-colors"
+      className="app-transition h-12 flex items-center justify-center border-t border-app-border text-app-muted hover:text-app-fg hover:bg-app-elevated"
     >
-      <ChevronLeft size={16} className={`transition-transform duration-300 ${collapsed ? 'rotate-180' : ''}`} />
+      <span className="text-base leading-none" aria-hidden title={collapsed ? 'Expandir menu' : 'Recolher menu'}>
+        {collapsed ? '▶️' : '◀️'}
+      </span>
     </button>
   </aside>
 );

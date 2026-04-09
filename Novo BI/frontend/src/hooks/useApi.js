@@ -9,8 +9,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { getApiV1Base, buildApiQuery } from '../utils/apiBase';
 
-const BASE_URL = getApiV1Base();
-
 // Cache simples em memória (chave = url)
 const _cache = new Map();
 
@@ -21,7 +19,9 @@ export function useApi(endpoint, params = {}, { ttl = 30_000 } = {}) {
   const abortRef              = useRef(null);
 
   const fetchData = useCallback(async () => {
-    const url = `${BASE_URL}/${endpoint}${buildApiQuery(params)}`;
+    const base = getApiV1Base().replace(/\/+$/, '');
+    const path = String(endpoint || '').replace(/^\/+/, '');
+    const url = `${base}/${path}${buildApiQuery(params)}`;
 
     // Cache hit
     const cached = _cache.get(url);

@@ -20,6 +20,14 @@ app.use(cors({ origin: ALLOWED, credentials: true }));
 app.use(express.json());
 app.get('/favicon.ico', (_, res) => res.status(204).end());
 
+/** Evita 404 HTML em GET /api — clientes devem usar /api/v1/... */
+app.get(['/api', '/api/'], (_, res) => {
+  res.status(404).json({
+    ok: false,
+    error: 'Rota inválida. Use prefixo /api/v1 (ex.: GET /api/v1/kpi).',
+  });
+});
+
 /** Rotas: Postgres entrega via views; handler só orquestra fetch + shape leve de resposta. */
 const route = (handler) => async (req, res) => {
   try {
@@ -49,6 +57,23 @@ app.get('/api/v1/overview/metas-volumes', route((req) => liveService.getOverview
  */
 app.get('/api/v1/gerencia/unidades-ps', route((req) => liveService.getGerenciaUnidadesPs(req.query)));
 app.get('/api/v1/gerencia/metas-por-volumes', route((req) => liveService.getGerenciaMetasPorVolumes(req.query)));
+app.get(
+  '/api/v1/gerencia/metricas-por-unidade',
+  route((req) => liveService.getGerenciaMetricasPorUnidade(req.query)),
+);
+app.get('/api/v1/gerencia/totais-ps', route((req) => liveService.getGerenciaTotaisPs(req.query)));
+app.get(
+  '/api/v1/gerencia/tempo-medio-etapas',
+  route((req) => liveService.getGerenciaTempoMedioEtapas(req.query)),
+);
+app.get(
+  '/api/v1/gerencia/metas-acompanhamento-gestao',
+  route((req) => liveService.getGerenciaMetasAcompanhamentoGestao(req.query)),
+);
+app.get(
+  '/api/v1/gerencia/metas-conformes-por-unidade',
+  route((req) => liveService.getGerenciaMetasConformesPorUnidade(req.query)),
+);
 app.get(
   '/api/v1/gerencia/metas-por-volumes/indicador/:indicadorKey/unidades',
   route((req) => liveService.getGerenciaMetasPorVolumesPorIndicador(req.params.indicadorKey, req.query)),

@@ -12,7 +12,9 @@ export default defineConfig({
     },
   },
   plugins: [
-    react(),
+    react({
+      fastRefresh: true,
+    }),
     {
       name: 'dev-no-cache',
       configureServer(server) {
@@ -27,18 +29,29 @@ export default defineConfig({
     },
   ],
   server: {
-    host: '127.0.0.1',
+    /** true = escuta em 0.0.0.0; acessível por localhost e 127.0.0.1 (evita proxy “só em um host”). */
+    host: true,
     port: 5173,
     strictPort: true,
+    /** Hot reload imediato ao salvar arquivos (Fast Refresh do React). */
+    hmr: {
+      overlay: true,
+    },
+    /** No Windows/rede, o watcher nativo às vezes não dispara; polling garante atualização sem reiniciar o dev server. */
+    watch: {
+      usePolling: true,
+      interval: 200,
+    },
     proxy: {
       '/api': {
         target: 'http://127.0.0.1:3001',
         changeOrigin: true,
+        secure: false,
       },
     },
   },
   preview: {
-    host: '127.0.0.1',
+    host: true,
     port: 5173,
     strictPort: true,
     proxy: {

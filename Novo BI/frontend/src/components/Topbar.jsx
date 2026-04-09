@@ -3,7 +3,6 @@
  * Selects com color-scheme claro + fundo branco para contraste no menu nativo.
  */
 import React, { useState, useEffect, useMemo } from 'react';
-import { RefreshCw } from 'lucide-react';
 import { getApiV1Base, buildApiQuery } from '../utils/apiBase';
 
 const REGIONAIS = [
@@ -73,6 +72,9 @@ const Topbar = ({ activeSection, filters, onFilterChange, onRefresh, sectionLabe
 
   const unidadesSorted = useMemo(() => {
     return [...unidades].sort((a, b) => {
+      const na = parseInt(String(a.codigo ?? a.unidadeId ?? ''), 10);
+      const nb = parseInt(String(b.codigo ?? b.unidadeId ?? ''), 10);
+      if (!Number.isNaN(na) && !Number.isNaN(nb) && na !== nb) return na - nb;
       const ra = String(a.regional || '');
       const rb = String(b.regional || '');
       if (ra !== rb) return ra.localeCompare(rb, 'pt-BR');
@@ -80,9 +82,16 @@ const Topbar = ({ activeSection, filters, onFilterChange, onRefresh, sectionLabe
     });
   }, [unidades]);
 
+  /** Mesmo padrão do backend: código - NOME_UF */
   const labelUnidadeOption = (u) => {
-    const uf = String(u.regional || '').trim();
     const nome = String(u.unidadeNome || '').trim();
+    const reg = String(u.regional || '').trim();
+    const cod =
+      u.codigo != null && String(u.codigo).trim() !== ''
+        ? String(u.codigo).padStart(3, '0')
+        : '';
+    if (cod && nome && reg) return `${cod} - ${nome}_${reg}`;
+    const uf = reg;
     if (uf && nome) return `${uf} - ${nome}`;
     return nome || uf || String(u.unidadeId || '');
   };
@@ -94,15 +103,15 @@ const Topbar = ({ activeSection, filters, onFilterChange, onRefresh, sectionLabe
   }, [unidadesReady, unidadesSorted, filters.unidade, onFilterChange]);
 
   return (
-    <header className="h-16 shrink-0 flex items-center justify-between px-6 bg-slate-900/60 border-b border-slate-800 backdrop-blur-sm z-10">
-      <div className="flex flex-col min-w-0">
-        <h1 className="text-sm font-bold text-white truncate">{sectionLabel}</h1>
-        <p className="text-[10px] text-slate-500 font-mono">{clock}</p>
+    <header className="h-16 shrink-0 flex items-center justify-between px-4 sm:px-6 bg-app-surface/80 border-b border-app-border backdrop-blur-sm z-10 shadow-[inset_0_-1px_0_0_color-mix(in_srgb,var(--primary)_08%,transparent)]">
+      <div className="flex flex-col min-w-0 gap-0.5">
+        <h1 className="text-base font-bold tracking-tight text-app-fg truncate sm:text-lg">{sectionLabel}</h1>
+        <p className="text-xs text-app-muted font-mono tabular-nums">{clock}</p>
       </div>
 
       <div className="flex items-center gap-2 shrink-0">
         <div
-          className="flex flex-wrap items-center justify-end gap-2 rounded-xl border border-slate-700/90 bg-slate-800/50 px-2 py-1.5 sm:px-3 [color-scheme:light]"
+          className="flex flex-wrap items-center justify-end gap-2 rounded-xl border border-app-border bg-app-elevated/60 px-2 py-1.5 sm:px-3 [color-scheme:light]"
           role="group"
           aria-label="Filtros do painel"
         >
@@ -119,11 +128,11 @@ const Topbar = ({ activeSection, filters, onFilterChange, onRefresh, sectionLabe
             ))}
           </select>
 
-          <div className="hidden sm:block w-px h-6 bg-slate-600 shrink-0" aria-hidden />
+          <div className="hidden sm:block w-px h-6 bg-app-border shrink-0" aria-hidden />
 
           <select
             className={selectContrast}
-            style={{ maxWidth: 'min(100%, 18rem)' }}
+            style={{ maxWidth: 'min(100%, 26rem)' }}
             aria-label="Filtrar por unidade"
             value={filters.unidade}
             onChange={(e) => onFilterChange({ unidade: e.target.value })}
@@ -149,7 +158,7 @@ const Topbar = ({ activeSection, filters, onFilterChange, onRefresh, sectionLabe
             ))}
           </select>
 
-          <div className="hidden sm:block w-px h-6 bg-slate-600 shrink-0" aria-hidden />
+          <div className="hidden sm:block w-px h-6 bg-app-border shrink-0" aria-hidden />
 
           <select
             className={selectContrast}
@@ -168,10 +177,11 @@ const Topbar = ({ activeSection, filters, onFilterChange, onRefresh, sectionLabe
         <button
           type="button"
           onClick={onRefresh}
-          className="p-2 rounded-lg bg-hospital-500 hover:bg-hospital-600 text-white transition-all active:scale-90 shadow-md shadow-hospital-500/30"
+          className="app-transition flex h-9 w-9 items-center justify-center rounded-lg bg-pipeline-live text-lg leading-none text-slate-900 hover:brightness-110 active:scale-[0.97] shadow-md [box-shadow:0_2px_14px_color-mix(in_srgb,var(--dash-live)_40%,transparent)]"
           aria-label="Atualizar dados"
+          title="Atualizar dados"
         >
-          <RefreshCw size={15} />
+          <span aria-hidden>🔄</span>
         </button>
       </div>
     </header>

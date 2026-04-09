@@ -27,11 +27,11 @@ const SECTIONS = {
 };
 
 const SectionLoader = () => (
-  <div className="flex-1 flex items-center justify-center text-slate-700">
-    <div className="flex items-center gap-2">
-      <span className="h-4 w-4 rounded-full bg-hospital-500 animate-bounce [animation-delay:0ms]" />
-      <span className="h-4 w-4 rounded-full bg-hospital-500 animate-bounce [animation-delay:150ms]" />
-      <span className="h-4 w-4 rounded-full bg-hospital-500 animate-bounce [animation-delay:300ms]" />
+  <div className="flex-1 flex min-h-[12rem] items-center justify-center text-app-muted">
+    <div className="flex items-center gap-2" role="status" aria-label="Carregando módulo">
+      <span className="state-loading-dot [animation-delay:0ms]" />
+      <span className="state-loading-dot [animation-delay:150ms]" />
+      <span className="state-loading-dot [animation-delay:300ms]" />
     </div>
   </div>
 );
@@ -53,7 +53,7 @@ export default function App() {
   const ActiveSection = SECTIONS[section] || GerenciaSection;
 
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-950 text-slate-100">
+    <div className="flex h-screen overflow-hidden bg-app-bg text-app-fg animate-fade-in-up">
       <Sidebar
         activeSection={section}
         onNavigate={setSection}

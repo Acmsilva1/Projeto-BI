@@ -32,7 +32,7 @@ Isto sobe a API e o Vite em paralelo (`concurrently`). Build de produção: `npm
 
 - **Temas:** classe no `<html>` controlada por `ThemeContext` + `ThemeSwitcher` (emoji + nome curto: Escuro, Claro, Verde, Azul); variáveis em `frontend/src/index.css`.
 - **Painéis de módulo:** `.dashboard-panel`; cabeçalhos de bloco Gerência: `.gerencia-panel-head`.
-- **Gráficos:** na **Visão Gerência**, os **gráficos dedicados** e os **totais** (vista gráfico) usam **`ChartPanel`** + **`EchartsCanvas`**, **`GerenciaChartToolbar`** e **`frontend/src/utils/gerenciaChartOptions.js`**. As **tabelas** da Gerência ficam só em formato tabular (export CSV). Na biblioteca (`GraficosContainer`), combinar **`ChartPanel`** + **`EchartsCanvas`**. Os **modelos** em `graficos/models/*` devolvem só `EchartsCanvas`; **`ChartRenderer`** não inclui `ChartPanel` — envolver manualmente se quiseres o mesmo contentor. **`chartUi(theme)`** em `frontend/src/utils/chartTheme.js`.
+- **Gráficos:** na **Visão Gerência**, os **gráficos dedicados** (metas conformes, tendência de acompanhamento) usam **`ChartPanel`** + **`EchartsCanvas`**, **`GerenciaChartToolbar`** e **`frontend/src/utils/gerenciaChartOptions.js`**. **Totais PS** e as **tabelas** ficam só em cartões/tabulares (export CSV onde aplicável). Na biblioteca (`GraficosContainer`), combinar **`ChartPanel`** + **`EchartsCanvas`**. Os **modelos** em `graficos/models/*` devolvem só `EchartsCanvas`; **`ChartRenderer`** não inclui `ChartPanel` — envolver manualmente se quiseres o mesmo contentor. **`chartUi(theme)`** em `frontend/src/utils/chartTheme.js`.
 - **CSV:** botão nas tabelas/totais da Gerência (`ExportCsvButton`, `utils/downloadCsv.js`); não nos gráficos de tendência.
 
 ## Pastas principais

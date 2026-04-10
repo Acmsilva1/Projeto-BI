@@ -1,6 +1,6 @@
 /**
  * Substitui cadastro de unidades no SQLite por apenas as 9 unidades PS indicadas.
- * Uso: na pasta Novo BI, execute: node scripts/seed-unidades-ps.js
+ * Uso: na raiz do repositório: node scripts/seed-unidades-ps.js
  */
 const fs = require('fs');
 const path = require('path');

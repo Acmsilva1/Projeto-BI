@@ -5,7 +5,7 @@
  * - Últimos 12 meses corridos: séries mensais dos gráficos (acompanhamento / conformes).
  * - Últimos ~28 dias: reforço para totais PS e tempo médio (filtro period=30).
  *
- * Uso: na pasta Novo BI:  node scripts/seed-gerencia-dados.js
+ * Uso: na raiz do repositório: node scripts/seed-gerencia-dados.js
  */
 const fs = require('fs');
 const path = require('path');

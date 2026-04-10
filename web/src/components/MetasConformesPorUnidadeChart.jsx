@@ -85,7 +85,7 @@ export default function MetasConformesPorUnidadeChart({ filters }) {
 
   return (
     <section
-      className="dashboard-panel overflow-hidden ring-1 ring-inset ring-pipeline-live/35"
+      className="dashboard-panel overflow-visible ring-1 ring-inset ring-pipeline-live/35"
       aria-label={titulo}
     >
       <div className="gerencia-panel-head flex flex-col gap-2 px-3 py-2.5 pl-4 sm:flex-row sm:items-start sm:justify-between sm:gap-3 sm:px-4 sm:py-3 sm:pl-5">
@@ -105,7 +105,13 @@ export default function MetasConformesPorUnidadeChart({ filters }) {
         <GerenciaChartToolbar theme={theme} chartKind={chartKind} onChartKindChange={setChartKind} className="sm:pt-0.5" />
       </div>
 
-      <ChartPanel theme={theme} variant="embedded" minHeightClass="min-h-[360px]" loading={loading}>
+      <ChartPanel
+        theme={theme}
+        variant="embedded"
+        minHeightClass="min-h-[360px]"
+        loading={loading}
+        className="relative z-0"
+      >
         <EchartsCanvas option={lineOption} height={400} loading={false} />
       </ChartPanel>
     </section>

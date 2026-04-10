@@ -194,7 +194,7 @@ export default function MetasAcompanhamentoGestao({ filters }) {
 
   return (
     <section
-      className="dashboard-panel overflow-hidden ring-1 ring-inset ring-pipeline-live/35"
+      className="dashboard-panel overflow-visible ring-1 ring-inset ring-pipeline-live/35"
       aria-label={data?.titulo || 'Metas de acompanhamento da gestão'}
     >
       <div className="gerencia-panel-head flex flex-col gap-2 px-3 py-2.5 pl-4 sm:px-4 sm:py-3 sm:pl-5">
@@ -268,7 +268,7 @@ export default function MetasAcompanhamentoGestao({ filters }) {
         </div>
 
         <div className="mt-4 flex flex-col gap-2">
-          <div className="flex justify-end px-1 sm:px-2">
+          <div className="relative z-20 flex justify-end px-1 sm:px-2">
             <GerenciaChartToolbar theme={theme} chartKind={trendChartKind} onChartKindChange={setTrendChartKind} />
           </div>
           <ChartPanel theme={theme} variant="card" minHeightClass="min-h-[360px]" loading={loading}>

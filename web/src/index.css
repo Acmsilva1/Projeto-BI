@@ -217,7 +217,9 @@
   /** Barra colorida + fundo suave nos títulos das secções Gerência */
   .gerencia-panel-head {
     position: relative;
-    overflow: hidden;
+    /* visible: menus absolutos (ex. Tipo de gráfico) não ficam recortados pelo cabeçalho */
+    overflow: visible;
+    z-index: 20;
     border-bottom: 1px solid color-mix(in srgb, var(--dash-live) 45%, var(--app-border));
     background: linear-gradient(
       118deg,
@@ -244,7 +246,7 @@
 
   .gerencia-panel-head > * {
     position: relative;
-    z-index: 1;
+    z-index: 2;
   }
 
   .dashboard-panel {

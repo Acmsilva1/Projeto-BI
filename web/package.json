@@ -3,11 +3,11 @@
   "version": "2.0.0",
   "type": "module",
   "description": "Hospital BI — Node.js + React (shell)",
-  "main": "../backend/server.js",
+  "main": "../api/server.js",
   "scripts": {
     "dev": "concurrently \"npm run api\" \"npm run vite\"",
     "vite": "vite",
-    "api": "node ../backend/server.js",
+    "api": "node ../api/server.js",
     "build": "vite build",
     "preview": "vite preview"
   },

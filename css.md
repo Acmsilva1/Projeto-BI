@@ -2,18 +2,18 @@
 
 Esta documentação detalha a arquitetura de estilos que permite que as aplicações do sistema se ajustem automaticamente, utilizando variáveis CSS, o espaço de cor OKLCH e técnicas de escalonamento dinâmico.
 
-## Implementação no Novo BI (referência)
+## Implementação no projeto (referência)
 
 | Peça | Caminho no repositório |
 | :--- | :--- |
-| Tokens, temas, animações pipeline | `frontend/src/index.css` |
-| Registro Tailwind (`app.*`, `pipeline.*`, `table.*`, keyframes) | `frontend/tailwind.config.js` |
-| Estado de tema no `<html>` + persistência | `frontend/src/context/ThemeContext.jsx` |
-| Seletor de tema (rótulos curtos: Escuro, Claro, Verde, Azul + emoji) | `frontend/src/components/ThemeSwitcher.jsx` |
-| Entrada React | `frontend/src/main.jsx` (ThemeProvider) |
-| Gráficos ECharts + painel padrão | `frontend/src/graficos/EchartsCanvas.jsx`, `ChartPanel.jsx`, `chartDefaults.js` |
-| Cores de eixo/tooltip por tema | `frontend/src/utils/chartTheme.js` (`chartUi`) |
-| Biblioteca / sandbox de modelos | `frontend/src/graficos/GraficosContainer.jsx`, `ChartRenderer.jsx`, `registry.js` |
+| Tokens, temas, animações pipeline | `web/src/index.css` |
+| Registro Tailwind (`app.*`, `pipeline.*`, `table.*`, keyframes) | `web/tailwind.config.js` |
+| Estado de tema no `<html>` + persistência | `web/src/context/ThemeContext.jsx` |
+| Seletor de tema (rótulos curtos: Escuro, Claro, Verde, Azul + emoji) | `web/src/components/ThemeSwitcher.jsx` |
+| Entrada React | `web/src/main.jsx` (ThemeProvider) |
+| Gráficos ECharts + painel padrão | `web/src/graficos/EchartsCanvas.jsx`, `ChartPanel.jsx`, `chartDefaults.js` |
+| Cores de eixo/tooltip por tema | `web/src/utils/chartTheme.js` (`chartUi`) |
+| Biblioteca / sandbox de modelos | `web/src/graficos/GraficosContainer.jsx`, `ChartRenderer.jsx`, `registry.js` |
 
 O `index.html` inicia com `class="h-full dark"` para evitar flash; o `ThemeProvider` reaplica a classe salva no `localStorage` (`hospital-bi-theme`).
 
@@ -25,7 +25,7 @@ O sistema utiliza variáveis no espaço de cor **OKLCH** (com fallbacks hex onde
 
 ### Variáveis Core (`:root` + temas)
 
-Definidas em `frontend/src/index.css` em `:root`, `.dark`, `.light`, `.dark-green`, `.dark-blue`:
+Definidas em `web/src/index.css` em `:root`, `.dark`, `.light`, `.dark-green`, `.dark-blue`:
 
 - `--background`, `--foreground`, `--primary`, `--accent`
 - **Pipeline (dashboard):** `--dash-panel`, `--dash-live`, `--dash-critical`, `--dash-accent-urgent`
@@ -45,7 +45,7 @@ Qualquer componente que use `var(--primary)` ou classes Tailwind mapeadas (`bg-a
 
 ## 2. Orquestração de Temas (Theming)
 
-O **`ThemeProvider`** (`frontend/src/context/ThemeContext.jsx`) remove/adiciona no `document.documentElement` uma entre:
+O **`ThemeProvider`** (`web/src/context/ThemeContext.jsx`) remove/adiciona no `document.documentElement` uma entre:
 
 | Tema | Classe HTML | Efeito principal |
 | :--- | :--- | :--- |
@@ -149,7 +149,7 @@ Em `index.css` (`@layer base`):
 
 ## 6. Acessibilidade: movimento reduzido
 
-Em `frontend/src/index.css`, `@media (prefers-reduced-motion: reduce)` desliga animações decorativas (fade-in do shell, spin lento, foguinho/raio, glow, bounce/ping/pulse nos loaders) e encurta `.app-transition`, `.nav-item` e `.card-premium`. Em componentes, use `motion-reduce:*` (Tailwind 3.4) quando fizer sentido — ex.: `Sidebar` com `motion-reduce:transition-none` na largura colapsável.
+Em `web/src/index.css`, `@media (prefers-reduced-motion: reduce)` desliga animações decorativas (fade-in do shell, spin lento, foguinho/raio, glow, bounce/ping/pulse nos loaders) e encurta `.app-transition`, `.nav-item` e `.card-premium`. Em componentes, use `motion-reduce:*` (Tailwind 3.4) quando fizer sentido — ex.: `Sidebar` com `motion-reduce:transition-none` na largura colapsável.
 
 ---
 

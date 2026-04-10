@@ -52,7 +52,7 @@ export default function GerenciaChartToolbar({ theme, chartKind, onChartKindChan
         <span className={`whitespace-nowrap text-[11px] font-semibold ${isLight ? 'text-black/70' : 'text-white'}`}>
           Tipo
         </span>
-        <div ref={rootRef} className="relative">
+        <div ref={rootRef} className="relative z-30">
           <button
             type="button"
             aria-haspopup="listbox"
@@ -70,7 +70,7 @@ export default function GerenciaChartToolbar({ theme, chartKind, onChartKindChan
             <ul
               role="listbox"
               aria-label="Tipo de gráfico"
-              className={`absolute right-0 z-[100] mt-1 min-w-full overflow-hidden rounded-lg border py-0.5 ${menuTheme}`}
+              className={`absolute right-0 z-[200] mt-1 min-w-full overflow-hidden rounded-lg border py-0.5 ${menuTheme}`}
             >
               {GERENCIA_CHART_KINDS.map((k) => {
                 const active = k.id === chartKind;

@@ -49,6 +49,16 @@ export function buildTimeSeriesMultiChartOption({
       value: Math.abs(Number(Array.isArray(s.data) ? s.data[last] : 0)) || 0,
       itemStyle: s.color ? { color: s.color } : undefined,
     }));
+    const pieLabelFmt = (p) => {
+      const n = Number(p.value);
+      const nm = String(p.name ?? '')
+        .replace(/[{}]/g, '')
+        .slice(0, 36);
+      if (!Number.isFinite(n)) return nm;
+      const s = fmtDec(n, pctMode ? 1 : 2);
+      const val = pctMode ? `${s}%` : s;
+      return `${nm} (${val})`;
+    };
     return {
       animationDurationUpdate: 400,
       tooltip: {
@@ -70,10 +80,29 @@ export function buildTimeSeriesMultiChartOption({
       series: [
         {
           type: 'pie',
-          radius: ['32%', '52%'],
-          center: ['50%', '46%'],
+          radius: ['30%', '48%'],
+          center: ['50%', '44%'],
           data,
-          label: { color: ui.fg, fontSize: 10, fontWeight: 600 },
+          avoidLabelOverlap: true,
+          labelLayout: { hideOverlap: true },
+          label: {
+            show: true,
+            position: 'outside',
+            minMargin: 6,
+            formatter: pieLabelFmt,
+            color: ui.fg,
+            fontSize: 9,
+            fontWeight: 700,
+            lineHeight: 14,
+          },
+          labelLine: {
+            length: 10,
+            length2: 8,
+            lineStyle: { color: ui.axisLine, width: 1 },
+          },
+          emphasis: {
+            label: { show: true, fontWeight: 800 },
+          },
         },
       ],
     };
@@ -90,6 +119,23 @@ export function buildTimeSeriesMultiChartOption({
         data,
         barMaxWidth: 20,
         itemStyle: color ? { color } : undefined,
+        label: {
+          show: true,
+          position: 'top',
+          distance: 4,
+          fontSize: ui.pointLabelSize,
+          fontWeight: ui.labelFontWeight,
+          color: color || ui.fg,
+          textBorderColor: ui.labelTextBorder,
+          textBorderWidth: ui.labelTextBorderW,
+          formatter: (p) => {
+            const n = Number(p.value);
+            if (!Number.isFinite(n)) return '';
+            if (n === 0) return '';
+            const s = fmtDec(n, pctMode ? 1 : 2);
+            return pctMode ? `${s}%` : s;
+          },
+        },
       };
     }
     return {
@@ -103,6 +149,8 @@ export function buildTimeSeriesMultiChartOption({
       itemStyle: color ? { color } : undefined,
     };
   });
+
+  const gridTop = chartKind === 'bar' ? 64 : 56;
 
   return {
     animationDurationUpdate: 400,
@@ -123,7 +171,7 @@ export function buildTimeSeriesMultiChartOption({
       textStyle: { color: ui.fg, fontSize: ui.legendSize, fontWeight: 600 },
       pageTextStyle: { color: ui.muted, fontWeight: 600 },
     },
-    grid: { left: 52, right: 20, top: 56, bottom: 28 },
+    grid: { left: 52, right: 20, top: gridTop, bottom: 28 },
     xAxis: {
       type: 'category',
       boundaryGap,

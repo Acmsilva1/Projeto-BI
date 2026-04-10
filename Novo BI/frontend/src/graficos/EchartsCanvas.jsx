@@ -20,8 +20,8 @@ export default function EchartsCanvas({
     <ReactECharts
       echarts={echarts}
       option={merged}
-      notMerge={false}
-      lazyUpdate
+      notMerge
+      lazyUpdate={false}
       className={className}
       style={{ height, width: '100%', minHeight: height, ...style }}
       showLoading={loading}

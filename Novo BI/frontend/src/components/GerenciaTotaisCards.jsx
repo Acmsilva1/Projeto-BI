@@ -1,8 +1,14 @@
-import React, { useMemo, useCallback } from 'react';
+import React, { useMemo, useCallback, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { useApi } from '../hooks/useApi';
+import { useTheme } from '../context/ThemeContext';
+import { chartUi } from '../utils/chartTheme';
+import { buildTotaisCardsChartOption } from '../utils/gerenciaChartOptions.js';
 import ExportCsvButton from './ExportCsvButton';
 import { datedExportBasename, downloadCsv } from '../utils/downloadCsv';
+import ChartPanel from '../graficos/ChartPanel';
+import EchartsCanvas from '../graficos/EchartsCanvas';
+import GerenciaChartToolbar from './GerenciaChartToolbar.jsx';
 
 /** Faixas superiores distintas — leitura rápida sem depender só do cinza */
 const KPI_TOP_COLORS = [
@@ -24,6 +30,11 @@ function fmtTotal(v) {
  * Faixa horizontal de totais PS — GET /api/v1/gerencia/totais-ps
  */
 export default function GerenciaTotaisCards({ filters }) {
+  const { theme } = useTheme();
+  const ui = chartUi(theme);
+  const [viewMode, setViewMode] = useState('table');
+  const [chartKind, setChartKind] = useState('bar');
+
   const params = useMemo(
     () => ({
       period: filters.period,
@@ -36,6 +47,11 @@ export default function GerenciaTotaisCards({ filters }) {
   const { data, loading, error } = useApi('gerencia/totais-ps', params);
   const cards = data?.cards ?? [];
 
+  const chartOption = useMemo(
+    () => buildTotaisCardsChartOption({ ui, theme, cards, chartKind }),
+    [ui, theme, cards, chartKind],
+  );
+
   const onExportCsv = useCallback(() => {
     const rows = [['Indicador', 'Valor'], ...cards.map((c) => [c.label ?? '', c.value ?? ''])];
     downloadCsv(`${datedExportBasename('gerencia-totais-ps')}.csv`, rows);
@@ -46,7 +62,7 @@ export default function GerenciaTotaisCards({ filters }) {
       className="dashboard-panel overflow-hidden ring-1 ring-inset ring-pipeline-live/35"
       aria-label={data?.meta?.titulo || 'Totais PS'}
     >
-      <div className="gerencia-panel-head flex items-center justify-between gap-2 px-3 py-2.5 pl-4 sm:px-4 sm:pl-5">
+      <div className="gerencia-panel-head flex flex-col gap-2 px-3 py-2.5 pl-4 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:px-4 sm:pl-5">
         <div className="flex items-center gap-2 min-w-0">
           <span
             className="h-2 w-2 shrink-0 rounded-full bg-pipeline-live shadow-[0_0_10px_color-mix(in_srgb,var(--dash-live)_70%,transparent)]"
@@ -59,7 +75,17 @@ export default function GerenciaTotaisCards({ filters }) {
             {data?.meta?.titulo || 'Totais PS'}
           </h2>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+          <GerenciaChartToolbar
+            theme={theme}
+            showViewToggle
+            viewMode={viewMode}
+            onViewModeChange={setViewMode}
+            chartKind={chartKind}
+            onChartKindChange={setChartKind}
+            tableModeLabel="Cartões"
+            chartModeLabel="Gráfico"
+          />
           {!loading && cards.length > 0 ? (
             <ExportCsvButton onClick={onExportCsv} title="Baixar totais em CSV" />
           ) : null}
@@ -71,6 +97,10 @@ export default function GerenciaTotaisCards({ filters }) {
 
       {error ? (
         <p className="px-3 py-3 text-xs text-pipeline-critical sm:px-4">{error}</p>
+      ) : viewMode === 'chart' ? (
+        <ChartPanel theme={theme} variant="embedded" minHeightClass="min-h-[280px]" loading={loading}>
+          <EchartsCanvas option={chartOption} height={320} loading={false} />
+        </ChartPanel>
       ) : (
         <div
           className="grid w-full min-w-0 gap-x-2 gap-y-2.5 px-3 py-3 sm:gap-x-2.5 sm:px-4 sm:py-4 [grid-auto-columns:minmax(0,1fr)] [grid-auto-flow:column] [grid-template-rows:repeat(2,minmax(0,auto))]"

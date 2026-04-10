@@ -2,8 +2,10 @@ import React, { useMemo, useState, useCallback } from 'react';
 import { useApi } from '../hooks/useApi';
 import { useTheme } from '../context/ThemeContext';
 import { chartUi } from '../utils/chartTheme';
+import { buildTimeSeriesMultiChartOption } from '../utils/gerenciaChartOptions.js';
 import EchartsCanvas from '../graficos/EchartsCanvas';
 import ChartPanel from '../graficos/ChartPanel';
+import GerenciaChartToolbar from './GerenciaChartToolbar.jsx';
 
 function gaugeAxisColors(sense, meta, max) {
   const m = Number(meta) || 0;
@@ -33,6 +35,7 @@ export default function MetasAcompanhamentoGestao({ filters }) {
   const { theme } = useTheme();
   const ui = chartUi(theme);
   const [metric, setMetric] = useState('conversao');
+  const [trendChartKind, setTrendChartKind] = useState('line');
 
   const params = useMemo(
     () => ({
@@ -128,84 +131,62 @@ export default function MetasAcompanhamentoGestao({ filters }) {
   const lineOption = useMemo(() => {
     if (!months.length || !series.length || !gauge) return {};
     const pct = gauge.isPercent;
-    return {
-      animationDurationUpdate: 400,
-      tooltip: {
-        trigger: 'axis',
-        confine: true,
-        backgroundColor: ui.tooltipBg,
-        borderColor: ui.tooltipBorder,
-        borderWidth: 1,
-        textStyle: { color: ui.tooltipFg, fontSize: ui.tooltipFont, fontWeight: 600 },
-        valueFormatter: (v) => {
-          const n = Number(v);
-          if (Number.isNaN(n)) return '—';
-          const dec = pct ? 1 : 2;
-          const s = n.toLocaleString('pt-BR', { minimumFractionDigits: dec, maximumFractionDigits: dec });
-          return pct ? `${s}%` : s;
-        },
-      },
-      legend: {
-        type: 'scroll',
-        top: 4,
-        left: 'center',
-        width: '96%',
-        textStyle: { color: ui.fg, fontSize: ui.legendSize, fontWeight: 600 },
-        pageTextStyle: { color: ui.muted, fontWeight: 600 },
-      },
-      grid: { left: 52, right: 20, top: 56, bottom: 28 },
-      xAxis: {
-        type: 'category',
-        boundaryGap: false,
-        data: months,
-        axisLabel: { color: ui.fg, fontSize: ui.axisSize, fontWeight: 600 },
-        axisLine: { lineStyle: { color: ui.axisLine, width: theme === 'light' ? 1.5 : 1 } },
-      },
-      yAxis: {
-        type: 'value',
-        scale: true,
-        axisLabel: {
-          color: ui.fg,
-          fontSize: ui.axisSize,
-          fontWeight: 600,
-          formatter: (v) => {
-            const n = Number(v);
-            if (Number.isNaN(n)) return '';
-            return pct ? `${n.toFixed(0)}%` : String(n);
-          },
-        },
-        splitLine: { lineStyle: { color: ui.splitLine } },
-      },
-      series: series.map((s) => ({
-        name: s.name,
-        type: 'line',
-        smooth: 0.35,
-        data: s.data,
-        showSymbol: true,
-        symbolSize: theme === 'light' ? 6 : 5,
-        lineStyle: { width: theme === 'light' ? 2.6 : 2.2, color: s.color },
-        itemStyle: { color: s.color },
-        emphasis: { focus: 'series' },
-        label: {
-          show: true,
-          position: 'top',
-          distance: 4,
-          fontSize: ui.pointLabelSize,
-          fontWeight: ui.labelFontWeight,
-          color: s.color,
-          textBorderColor: ui.labelTextBorder,
-          textBorderWidth: ui.labelTextBorderW,
-          formatter: (p) => {
-            const n = Number(p.value);
-            if (Number.isNaN(n)) return '';
-            const dec = pct ? 1 : 2;
-            const t = n.toLocaleString('pt-BR', { minimumFractionDigits: dec, maximumFractionDigits: dec });
-            return pct ? `${t}%` : t;
-          },
-        },
-      })),
-    };
-  }, [months, series, gauge, ui, theme]);
+    const opt = buildTimeSeriesMultiChartOption({
+      theme,
+      ui,
+      months,
+      series,
+      chartKind: trendChartKind,
+      pct,
+      yMin: undefined,
+      yMax: undefined,
+      emptyMessage: 'Sem tendência',
+    });
+    if (!opt.series || !Array.isArray(opt.series)) return opt;
+    const yAxisScaled =
+      opt.yAxis && typeof opt.yAxis === 'object' && !Array.isArray(opt.yAxis)
+        ? { ...opt.yAxis, scale: true }
+        : opt.yAxis;
+    if (trendChartKind === 'line') {
+      return {
+        ...opt,
+        yAxis: yAxisScaled,
+        series: opt.series.map((s, idx) => {
+          const src = series[idx];
+          const color = src?.color;
+          return {
+            ...s,
+            emphasis: { focus: 'series' },
+            label: {
+              show: true,
+              position: 'top',
+              distance: 4,
+              fontSize: ui.pointLabelSize,
+              fontWeight: ui.labelFontWeight,
+              color: color || s.lineStyle?.color,
+              textBorderColor: ui.labelTextBorder,
+              textBorderWidth: ui.labelTextBorderW,
+              formatter: (p) => {
+                const n = Number(p.value);
+                if (Number.isNaN(n)) return '';
+                const dec = pct ? 1 : 2;
+                const t = n.toLocaleString('pt-BR', { minimumFractionDigits: dec, maximumFractionDigits: dec });
+                return pct ? `${t}%` : t;
+              },
+            },
+          };
+        }),
+      };
+    }
+    if (trendChartKind === 'bar') {
+      return {
+        ...opt,
+        yAxis: yAxisScaled,
+        series: opt.series.map((s) => ({ ...s, emphasis: { focus: 'series' } })),
+      };
+    }
+    return opt;
+  }, [months, series, gauge, ui, theme, trendChartKind]);
 
   const onPickMetric = useCallback((key) => {
     setMetric(key);
@@ -286,15 +267,14 @@ export default function MetasAcompanhamentoGestao({ filters }) {
           </ChartPanel>
         </div>
 
-        <ChartPanel
-          theme={theme}
-          variant="card"
-          minHeightClass="min-h-[360px]"
-          className="mt-4"
-          loading={loading}
-        >
-          <EchartsCanvas option={lineOption} height={400} loading={false} />
-        </ChartPanel>
+        <div className="mt-4 flex flex-col gap-2">
+          <div className="flex justify-end px-1 sm:px-2">
+            <GerenciaChartToolbar theme={theme} chartKind={trendChartKind} onChartKindChange={setTrendChartKind} />
+          </div>
+          <ChartPanel theme={theme} variant="card" minHeightClass="min-h-[360px]" loading={loading}>
+            <EchartsCanvas option={lineOption} height={400} loading={false} />
+          </ChartPanel>
+        </div>
       </div>
     </section>
   );

@@ -1,6 +1,6 @@
 # Novo BI — Hospital (shell React + API Node)
 
-Aplicação web de indicadores com **Visão Gerência** (totais, tempos por etapa, metas, indicadores por unidade), temas múltiplos e biblioteca de gráficos **ECharts**.
+Aplicação web de indicadores com **Visão Gerência** (totais, tempos por etapa, metas, indicadores por unidade), **troca de tipo de gráfico por painel** (linha, barras, pizza nos mesmos dados), temas múltiplos e biblioteca **ECharts** (`graficos/`).
 
 ## Stack
 
@@ -30,9 +30,9 @@ Isto sobe a API e o Vite em paralelo (`concurrently`). Build de produção: `npm
 
 ## Especificações visuais resumidas
 
-- **Temas:** classe no `<html>` controlada por `ThemeContext` + `ThemeSwitcher`; variáveis em `frontend/src/index.css`.
+- **Temas:** classe no `<html>` controlada por `ThemeContext` + `ThemeSwitcher` (emoji + nome curto: Escuro, Claro, Verde, Azul); variáveis em `frontend/src/index.css`.
 - **Painéis de módulo:** `.dashboard-panel`; cabeçalhos de bloco Gerência: `.gerencia-panel-head`.
-- **Gráficos:** componente **`ChartPanel`** (`frontend/src/graficos/ChartPanel.jsx`) — borda `border-table-grid`, superfície clara/escura, variantes `card` | `embedded`, overlay de carregamento opcional. **`EchartsCanvas`** apenas renderiza a `option`. Gráficos “à mão” na Gerência usam **`chartUi(theme)`** (`frontend/src/utils/chartTheme.js`) para cores de eixo, tooltip e legenda.
+- **Gráficos:** na **Visão Gerência**, os **gráficos dedicados** e os **totais** (vista gráfico) usam **`ChartPanel`** + **`EchartsCanvas`**, **`GerenciaChartToolbar`** e **`frontend/src/utils/gerenciaChartOptions.js`**. As **tabelas** da Gerência ficam só em formato tabular (export CSV). Na biblioteca (`GraficosContainer`), combinar **`ChartPanel`** + **`EchartsCanvas`**. Os **modelos** em `graficos/models/*` devolvem só `EchartsCanvas`; **`ChartRenderer`** não inclui `ChartPanel` — envolver manualmente se quiseres o mesmo contentor. **`chartUi(theme)`** em `frontend/src/utils/chartTheme.js`.
 - **CSV:** botão nas tabelas/totais da Gerência (`ExportCsvButton`, `utils/downloadCsv.js`); não nos gráficos de tendência.
 
 ## Pastas principais

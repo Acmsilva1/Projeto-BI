@@ -9,7 +9,7 @@ Esta documentação detalha a arquitetura de estilos que permite que as aplicaç
 | Tokens, temas, animações pipeline | `frontend/src/index.css` |
 | Registro Tailwind (`app.*`, `pipeline.*`, `table.*`, keyframes) | `frontend/tailwind.config.js` |
 | Estado de tema no `<html>` + persistência | `frontend/src/context/ThemeContext.jsx` |
-| Seletor de tema (Geral escuro/claro, PS, Leitos) | `frontend/src/components/ThemeSwitcher.jsx` |
+| Seletor de tema (rótulos curtos: Escuro, Claro, Verde, Azul + emoji) | `frontend/src/components/ThemeSwitcher.jsx` |
 | Entrada React | `frontend/src/main.jsx` (ThemeProvider) |
 | Gráficos ECharts + painel padrão | `frontend/src/graficos/EchartsCanvas.jsx`, `ChartPanel.jsx`, `chartDefaults.js` |
 | Cores de eixo/tooltip por tema | `frontend/src/utils/chartTheme.js` (`chartUi`) |
@@ -76,11 +76,13 @@ Classe utilitária **`.dashboard-panel`** aplica fundo/borda alinhados ao pipeli
 | Peça | Função |
 | :--- | :--- |
 | **`EchartsCanvas`** | Wrapper `echarts-for-react`; recebe `option` já montada; `height`, `loading`, `onEvents`. |
-| **`ChartPanel`** | **Recipiente padrão** dos gráficos no produto: `border-table-grid`, fundo **claro** (`bg-white shadow-sm`) ou **escuro** (`bg-slate-900/25 shadow-inner`) conforme `theme === 'light'`. Suporta **`variant="card"`** (caixa `rounded-xl` + borda completa) ou **`variant="embedded"`** (só `border-t`, para área logo abaixo do `.gerencia-panel-head` dentro de um `.dashboard-panel`). Prop opcional **`loading`**: overlay com `Loader2` (mesmo padrão visual da Visão Gerência). |
-| **`chartUi(theme)`** | Tokens de texto, eixos, tooltip e legenda para options montadas à mão (`MetasAcompanhamentoGestao`, `MetasConformesPorUnidadeChart`). |
-| **`chartDefaults.js`** | Modelos da biblioteca (`BarVerticalModel`, `LineModel`, …): grid, tooltip e eixos alinhados ao tema escuro da biblioteca; novos modelos devem preferir `chartUi` quando integrados ao shell com tema claro. |
+| **`ChartPanel`** | **Recipiente padrão do shell** (dashboard / Visão Gerência): `border-table-grid`, fundo **claro** (`bg-white shadow-sm`) ou **escuro** (`bg-slate-900/25 shadow-inner`) conforme `theme === 'light'`. **`variant="card"`** = `rounded-xl` + borda completa; **`variant="embedded"`** = só `border-t` sob `.gerencia-panel-head` dentro de `.dashboard-panel`. **`loading`**: overlay com `Loader2`. **Uso atual no código:** painéis da Visão Gerência (`MetasAcompanhamentoGestao`, `MetasConformesPorUnidadeChart`, `GerenciaTotaisCards` em modo gráfico, `GraficosContainer` na biblioteca). |
+| **`chartUi(theme)`** | Tokens de texto, eixos, tooltip e legenda para options montadas à mão na Gerência e em **`gerenciaChartOptions.js`** (linha/barras/pizza a partir dos mesmos dados). |
+| **`chartDefaults.js`** | Modelos da biblioteca (`BarVerticalModel`, `LineModel`, …): grid, tooltip e eixos pensados para preview; integração no **tema claro** do shell: preferir `chartUi` na option ou envolver em `ChartPanel`. |
+| **`ChartRenderer`** | Renderiza o modelo por `chartId` com **apenas** um `<div>` + `<EchartsCanvas />` vindo do modelo — **não** inclui `ChartPanel`. Quem usar `ChartRenderer` num módulo com o mesmo look do dashboard deve envolver o resultado em **`ChartPanel`** + passar `theme` do `useTheme()`. |
+| **`graficos/models/*.jsx`** | Cada modelo exporta só **`EchartsCanvas`** — por desenho, para composição flexível. O **`GraficosContainer`** já aplica `ChartPanel` à volta do preview. |
 
-**Uso recomendado em novos módulos:**
+**Uso recomendado em novos módulos (páginas / shell):**
 
 ```jsx
 import { useTheme } from '../context/ThemeContext';

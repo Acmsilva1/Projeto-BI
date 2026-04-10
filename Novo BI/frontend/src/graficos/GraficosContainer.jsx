@@ -90,7 +90,7 @@ export default function GraficosContainer({
         {Chart ? <Chart data={chartData} height={height} /> : null}
       </ChartPanel>
 
-      <p className="mt-3 text-[11px] text-app-muted font-mono truncate" title={activeId}>
+      <p className="mt-3 text-[11px] text-app-muted font-mono truncate">
         id: <span className="text-app-muted/80">{activeId}</span>
       </p>
     </section>

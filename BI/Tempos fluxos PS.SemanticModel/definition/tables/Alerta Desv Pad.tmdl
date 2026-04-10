@@ -1,0 +1,29 @@
+table 'Alerta Desv Pad'
+	lineageTag: de05d34f-29db-478f-9a76-590efb31f566
+
+	measure 'Valor Alerta Desv. Pad.' = SELECTEDVALUE('Alerta Desv Pad'[Alerta Desv. Pad.], 1)
+		formatString: "R$"\ #,0.###############;-"R$"\ #,0.###############;"R$"\ #,0.###############
+		lineageTag: 61ccaf7f-422e-4018-91df-17325a01babb
+
+		annotation PBI_FormatHint = {"currencyCulture":"pt-BR"}
+
+	column 'Alerta Desv. Pad.'
+		lineageTag: 4aef7eb5-97ca-43db-8988-51077b8ddba7
+		summarizeBy: none
+		sourceColumn: [Value]
+
+		extendedProperty ParameterMetadata =
+				{
+				  "version": 0
+				}
+
+		annotation SummarizationSetBy = User
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	partition 'Alerta Desv Pad' = calculated
+		mode: import
+		source = GENERATESERIES(CURRENCY(0), CURRENCY(10), CURRENCY(0.1))
+
+	annotation PBI_Id = 449b653df37b469890b4fc9fdfc56c3e
+

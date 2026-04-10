@@ -1,0 +1,20 @@
+table 'Param prescric com e sem lote'
+	lineageTag: 3a359621-789f-4419-91c0-ed28467e64d1
+
+	column Column
+		formatString: 0
+		lineageTag: 353fb6c2-0228-4311-8217-23c2338545a6
+		summarizeBy: sum
+		isNameInferred
+		sourceColumn: [Column]
+
+		annotation SummarizationSetBy = Automatic
+
+	partition 'Param prescric com e sem lote' = calculated
+		mode: import
+		source = Row("Column", BLANK())
+
+	annotation PBI_Id = b01f44aaf2224e66a50b9a3c51f92960
+
+	annotation 436ba87b-9c83-4389-a31b-ebd06a36be98 = {"Expression":""}
+

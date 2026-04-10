@@ -1,0 +1,45 @@
+table Tabela_Parametro_Medidas
+	lineageTag: b2c47513-b884-4bd2-a6b0-8fba8f23422a
+
+	column Parametro
+		lineageTag: c026b4d7-4e98-44a9-a9b3-c26709344a39
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: [Parametro]
+		sortByColumn: Ordem
+
+		annotation SummarizationSetBy = Automatic
+
+	column Ordem
+		formatString: 0
+		lineageTag: e5ba3962-d44a-459b-9b70-dad1c59cbbd5
+		summarizeBy: sum
+		isNameInferred
+		sourceColumn: [Ordem]
+
+		annotation SummarizationSetBy = Automatic
+
+	partition Tabela_Parametro_Medidas = calculated
+		mode: import
+		source = ```
+				
+				DATATABLE(
+				    "Parametro", STRING,
+				    "Ordem", INTEGER,
+				    {
+				        {"ATENDIMENTOS", 1},
+				        {"TRIAGEM >12MIN", 2},
+				        {"CONSULTAS >1:30H", 3},
+				        {"MEDICAÇÕES >30MIN", 4},
+				        {"RX E ECG >45MIN", 5},
+				        {"TC e US >2H", 6},
+				        {"REAVALIAÇÕES >45MIN", 7},
+				        {"PERMANÊNCIA >3H", 8}
+				    }
+				)
+				
+				
+				```
+
+	annotation PBI_Id = 056c6d858e4e4b5dba507500557d440a
+

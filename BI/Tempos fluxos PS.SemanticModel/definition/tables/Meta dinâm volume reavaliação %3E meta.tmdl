@@ -1,0 +1,28 @@
+table 'Meta dinâm volume reavaliação > meta'
+	lineageTag: 8f69c208-1134-4b6d-845b-92cd90920e07
+
+	measure 'Valor Meta dinâm volume reavaliação > meta' = SELECTEDVALUE('Meta dinâm volume reavaliação > meta'[Meta dinâm volume reavaliação > meta])
+		lineageTag: 28cefa87-be9c-4988-89c0-40b68be70002
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Meta dinâm volume reavaliação > meta'
+		lineageTag: eb464330-7409-482c-a89d-9d1f1d55be96
+		summarizeBy: none
+		sourceColumn: [Value]
+
+		extendedProperty ParameterMetadata =
+				{
+				  "version": 0
+				}
+
+		annotation SummarizationSetBy = User
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	partition 'Meta dinâm volume reavaliação > meta' = calculated
+		mode: import
+		source = GENERATESERIES(0, 0.101, 0.001)
+
+	annotation PBI_Id = 55e7d18cc5f54f4ba5e42806a7606a3a
+

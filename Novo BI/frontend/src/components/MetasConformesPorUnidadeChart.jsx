@@ -1,9 +1,9 @@
 import React, { useMemo } from 'react';
-import { Loader2 } from 'lucide-react';
 import { useApi } from '../hooks/useApi';
 import { useTheme } from '../context/ThemeContext';
 import { chartUi } from '../utils/chartTheme';
 import EchartsCanvas from '../graficos/EchartsCanvas';
+import ChartPanel from '../graficos/ChartPanel';
 
 /**
  * % de metas conformes por unidade — tendência mensal; só filtros globais (regional/unidade).
@@ -54,7 +54,7 @@ export default function MetasConformesPorUnidadeChart({ filters }) {
         valueFormatter: (v) => {
           const n = Number(v);
           if (Number.isNaN(n)) return '—';
-          const s = n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+          const s = n.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
           return pct ? `${s}%` : s;
         },
       },
@@ -112,7 +112,7 @@ export default function MetasConformesPorUnidadeChart({ filters }) {
           formatter: (p) => {
             const n = Number(p.value);
             if (!Number.isFinite(n) || n === 0) return '';
-            const t = n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            const t = n.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
             return pct ? `${t}%` : t;
           },
         },
@@ -139,24 +139,9 @@ export default function MetasConformesPorUnidadeChart({ filters }) {
         ) : null}
       </div>
 
-      <div
-        className={[
-          'relative min-h-[360px] border-t border-table-grid p-1 sm:p-2',
-          theme === 'light' ? 'bg-white shadow-sm' : 'bg-slate-900/25 shadow-inner',
-        ].join(' ')}
-      >
-        {loading ? (
-          <div
-            className={[
-              'absolute inset-0 z-10 flex items-center justify-center',
-              theme === 'light' ? 'bg-white/80' : 'bg-slate-950/40',
-            ].join(' ')}
-          >
-            <Loader2 className="h-8 w-8 animate-spin text-sky-500" aria-hidden />
-          </div>
-        ) : null}
+      <ChartPanel theme={theme} variant="embedded" minHeightClass="min-h-[360px]" loading={loading}>
         <EchartsCanvas option={lineOption} height={400} loading={false} />
-      </div>
+      </ChartPanel>
     </section>
   );
 }

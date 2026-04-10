@@ -1,0 +1,235 @@
+table 'RX e ECG'
+	lineageTag: 482de7aa-3414-4eb8-9f18-f167d3a542a9
+
+	column UNIDADE
+		dataType: string
+		lineageTag: 9088a55e-25a7-45ac-9d86-e9551aa4c781
+		summarizeBy: none
+		sourceColumn: UNIDADE
+
+		annotation SummarizationSetBy = Automatic
+
+	column NR_ATENDIMENTO
+		dataType: int64
+		formatString: 0
+		lineageTag: 9c9e15bf-eac3-48c8-bcfc-fb1cfd70d131
+		summarizeBy: none
+		sourceColumn: NR_ATENDIMENTO
+
+		annotation SummarizationSetBy = Automatic
+
+	column PACIENTE
+		dataType: string
+		lineageTag: 73e2c203-52a6-494b-8566-7627cbe3a062
+		summarizeBy: none
+		sourceColumn: PACIENTE
+
+		annotation SummarizationSetBy = Automatic
+
+	column TIPO
+		dataType: string
+		lineageTag: d1e51bc9-8daf-4658-b335-5a46563d4e7e
+		summarizeBy: none
+		sourceColumn: TIPO
+
+		annotation SummarizationSetBy = Automatic
+
+	column DATA
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: 858f1133-2b79-4c49-89d5-12b8af215278
+		summarizeBy: none
+		sourceColumn: DATA
+
+		variation Variation
+			isDefault
+			relationship: 2f9dc8f0-6338-4d64-9475-3d760b9145cc
+			defaultHierarchy: LocalDateTable_bcc68dfd-c902-4c6d-91ef-e6fdcfb22033.'Hierarquia de datas'
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column EXAME
+		dataType: string
+		lineageTag: f29af3ed-453a-4c08-8768-0162309e9737
+		summarizeBy: none
+		sourceColumn: EXAME
+
+		annotation SummarizationSetBy = Automatic
+
+	column DT_SOLICITACAO
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: 0fca28ec-c15f-426e-810d-b8c81ffdce7c
+		summarizeBy: none
+		sourceColumn: DT_SOLICITACAO
+
+		variation Variation
+			isDefault
+			relationship: 3a74248f-86fa-4b0f-a9ec-de00d2341d1b
+			defaultHierarchy: LocalDateTable_e8a5ce40-c3d4-4c7e-9a5c-2a338cf2e5f6.'Hierarquia de datas'
+
+		annotation SummarizationSetBy = Automatic
+
+	column DT_EXAME
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: ed811342-f5c6-41e9-a2ff-26eb6b68fc8a
+		summarizeBy: none
+		sourceColumn: DT_EXAME
+
+		variation Variation
+			isDefault
+			relationship: 2447db91-a604-4d53-a5fa-e5d498509a5d
+			defaultHierarchy: LocalDateTable_1a93416a-ee23-4888-ba4a-12f4e656c51a.'Hierarquia de datas'
+
+		annotation SummarizationSetBy = Automatic
+
+	column MINUTOS
+		dataType: double
+		lineageTag: a08257c6-9c95-4174-aeff-6f2fed7895b8
+		summarizeBy: sum
+		sourceColumn: MINUTOS
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column HORAS
+		dataType: double
+		lineageTag: eed0cbea-0b74-4d0e-a608-b5fd087ea98b
+		summarizeBy: sum
+		sourceColumn: HORAS
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column NR_PRESCRICAO
+		dataType: int64
+		formatString: 0
+		lineageTag: 559d68ee-bda9-445a-948d-6a0148dc06fc
+		summarizeBy: sum
+		sourceColumn: NR_PRESCRICAO
+
+		annotation SummarizationSetBy = Automatic
+
+	column STATUS
+		dataType: string
+		lineageTag: 125b337d-342b-4dff-a4f6-302861a60f4f
+		summarizeBy: none
+		sourceColumn: STATUS
+
+		annotation SummarizationSetBy = Automatic
+
+	column >30min
+		dataType: string
+		lineageTag: 1cea59fb-031b-44aa-ab70-011141227b66
+		summarizeBy: none
+		sourceColumn: >30min
+
+		annotation SummarizationSetBy = Automatic
+
+	column >45min
+		dataType: string
+		lineageTag: fcdc4b84-7b7f-42c7-a9b2-13062412e207
+		summarizeBy: none
+		sourceColumn: >45min
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Diferença Minutos RX_ECG' =
+			
+			VAR Exame = 'RX e ECG'[DT_EXAME]
+			VAR Solic = 'RX e ECG'[DT_SOLICITACAO]
+			RETURN
+			IF(
+			    ISBLANK(Exame) || ISBLANK(Solic),
+			    BLANK(),                          // sem uma das datas => nulo
+			    ( (Exame - Solic) * 1440 )     // minutos (1440 = 24*60); INT para inteiro
+			)
+		formatString: 0.00
+		lineageTag: 84fd7d60-efec-43b6-9543-4be8e744c1b5
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+	column HR_RX_ECG = FORMAT('RX e ECG'[DT_SOLICITACAO],"HH:00")
+		lineageTag: 06b734fd-d097-487f-bc3c-8cc0e8f77a09
+		summarizeBy: none
+
+		annotation SummarizationSetBy = Automatic
+
+	column MEDICO
+		dataType: string
+		lineageTag: dc55c41a-096f-4acb-b8e6-bc930a33e2f5
+		summarizeBy: none
+		sourceColumn: MEDICO
+
+		annotation SummarizationSetBy = Automatic
+
+	column CD_ESTABELECIMENTO
+		dataType: double
+		lineageTag: 835cc98e-d2aa-4131-aa20-a72f2f1c9d34
+		summarizeBy: sum
+		sourceColumn: CD_ESTABELECIMENTO
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column DT_CHECAGEM
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: 6bd9b1e5-beb4-4aac-9c46-7ec6d7494282
+		summarizeBy: none
+		sourceColumn: DT_CHECAGEM
+
+		variation Variation
+			isDefault
+			relationship: 45baf8f8-41e2-43dc-ada9-70cdfbe445e5
+			defaultHierarchy: LocalDateTable_561e3c9a-f371-4c34-b5e6-7b2a96cc1ec3.'Hierarquia de datas'
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Diferença Minutos RX_ECG Solic/chec' =
+			
+			VAR Exame = 'RX e ECG'[DT_EXAME]
+			VAR Chec  = 'RX e ECG'[DT_CHECAGEM]
+			VAR Solic = 'RX e ECG'[DT_SOLICITACAO]
+			VAR DataBase =
+			    IF(
+			        ISBLANK(Chec),
+			        Solic,     -- se não tem checagem, usa solicitação
+			        Chec       -- senão, usa checagem
+			    )
+			RETURN
+			IF(
+			    ISBLANK(Exame) || ISBLANK(DataBase),
+			    BLANK(),               -- se faltar uma das duas datas => BLANK
+			    (Exame - DataBase) * 1440
+			)
+		lineageTag: 8b095dab-43ee-4336-998e-5a518f437de4
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	partition 'RX e ECG' = m
+		mode: import
+		source =
+				let
+				    Fonte = PostgreSQL.Database("10.250.50.151:6433", "db"),
+				    cmc_hospital_tbl_tempos_rx_e_ecg = Fonte{[Schema="cmc_hospital",Item="tbl_tempos_rx_e_ecg"]}[Data],
+				    #"Tipo Alterado" = Table.TransformColumnTypes(#"cmc_hospital_tbl_tempos_rx_e_ecg",{{"UNIDADE", type text}, {"NR_ATENDIMENTO", Int64.Type}, {"PACIENTE", type text}, {"TIPO", type text}, {"DATA", type date}, {"EXAME", type text}, {"DT_SOLICITACAO", type datetime}, {"DT_EXAME", type datetime}, {"MINUTOS", type number}, {"HORAS", type number}, {"NR_PRESCRICAO", Int64.Type}, {"STATUS", type text}}),
+				    #"Coluna Condicional Adicionada" = Table.AddColumn(#"Tipo Alterado", ">30min", each if [MINUTOS] > 30 then ">30min" else null),
+				    #"Coluna Condicional Adicionada1" = Table.AddColumn(#"Coluna Condicional Adicionada", ">45min", each if [MINUTOS] > 45 then ">45min" else null)
+				in
+				    #"Coluna Condicional Adicionada1"
+
+	annotation PBI_ResultType = Table
+
+	annotation PBI_NavigationStepName = Navegação
+

@@ -1,0 +1,26 @@
+table Meta_medicacao
+	lineageTag: 24702d0d-299a-498a-b3c8-f96d3acfdcee
+
+	measure 'Valor Meta_medicacao' = SELECTEDVALUE('Meta_medicacao'[Tempo minutos])
+		formatString: 0
+		lineageTag: 1603eaad-d17b-4136-89a7-53141ea357ba
+
+	column 'Tempo minutos'
+		formatString: 0
+		lineageTag: 3b5bf263-0edf-431b-ab28-3919d1adc5ed
+		summarizeBy: none
+		sourceColumn: [Value]
+
+		extendedProperty ParameterMetadata =
+				{
+				  "version": 0
+				}
+
+		annotation SummarizationSetBy = User
+
+	partition Meta_medicacao = calculated
+		mode: import
+		source = GENERATESERIES(0, 120, 1)
+
+	annotation PBI_Id = 22963f6d51554c6cba37ac18445c7ed5
+

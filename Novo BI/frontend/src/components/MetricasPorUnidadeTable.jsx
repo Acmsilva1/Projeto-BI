@@ -1,6 +1,9 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useCallback } from 'react';
 import { Loader2 } from 'lucide-react';
 import { useApi } from '../hooks/useApi';
+import { useTheme } from '../context/ThemeContext';
+import ExportCsvButton from './ExportCsvButton';
+import { datedExportBasename, downloadCsv, roundCsvNumber } from '../utils/downloadCsv';
 
 function fmtCell(kind, raw) {
   if (kind === 'text') {
@@ -11,7 +14,7 @@ function fmtCell(kind, raw) {
   if (Number.isNaN(n)) return '—';
   if (kind === 'int') return Math.round(n).toLocaleString('pt-BR');
   if (kind === 'pct') {
-    return `${n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
+    return `${n.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`;
   }
   if (kind === 'decimal') {
     return n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -19,45 +22,59 @@ function fmtCell(kind, raw) {
   return String(n);
 }
 
-const BOLD_OK = 'text-emerald-400 font-bold';
-const BOLD_RUIM = 'text-rose-400 font-bold';
-const BOLD_NEUTRO = 'text-table-header-fg font-bold';
-const BOLD_MUTED = 'text-table-header-muted font-bold';
+/** Valores numéricos alinhados à tela: % com 1 casa, decimais com 2 (sem sufixo % no CSV). */
+function exportCell(kind, raw) {
+  if (kind === 'text') {
+    const s = raw == null ? '' : String(raw).trim();
+    return s;
+  }
+  const n = Number(raw);
+  if (Number.isNaN(n)) return '';
+  if (kind === 'int') return Math.round(n);
+  if (kind === 'pct') return roundCsvNumber(n, 1);
+  if (kind === 'decimal') return roundCsvNumber(n, 2);
+  return roundCsvNumber(n, 2);
+}
 
 /**
  * Cores por coluna: API envia pctSense + limiares (high_good / low_good).
- * Sem isso, % fica só negrito neutro — não generaliza 80/40.
+ * Modo claro: verde/vermelho mais escuros para contraste no fundo claro.
  */
-function cellDataClass(col, raw) {
+function cellDataClass(col, raw, isLight) {
+  const ok = isLight ? 'text-emerald-700 font-bold' : 'text-emerald-400 font-bold';
+  const ruim = isLight ? 'text-rose-700 font-bold' : 'text-rose-400 font-bold';
+  const neutro = 'text-table-header-fg font-bold';
+  const muted = 'text-table-header-muted font-bold';
+
   const kind = col.kind;
   if (kind === 'text') {
     const s = raw == null ? '' : String(raw).trim();
-    if (!s) return BOLD_MUTED;
-    return BOLD_NEUTRO;
+    if (!s) return muted;
+    return neutro;
   }
 
   if (kind === 'pct') {
     const n = Number(raw);
-    if (!Number.isFinite(n)) return BOLD_MUTED;
+    if (!Number.isFinite(n)) return muted;
     const sense = col.pctSense;
     const g = col.pctGreenAt;
     const r = col.pctRedAt;
     if (sense === 'high_good' && (g != null || r != null)) {
-      if (g != null && n >= g) return BOLD_OK;
-      if (r != null && n <= r) return BOLD_RUIM;
-      return BOLD_NEUTRO;
+      if (g != null && n >= g) return ok;
+      if (r != null && n <= r) return ruim;
+      return neutro;
     }
     if (sense === 'low_good' && (g != null || r != null)) {
-      if (g != null && n <= g) return BOLD_OK;
-      if (r != null && n >= r) return BOLD_RUIM;
-      return BOLD_NEUTRO;
+      if (g != null && n <= g) return ok;
+      if (r != null && n >= r) return ruim;
+      return neutro;
     }
-    return BOLD_NEUTRO;
+    return neutro;
   }
 
   const isZero = raw === 0 || raw === null || raw === undefined || Number(raw) === 0;
-  if (isZero) return BOLD_MUTED;
-  return BOLD_NEUTRO;
+  if (isZero) return muted;
+  return neutro;
 }
 
 /** Divisórias — tokens --table-* em index.css (escuro / claro / verde / azul) */
@@ -81,9 +98,20 @@ export default function MetricasPorUnidadeTable({ filters }) {
   );
 
   const { data, loading, error } = useApi('gerencia/metricas-por-unidade', params);
+  const { theme } = useTheme();
+  const isLight = theme === 'light';
 
   const colunas = data?.colunas ?? [];
   const linhas = data?.linhas ?? [];
+
+  const onExportCsv = useCallback(() => {
+    const head = ['Unidade', ...colunas.map((c) => c.label ?? c.key ?? '')];
+    const body = linhas.map((linha) => [
+      linha.label ?? '',
+      ...colunas.map((c) => exportCell(c.kind, linha.valores?.[c.key])),
+    ]);
+    downloadCsv(`${datedExportBasename('gerencia-metricas-por-unidade')}.csv`, [head, ...body]);
+  }, [colunas, linhas]);
 
   if (error) {
     return (
@@ -108,16 +136,21 @@ export default function MetricasPorUnidadeTable({ filters }) {
             {data?.meta?.titulo || 'Indicadores por unidade (PS)'}
           </h2>
         </div>
-        {loading ? (
-          <span className="flex items-center gap-2 text-xs text-app-muted">
-            <Loader2 className="h-3.5 w-3.5 animate-spin text-pipeline-live" />
-            Atualizando…
-          </span>
-        ) : (
-          <span className="text-[10px] uppercase tracking-wider text-app-muted">
-            Volumes e percentuais · filtro do topo
-          </span>
-        )}
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {!loading && linhas.length > 0 ? (
+            <ExportCsvButton onClick={onExportCsv} title="Baixar indicadores por unidade em CSV" />
+          ) : null}
+          {loading ? (
+            <span className="flex items-center gap-2 text-xs text-app-muted">
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-pipeline-live" />
+              Atualizando…
+            </span>
+          ) : (
+            <span className="text-[10px] uppercase tracking-wider text-app-muted">
+              Volumes e percentuais · filtro do topo
+            </span>
+          )}
+        </div>
       </div>
 
       <div className="overflow-x-auto">
@@ -164,7 +197,7 @@ export default function MetricasPorUnidadeTable({ filters }) {
                   return (
                     <td
                       key={c.key}
-                      className={`min-w-[5.5rem] ${COL_RULE} px-1.5 py-1.5 text-right tabular-nums text-[9px] last:border-r-0 sm:min-w-[6rem] sm:px-2 sm:text-[10px] ${cellDataClass(c, v)}`}
+                      className={`min-w-[5.5rem] ${COL_RULE} px-1.5 py-1.5 text-right tabular-nums text-[9px] last:border-r-0 sm:min-w-[6rem] sm:px-2 sm:text-[10px] ${cellDataClass(c, v, isLight)}`}
                     >
                       {fmtCell(c.kind, v)}
                     </td>

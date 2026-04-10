@@ -1,0 +1,165 @@
+model Model
+	culture: pt-BR
+	defaultPowerBIDataSourceVersion: powerBI_V3
+	sourceQueryCulture: pt-BR
+	dataAccessOptions
+		legacyRedirects
+		returnErrorValuesAsNull
+
+annotation PBI_QueryOrder = ["fluxo","medicacao","reavaliacao","Calendario","RX e ECG","Medidas","TC e US","Horas","Vias_medicamentos","laboratorio","medic_rapidos","Custos","Calendario_conversao","procedimento"]
+
+annotation __PBI_TimeIntelligenceEnabled = 1
+
+annotation PBI_ProTooling = ["DevMode"]
+
+ref table fluxo
+ref table DateTableTemplate_58afb6d4-705e-4795-a785-8b1a2b57a84c
+ref table LocalDateTable_fc9eb88e-f3ce-493c-8d2e-a95e06602e56
+ref table LocalDateTable_70efad8f-b74d-4ec9-ab97-9e31093b5b4d
+ref table LocalDateTable_fbda6103-0217-46f3-bebd-417a1ebcf9ca
+ref table LocalDateTable_d439e39d-2ae8-4f88-a52d-f46b0eab0986
+ref table medicacao
+ref table LocalDateTable_6cc5baf6-b7cf-4c53-9115-54b7a74e97e4
+ref table LocalDateTable_5a5cce42-dfb8-4143-b40f-1e007d62d2db
+ref table reavaliacao
+ref table LocalDateTable_bd9098e4-f3cc-45d2-a1a4-0cc664e368bc
+ref table LocalDateTable_c0aa2862-abd0-4600-a311-929d22f622ee
+ref table Calendario
+ref table 'RX e ECG'
+ref table LocalDateTable_e8a5ce40-c3d4-4c7e-9a5c-2a338cf2e5f6
+ref table LocalDateTable_1a93416a-ee23-4888-ba4a-12f4e656c51a
+ref table Medidas
+ref table LocalDateTable_0afbfa7a-d933-4253-8f80-3e31e81c7c33
+ref table 'TC e US'
+ref table LocalDateTable_2691775a-9b37-463e-b353-b1bde12717e4
+ref table LocalDateTable_cd1651f2-d322-47c1-9743-0a16a8f54f9d
+ref table LocalDateTable_fcb6468a-7b1b-4611-a7cf-29d045aa9b77
+ref table LocalDateTable_da428845-0d64-45c8-b27e-ca12572fdb00
+ref table Meta_ECG_RX
+ref table Meta_triagem
+ref table Meta_consulta
+ref table Meta_medicacao
+ref table 'Metas tipo_TC_US'
+ref table Meta_reavaliacao
+ref table Meta_alta
+ref table LocalDateTable_26a7afa4-ddd6-461f-adef-fcaaf4e2858a
+ref table LocalDateTable_febe5996-d337-4737-ba20-131bd1a46319
+ref table METRICAS
+ref table LocalDateTable_bcc68dfd-c902-4c6d-91ef-e6fdcfb22033
+ref table LocalDateTable_21376ba9-98ce-42c5-92a0-d11ee22b5e74
+ref table 'Parâmetro qtd/meta'
+ref table Horas
+ref table Tabela_Parametro_Medidas
+ref table Vias_medicamentos
+ref table LocalDateTable_c336346c-21d6-424d-85e6-d0bc841651a8
+ref table LocalDateTable_e01f40c8-b5cf-4047-b19e-0ef4907ea758
+ref table laboratorio
+ref table LocalDateTable_c2d18390-e8d6-4047-bd71-683cdbafc988
+ref table LocalDateTable_e6dc309e-57a6-4075-8811-302124e3ce44
+ref table LocalDateTable_e1e1fe90-7ed1-4aa0-a064-d3ea2e648e64
+ref table Parâmetro
+ref table 'Parâmetros Altas'
+ref table 'Parametro evasao'
+ref table medic_rapidos
+ref table Qtde_dias
+ref table LocalDateTable_3dbd6ec8-185b-4569-9007-ff615f2711d8
+ref table LocalDateTable_1fedebc9-1ae8-463d-b644-8a0ece2d419b
+ref table LocalDateTable_eaff665b-673b-4084-8198-96fe4cdc88ac
+ref table Qtde_atd
+ref table 'Param Super Usuários'
+ref table LocalDateTable_635e07cf-7b9f-43e5-93cc-eeafcffde169
+ref table 'Parâmetro conversão'
+ref table 'Eixo conversao global'
+ref table 'Parâmetro serie conversão'
+ref table 'Métrica % metas'
+ref table Tempos_fluxo
+ref table 'Abertura Linhas'
+ref table Filtro_IDs
+ref table Media_mediana_resumo
+ref table LocalDateTable_de178a12-0561-4a35-be65-0000ec4195e2
+ref table 'Parametro medicacoes fora da meta'
+ref table Custos
+ref table 'Param metas de volumes'
+ref table LocalDateTable_99bc953c-a6f4-430e-a844-e718ad7d2765
+ref table LocalDateTable_ad9f4c65-42d3-4fd8-93dc-76c960f38e6b
+ref table LocalDateTable_e36a23e6-2a62-46da-88fa-b6b40e2e650e
+ref table 'Param prescric com e sem lote'
+ref table 'Meta dinâm volume conversão'
+ref table 'Meta dinâm volume lab'
+ref table 'Meta dinâm volume pacs lab'
+ref table 'Meta dinâm volume TC'
+ref table 'Meta dinâm volume pacs TC'
+ref table 'Meta dinâm volume triagem > meta'
+ref table 'Meta dinâm volume consulta > meta'
+ref table 'Meta dinâm volume medicação > meta'
+ref table 'Meta dinâm volume reavaliação > meta'
+ref table 'Meta dinâm volume permanência > meta'
+ref table 'Meta dinâm volume pacs medicados'
+ref table LocalDateTable_5fafa5f0-d704-4339-ac5a-560735bb57b2
+ref table CorClassificacao
+ref table 'Parametro meta exames imagem'
+ref table 'Meta TC_US_imagem'
+ref table 'Meta TC_US_imgxlaudo'
+ref table LocalDateTable_561e3c9a-f371-4c34-b5e6-7b2a96cc1ec3
+ref table 'Abertura colunas'
+ref table Calendario_conversao
+ref table LocalDateTable_d60538f5-972d-4ae0-8206-bcff80286058
+ref table Unidades
+ref table LocalDateTable_ae06fed4-5619-4c5f-8dde-07f965b922d5
+ref table LocalDateTable_fe66b504-cae0-4f15-97ee-10c54f00595e
+ref table Meta_procedimento
+ref table procedimento
+ref table LocalDateTable_7c16547e-86a4-415d-b743-3059f6c68d8d
+ref table LocalDateTable_13f03cee-ed5f-45bf-bb10-7b66215ceaf0
+ref table LocalDateTable_e49b7036-3b9d-4aca-8316-941cad72c2eb
+ref table LocalDateTable_ecaacb9e-0b8d-4f94-ba03-548a0284bd1b
+ref table LocalDateTable_c115c671-e75b-4dff-a343-abfbdf8379be
+ref table LocalDateTable_18e9dfe9-c554-482d-a009-5b492643aa9e
+ref table 'Meta dinâm volume laboratorio por pac'
+ref table DimMedico
+ref table 'Meta dinâm volume desfecho do médico do atend.'
+ref table DimTurno
+ref table 'Meta dinâm volume medicações por pac'
+ref table LocalDateTable_093e9804-aa0a-4554-922b-d50c98cb7434
+ref table EixoMes
+ref table LocalDateTable_45ee5a9c-1fb0-41e4-82fd-d73ff3b8be5c
+ref table LocalDateTable_d8ee344a-de18-47d6-8ede-a1429fc9010c
+ref table 'Meta dinâm volume media desfechos 10-16h'
+ref table LocalDateTable_2ee95e3e-3908-4c41-a7fa-3384a06a390a
+ref table LocalDateTable_ababc080-4028-4bbf-acdd-e349a9896612
+ref table 'Dim Indicadores Volume'
+ref table 'Alerta Desv Pad'
+ref table 'Valor Meta dinâm volume TC por pac'
+ref table 'Parâmetro metas avaliação'
+ref table 'Parâmetro metas diagnost'
+ref table 'Parâmetro metas tratam'
+ref table 'Resumo Gerencial Cache Mês Unidade'
+ref table 'Resumo Gerencial Cache Semana Unidade'
+ref table LocalDateTable_dbca5ab3-2f3e-45c3-b573-a8a67914aee6
+ref table 'RG Cache Mes Unidade'
+ref table 'RG Cache Semana Unidade'
+ref table 'RG Cache Mes Unidade Stats'
+ref table 'RG Cache Mes Unidade Z'
+ref table 'RG Cache Mes Unidade MinMax'
+ref table LocalDateTable_5aa2fd57-2c71-4b2e-a87f-d142fe7dd22b
+ref table 'RG Cache Mes Unidade Alertas'
+ref table 'RG Cache Semana Unidade Alertas'
+ref table LocalDateTable_7aa7dc0f-73b4-49e8-a47e-7dc24132fe74
+
+ref role DF
+ref role ES
+ref role MG
+ref role RJ
+ref role GERAL
+ref role Gutierrez
+ref role Pampulha
+ref role 'Barra da Tijuca'
+ref role 'Bota Fogo'
+ref role 'Campo Grande'
+ref role SIG
+ref role Taguatinga
+ref role 'ES - Vila Velha'
+ref role 'ES - Vitória'
+
+ref cultureInfo pt-BR
+

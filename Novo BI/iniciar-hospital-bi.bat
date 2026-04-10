@@ -2,12 +2,12 @@
 chcp 65001 >nul
 setlocal
 
-rem Único ponto de entrada: API (3000) + Vite (5174)
+rem Único ponto de entrada: API (3020) + Vite (5180)
 set "ROOT=%~dp0"
 set "FRONT=%ROOT%frontend"
 set "FREE_PORTS=%ROOT%scripts\free-ports.ps1"
-set "API_PORT=3000"
-set "VITE_PORT=5174"
+set "API_PORT=3020"
+set "VITE_PORT=5180"
 
 if not exist "%FRONT%\package.json" (
   echo [ERRO] Frontend não encontrado: "%FRONT%"

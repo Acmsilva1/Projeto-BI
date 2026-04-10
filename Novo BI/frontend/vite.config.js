@@ -4,8 +4,8 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const vitePort = Number(process.env.VITE_PORT || 5174);
-const apiPort = Number(process.env.PORT || 3000);
+const vitePort = Number(process.env.VITE_PORT || 5180);
+const apiPort = Number(process.env.PORT || 3020);
 
 export default defineConfig({
   resolve: {

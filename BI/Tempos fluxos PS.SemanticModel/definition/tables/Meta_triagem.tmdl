@@ -1,0 +1,26 @@
+table Meta_triagem
+	lineageTag: 06c84d06-6583-43d4-a1e0-77cfca9d68f2
+
+	measure 'Valor Meta_triagem' = SELECTEDVALUE('Meta_triagem'[Tempo minutos])
+		formatString: 0
+		lineageTag: 88e83466-176b-4378-b389-0accbf966e4f
+
+	column 'Tempo minutos'
+		formatString: 0
+		lineageTag: 24cffb06-77bd-49df-9999-74008601db44
+		summarizeBy: none
+		sourceColumn: [Value]
+
+		extendedProperty ParameterMetadata =
+				{
+				  "version": 0
+				}
+
+		annotation SummarizationSetBy = User
+
+	partition Meta_triagem = calculated
+		mode: import
+		source = GENERATESERIES(0, 60, 1)
+
+	annotation PBI_Id = 931effa39b9e41c08b9b0461a13e5f7c
+

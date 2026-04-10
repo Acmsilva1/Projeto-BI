@@ -1,0 +1,50 @@
+table 'Parâmetro metas diagnost'
+	lineageTag: 269390b0-c30a-4978-87d8-8d373b3b0c39
+
+	column 'Parâmetro metas diagnost'
+		lineageTag: 260de8e7-f530-49bd-a8ce-127af7da649b
+		summarizeBy: none
+		sourceColumn: [Value1]
+		sortByColumn: 'Parâmetro metas diagnost Pedido'
+
+		relatedColumnDetails
+			groupByColumn: 'Parâmetro metas diagnost Campos'
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Parâmetro metas diagnost Campos'
+		isHidden
+		lineageTag: 600e80ac-4def-4ccd-999b-5e7a827e6129
+		summarizeBy: none
+		sourceColumn: [Value2]
+		sortByColumn: 'Parâmetro metas diagnost Pedido'
+
+		extendedProperty ParameterMetadata =
+				{
+				  "version": 3,
+				  "kind": 2
+				}
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Parâmetro metas diagnost Pedido'
+		isHidden
+		formatString: 0
+		lineageTag: ea9b139a-ef1e-45a5-9b22-8f89083437c8
+		summarizeBy: sum
+		sourceColumn: [Value3]
+
+		annotation SummarizationSetBy = Automatic
+
+	partition 'Parâmetro metas diagnost' = calculated
+		mode: import
+		source =
+				{
+				    ("% RX > meta", NAMEOF('Medidas'[% Atend > Tempo RX (check)]), 0),
+				    ("% ECG > meta", NAMEOF('Medidas'[% Atend > Tempo ECG (check)]), 1),
+				    ("% TC > meta", NAMEOF('Medidas'[% Atend > tempo TC (solic/check x laudo)]), 2),
+				    ("% US > meta", NAMEOF('Medidas'[% Atend > tempo US (solic/check x laudo)]), 3)
+				}
+
+	annotation PBI_Id = 89a8208b78a841f4b9a78ebb951ef2c1
+

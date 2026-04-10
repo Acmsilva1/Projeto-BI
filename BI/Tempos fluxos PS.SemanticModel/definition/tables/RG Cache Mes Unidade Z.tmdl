@@ -1,0 +1,104 @@
+table 'RG Cache Mes Unidade Z'
+	lineageTag: 7a51e7bb-4dfa-469c-ba27-f0533f9c9980
+
+	column AnoMesNum
+		formatString: 0
+		lineageTag: 747bc2b6-c3eb-41f0-b6e3-9b866de9e17f
+		summarizeBy: sum
+		isNameInferred
+		sourceColumn: RG Cache Mes Unidade Stats[AnoMesNum]
+
+		annotation SummarizationSetBy = Automatic
+
+	column Indicador
+		lineageTag: cc09f553-0e03-4741-a233-d79cfb80631c
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: RG Cache Mes Unidade Stats[Indicador]
+
+		annotation SummarizationSetBy = Automatic
+
+	column Unidade
+		lineageTag: 7ff15550-c9ef-4d90-99bb-e18fcf9437e2
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: RG Cache Mes Unidade Stats[Unidade]
+
+		annotation SummarizationSetBy = Automatic
+
+	column Valor
+		lineageTag: 54580abd-91ad-4bce-802a-7a710880c109
+		summarizeBy: sum
+		isNameInferred
+		sourceColumn: RG Cache Mes Unidade Stats[Valor]
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column ValorAnterior
+		lineageTag: 940e9425-93a2-42cd-9285-2bcc3aec5645
+		summarizeBy: sum
+		isNameInferred
+		sourceColumn: RG Cache Mes Unidade Stats[ValorAnterior]
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column Delta
+		lineageTag: d92d1d8a-b6df-4add-a5bc-86a590140fd0
+		summarizeBy: sum
+		isNameInferred
+		sourceColumn: RG Cache Mes Unidade Stats[Delta]
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column ZScore
+		lineageTag: cac3e3bc-5bab-48a7-9db8-907bbd2cb3e0
+		summarizeBy: sum
+		isNameInferred
+		sourceColumn: [ZScore]
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	partition 'RG Cache Mes Unidade Z' = calculated
+		mode: import
+		source = ```
+				
+				ADDCOLUMNS (
+				    'RG Cache Mes Unidade Stats',
+				    "ZScore",
+				        VAR _Ind = [Indicador]
+				        VAR _Un = [Unidade]
+				        VAR _Ym = [AnoMesNum]
+				        VAR _NumFim = INT ( _Ym / 100 ) * 12 + MOD ( _Ym, 100 ) - 1
+				        VAR _NumIni = _NumFim - 11
+				        VAR _BaseHist =
+				            FILTER (
+				                'RG Cache Mes Unidade Stats',
+				                [Indicador] = _Ind
+				                    && [Unidade] = _Un
+				                    && INT ( [AnoMesNum] / 100 ) * 12 + MOD ( [AnoMesNum], 100 ) >= _NumIni
+				                    && INT ( [AnoMesNum] / 100 ) * 12 + MOD ( [AnoMesNum], 100 ) <= _NumFim
+				                    && NOT ISBLANK ( [Delta] )
+				            )
+				        VAR _Media = AVERAGEX ( _BaseHist, [Delta] )
+				        VAR _DP = STDEVX.S ( _BaseHist, [Delta] )
+				        VAR _Delta = [Delta]
+				        RETURN
+				            IF (
+				                ISBLANK ( _Delta ) || ISBLANK ( _DP ) || _DP = 0,
+				                BLANK (),
+				                DIVIDE ( _Delta - _Media, _DP )
+				            )
+				)
+				
+				```
+
+	annotation PBI_Id = fda2fc2a9b584064be9595aed0b06011
+

@@ -4,17 +4,18 @@
   "description": "",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "seed:unidades": "node ../scripts/seed-unidades-ps.js",
+    "seed:gerencia": "node ../scripts/seed-gerencia-dados.js",
+    "seed:all": "node ../scripts/seed-unidades-ps.js && node ../scripts/seed-gerencia-dados.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
-    "@supabase/supabase-js": "^2.102.1",
     "cors": "^2.8.6",
     "dotenv": "^17.4.1",
-    "express": "^5.2.1",
-    "pg": "^8.20.0"
+    "express": "^5.2.1"
   }
 }

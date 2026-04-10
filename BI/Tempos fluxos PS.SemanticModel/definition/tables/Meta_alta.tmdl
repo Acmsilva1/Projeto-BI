@@ -1,0 +1,26 @@
+table Meta_alta
+	lineageTag: ebdeab41-c617-42f0-bfbb-e5f8aad237e6
+
+	measure 'Valor Meta_alta' = SELECTEDVALUE('Meta_alta'[Tempo minutos])
+		formatString: 0
+		lineageTag: ed2edf3d-1d8f-43c6-bcbd-ad796233a8d0
+
+	column 'Tempo minutos'
+		formatString: 0
+		lineageTag: 937be678-87df-4c5e-99f8-1f2d200069a1
+		summarizeBy: none
+		sourceColumn: [Value]
+
+		extendedProperty ParameterMetadata =
+				{
+				  "version": 0
+				}
+
+		annotation SummarizationSetBy = User
+
+	partition Meta_alta = calculated
+		mode: import
+		source = GENERATESERIES(0, 1440, 1)
+
+	annotation PBI_Id = 2b85d6eda01849bf9eb764efc7fe72f9
+

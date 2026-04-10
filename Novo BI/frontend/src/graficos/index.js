@@ -11,9 +11,16 @@
  *
  * Só a option ECharts:
  *   import { useChartOption, EchartsCanvas } from '@/graficos';
+ *
+ * Painel visual padrão (Gerência / módulos):
+ *   import { ChartPanel, EchartsCanvas } from '@/graficos';
+ *   <ChartPanel theme={theme} variant="card" loading={loading}>
+ *     <EchartsCanvas option={opt} height={400} loading={false} />
+ *   </ChartPanel>
  */
 
 export { default as EchartsCanvas } from './EchartsCanvas';
+export { default as ChartPanel } from './ChartPanel';
 export { default as ChartRenderer } from './ChartRenderer';
 export { default as GraficosContainer } from './GraficosContainer';
 export { useChartOption } from './useChartOption';

@@ -1,0 +1,26 @@
+table Qtde_dias
+	lineageTag: fd81176d-593e-4b96-b126-fd1c4c2230a6
+
+	measure 'Valor Qtde_dias' = SELECTEDVALUE('Qtde_dias'[Qtde_dias])
+		formatString: 0
+		lineageTag: 3f83a3ac-c5cd-4710-82ad-095dd8e3cb13
+
+	column Qtde_dias
+		formatString: 0
+		lineageTag: de2c6990-191c-4105-b1f8-3046b769c190
+		summarizeBy: none
+		sourceColumn: [Value]
+
+		extendedProperty ParameterMetadata =
+				{
+				  "version": 0
+				}
+
+		annotation SummarizationSetBy = User
+
+	partition Qtde_dias = calculated
+		mode: import
+		source = GENERATESERIES(1, 365, 1)
+
+	annotation PBI_Id = 3e25fb80dd09487b954ca76e7c91489f
+

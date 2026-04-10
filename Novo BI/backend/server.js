@@ -11,15 +11,18 @@ const envCandidates = [
 envCandidates.forEach((p) => {
   if (fs.existsSync(p)) dotenv.config({ path: p, override: false });
 });
+require('./db');
 const express = require('express');
 const cors    = require('cors');
 const liveService = require('./live_service');
 
 const app  = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3020;
 
-// CORS — aceita o dev do Vite e origin do front em produção
+// CORS — dev local (Vite) e FRONTEND_URL opcional
 const ALLOWED = [
+  'http://127.0.0.1:5180',
+  'http://localhost:5180',
   'http://127.0.0.1:5174',
   'http://localhost:5174',
   'http://127.0.0.1:5173',
@@ -40,7 +43,7 @@ app.get(['/api', '/api/'], (_, res) => {
   });
 });
 
-/** Rotas: Postgres entrega via views; handler só orquestra fetch + shape leve de resposta. */
+/** Rotas: dados SQLite via fetchView; handler orquestra fetch + shape leve de resposta. */
 const route = (handler) => async (req, res) => {
   try {
     const data = await handler(req, res);

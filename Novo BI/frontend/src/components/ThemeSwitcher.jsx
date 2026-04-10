@@ -1,12 +1,12 @@
 import React from 'react';
 import { THEMES, useTheme } from '../context/ThemeContext';
 
-/** Mesmo padrão: contexto (variação) — Geral / PS / Leitos. */
+/** Rótulo curto na UI; `hint` no title para contexto (Geral / PS / Leitos). */
 const META = {
-  dark: { label: 'Geral (escuro)', emoji: '🌙' },
-  light: { label: 'Geral (claro)', emoji: '☀️' },
-  'dark-green': { label: 'PS (verde)', emoji: '🌿' },
-  'dark-blue': { label: 'Leitos (azul)', emoji: '💧' },
+  dark: { label: 'Escuro', emoji: '🌙', hint: 'Geral — tema escuro' },
+  light: { label: 'Claro', emoji: '☀️', hint: 'Geral — tema claro' },
+  'dark-green': { label: 'Verde', emoji: '🌿', hint: 'PS — tons verdes' },
+  'dark-blue': { label: 'Azul', emoji: '💧', hint: 'Leitos — tons azuis' },
 };
 
 /**
@@ -22,13 +22,14 @@ export default function ThemeSwitcher({ collapsed }) {
       aria-label="Tema da interface"
     >
       {THEMES.map((key) => {
-        const { label, emoji } = META[key];
+        const { label, emoji, hint } = META[key];
         const on = theme === key;
         return (
           <button
             key={key}
             type="button"
-            title={label}
+            title={hint}
+            aria-label={`Tema ${label}`}
             onClick={() => setTheme(key)}
             className={`app-transition flex items-center justify-center gap-1.5 rounded-lg py-2 text-[11px] font-semibold ${
               collapsed ? 'w-10 px-0' : 'px-2'

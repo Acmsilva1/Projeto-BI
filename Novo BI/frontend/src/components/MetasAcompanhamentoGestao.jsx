@@ -1,9 +1,9 @@
 import React, { useMemo, useState, useCallback } from 'react';
-import { Loader2 } from 'lucide-react';
 import { useApi } from '../hooks/useApi';
 import { useTheme } from '../context/ThemeContext';
 import { chartUi } from '../utils/chartTheme';
 import EchartsCanvas from '../graficos/EchartsCanvas';
+import ChartPanel from '../graficos/ChartPanel';
 
 function gaugeAxisColors(sense, meta, max) {
   const m = Number(meta) || 0;
@@ -61,7 +61,8 @@ export default function MetasAcompanhamentoGestao({ filters }) {
     const detailFmt = (v) => {
       const n = Number(v);
       if (Number.isNaN(n)) return '—';
-      const s = n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const dec = pct ? 1 : 2;
+      const s = n.toLocaleString('pt-BR', { minimumFractionDigits: dec, maximumFractionDigits: dec });
       return pct ? `${s}%` : s;
     };
 
@@ -139,7 +140,8 @@ export default function MetasAcompanhamentoGestao({ filters }) {
         valueFormatter: (v) => {
           const n = Number(v);
           if (Number.isNaN(n)) return '—';
-          const s = n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+          const dec = pct ? 1 : 2;
+          const s = n.toLocaleString('pt-BR', { minimumFractionDigits: dec, maximumFractionDigits: dec });
           return pct ? `${s}%` : s;
         },
       },
@@ -196,7 +198,8 @@ export default function MetasAcompanhamentoGestao({ filters }) {
           formatter: (p) => {
             const n = Number(p.value);
             if (Number.isNaN(n)) return '';
-            const t = n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            const dec = pct ? 1 : 2;
+            const t = n.toLocaleString('pt-BR', { minimumFractionDigits: dec, maximumFractionDigits: dec });
             return pct ? `${t}%` : t;
           },
         },
@@ -254,22 +257,13 @@ export default function MetasAcompanhamentoGestao({ filters }) {
         </div>
 
         <div className="flex flex-col gap-4 lg:flex-row lg:items-stretch">
-          <div
-            className={[
-              'relative flex min-h-[220px] min-w-0 flex-1 flex-col rounded-xl border border-table-grid px-2 py-2 sm:min-h-[240px]',
-              theme === 'light' ? 'bg-white shadow-sm' : 'bg-slate-900/25 shadow-inner',
-            ].join(' ')}
+          <ChartPanel
+            theme={theme}
+            variant="card"
+            paddingClassName="px-2 py-2"
+            className="flex min-h-[220px] min-w-0 flex-1 flex-col sm:min-h-[240px]"
+            loading={loading}
           >
-            {loading ? (
-              <div
-                className={[
-                  'absolute inset-0 z-10 flex items-center justify-center rounded-xl',
-                  theme === 'light' ? 'bg-white/80' : 'bg-slate-950/40',
-                ].join(' ')}
-              >
-                <Loader2 className="h-8 w-8 animate-spin text-sky-500" aria-hidden />
-              </div>
-            ) : null}
             <div className="flex flex-1 flex-col sm:flex-row sm:items-center">
               <div className="min-h-[200px] min-w-0 flex-1 sm:min-h-[220px]">
                 <EchartsCanvas option={gaugeOption} height={220} loading={false} />
@@ -289,17 +283,18 @@ export default function MetasAcompanhamentoGestao({ filters }) {
                 </div>
               ) : null}
             </div>
-          </div>
+          </ChartPanel>
         </div>
 
-        <div
-          className={[
-            'mt-4 min-h-[360px] rounded-xl border border-table-grid p-1 sm:p-2',
-            theme === 'light' ? 'bg-white shadow-sm' : 'bg-slate-900/25 shadow-inner',
-          ].join(' ')}
+        <ChartPanel
+          theme={theme}
+          variant="card"
+          minHeightClass="min-h-[360px]"
+          className="mt-4"
+          loading={loading}
         >
-          <EchartsCanvas option={lineOption} height={400} loading={loading} />
-        </div>
+          <EchartsCanvas option={lineOption} height={400} loading={false} />
+        </ChartPanel>
       </div>
     </section>
   );

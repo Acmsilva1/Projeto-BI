@@ -47,7 +47,7 @@ export function useApi(endpoint, params = {}, { ttl = 30_000 } = {}) {
       } catch {
         const hint =
           raw.trimStart().startsWith('<!DOCTYPE') || raw.trimStart().startsWith('<html')
-            ? 'Recebeu página HTML em vez da API (proxy/backend). Em dev use npm run dev no front e deixe o Node na 3001, ou defina VITE_API_BASE.'
+            ? 'Recebeu página HTML em vez da API (proxy/backend). Em dev use npm run dev no front e deixe o Node na mesma porta do proxy (ex.: 3020), ou defina VITE_API_BASE.'
             : 'Resposta não é JSON.';
         throw new Error(
           `${hint} (${res.status}) ${raw.slice(0, 120).replace(/\s+/g, ' ')}`,

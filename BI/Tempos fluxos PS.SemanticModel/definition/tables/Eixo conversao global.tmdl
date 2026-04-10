@@ -1,0 +1,19 @@
+table 'Eixo conversao global'
+	lineageTag: 56e51bdb-5e8d-408f-b97e-e765473f4525
+
+	column Serie
+		lineageTag: a1eeb75d-cb0e-4ea5-aab4-6eb1da676eec
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: [Serie]
+
+		annotation SummarizationSetBy = Automatic
+
+	partition 'Eixo conversao global' = calculated
+		mode: import
+		source =
+				
+				DATATABLE("Serie", STRING, { {"GLOBAL"} })
+
+	annotation PBI_Id = 36e41cf8feb64922abdb9198e8f96948
+

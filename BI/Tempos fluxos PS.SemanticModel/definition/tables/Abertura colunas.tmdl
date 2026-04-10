@@ -1,0 +1,66 @@
+table 'Abertura colunas'
+	lineageTag: 31e5926b-e773-465e-88cd-5e1619e6a531
+
+	column 'Abertura colunas'
+		lineageTag: 1e389ed9-0bbe-4ffb-96d1-3bf85b3645e9
+		summarizeBy: none
+		sourceColumn: [Value1]
+		sortByColumn: 'Abertura colunas Pedido'
+
+		relatedColumnDetails
+			groupByColumn: 'Abertura colunas Campos'
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Abertura colunas Campos'
+		isHidden
+		lineageTag: e335cf05-4321-47c2-8b2f-02023cfdbd04
+		summarizeBy: none
+		sourceColumn: [Value2]
+		sortByColumn: 'Abertura colunas Pedido'
+
+		extendedProperty ParameterMetadata =
+				{
+				  "version": 3,
+				  "kind": 2
+				}
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Abertura colunas Pedido'
+		isHidden
+		formatString: 0
+		lineageTag: baccd593-913b-434c-a792-876142bc4cee
+		summarizeBy: sum
+		sourceColumn: [Value3]
+
+		annotation SummarizationSetBy = Automatic
+
+	partition 'Abertura colunas' = calculated
+		mode: import
+		source =
+				{
+				    ("Atendimentos", NAMEOF('Medidas'[Qtd Atend]), 0),
+				    ("Altas", NAMEOF('Medidas'[Qtd Altas]), 1),
+				    ("Óbitos", NAMEOF('Medidas'[Qtd Óbitos]), 2),
+				    ("% Evasão", NAMEOF('Medidas'[% evasao]), 3),
+				    ("Desfecho", NAMEOF('Medidas'[Qtd desfechos (Médico desfecho)]), 4),
+				    ("% desfecho do médico do atend.", NAMEOF('Medidas'[% desfecho do médico do atend. (0)]), 6),
+				    ("Saídas", NAMEOF('Medidas'[Qtd saidas]), 7),
+				    ("Internações", NAMEOF('Medidas'[qtd internados]), 8),
+				    ("% Conversão", NAMEOF('Medidas'[% conversao (0)]), 9),
+				    ("% Reavaliação", NAMEOF('Medidas'[% reavaliacao]), 10),
+				    ("% pacientes medicados", NAMEOF('Medidas'[% pacientes medicados]), 11),
+				    ("Média medicações por pac", NAMEOF('Medidas'[Media medicacoes por pac]), 12),
+				    ("% medicações rápidas", NAMEOF('Medidas'[% medic rapida x pac medicados]), 13),
+				    ("% pacientes com laboratório", NAMEOF('Medidas'[% pacientes com laborat.]), 14),
+				    ("Média laborat./pac", NAMEOF('Medidas'[Media exames lab por pac]), 15),
+				    ("% pacientes com RX", NAMEOF('Medidas'[% pacientes com RX]), 16),
+				    ("% pacientes com ECG", NAMEOF('Medidas'[% pacientes com ECG]), 17),
+				    ("% pacientes com TC", NAMEOF('Medidas'[% pacientes com TC]), 18),
+				    ("Média TCs/pac", NAMEOF('Medidas'[Media exames TC por pac]),19),
+				    ("% pacientes com US", NAMEOF('Medidas'[% pacientes com US]), 20)
+				}
+
+	annotation PBI_Id = 67573ac1d14c4e00a36816429c8e7824
+

@@ -1,0 +1,297 @@
+table Vias_medicamentos
+	lineageTag: 114c7f87-ab94-4c8a-acf4-05f90137c28f
+
+	column UNIDADE
+		dataType: string
+		lineageTag: c76434c5-d36a-4f39-b281-3c97aadcefa0
+		summarizeBy: none
+		sourceColumn: UNIDADE
+
+		annotation SummarizationSetBy = Automatic
+
+	column CD_ESTABELECIMENTO
+		dataType: int64
+		formatString: 0
+		lineageTag: b0ca4f32-f771-4cf3-bdad-d5c5a52208b7
+		summarizeBy: sum
+		sourceColumn: CD_ESTABELECIMENTO
+
+		annotation SummarizationSetBy = Automatic
+
+	column CD_PESSOA_FISICA
+		dataType: int64
+		formatString: 0
+		lineageTag: a74c9d52-4e8c-4288-8f2b-f1728a1f9e9f
+		summarizeBy: sum
+		sourceColumn: CD_PESSOA_FISICA
+
+		annotation SummarizationSetBy = Automatic
+
+	column NR_ATENDIMENTO
+		dataType: int64
+		formatString: 0
+		lineageTag: afc4ab7e-b453-4eb5-9543-733470b671e6
+		summarizeBy: none
+		sourceColumn: NR_ATENDIMENTO
+
+		annotation SummarizationSetBy = Automatic
+
+	column PACIENTE
+		dataType: string
+		lineageTag: 0d8baac7-2ad5-42a5-8692-a6e7e0f111c0
+		summarizeBy: none
+		sourceColumn: PACIENTE
+
+		annotation SummarizationSetBy = Automatic
+
+	column DATA
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: 9fc7d0bb-a557-4dd5-b334-2e4ecd7e0532
+		summarizeBy: none
+		sourceColumn: DATA
+
+		variation Variation
+			isDefault
+			relationship: ba176443-0779-476b-bfa9-f7115beb06b1
+			defaultHierarchy: LocalDateTable_eaff665b-673b-4084-8198-96fe4cdc88ac.'Hierarquia de datas'
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column NR_PRESCRICAO
+		dataType: int64
+		formatString: 0
+		lineageTag: 29e7d5ca-fdfb-4032-928d-795eb318f72e
+		summarizeBy: sum
+		sourceColumn: NR_PRESCRICAO
+
+		annotation SummarizationSetBy = Automatic
+
+	column DT_LIBERACAO
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: 0b8d8c64-1ab4-4347-be08-e4ad502f6bce
+		summarizeBy: none
+		sourceColumn: DT_LIBERACAO
+
+		variation Variation
+			isDefault
+			relationship: 477563f8-c9c1-48b0-bc2f-a70c09a69e6d
+			defaultHierarchy: LocalDateTable_c336346c-21d6-424d-85e6-d0bc841651a8.'Hierarquia de datas'
+
+		annotation SummarizationSetBy = Automatic
+
+	column DT_FIM_HORARIO
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: 10e91970-5d07-4b24-9691-3d65d45b036b
+		summarizeBy: none
+		sourceColumn: DT_FIM_HORARIO
+
+		variation Variation
+			isDefault
+			relationship: 445ffd1e-4d9a-4d0e-98ce-61cc91dbfe01
+			defaultHierarchy: LocalDateTable_e01f40c8-b5cf-4047-b19e-0ef4907ea758.'Hierarquia de datas'
+
+		annotation SummarizationSetBy = Automatic
+
+	column CD_MATERIAL
+		dataType: int64
+		formatString: 0
+		lineageTag: 9437ec4b-397c-41c8-9d37-36c8373e911e
+		summarizeBy: sum
+		sourceColumn: CD_MATERIAL
+
+		annotation SummarizationSetBy = Automatic
+
+	column DS_MATERIAL
+		dataType: string
+		lineageTag: 6244c39c-596b-410e-9e0f-bff4b7543f0c
+		summarizeBy: none
+		sourceColumn: DS_MATERIAL
+
+		annotation SummarizationSetBy = Automatic
+
+	column CD_INTERVALO
+		dataType: string
+		lineageTag: ca95c133-ca4c-4e4f-9032-936509be263b
+		summarizeBy: none
+		sourceColumn: CD_INTERVALO
+
+		annotation SummarizationSetBy = Automatic
+
+	column DS_HORARIOS
+		dataType: string
+		lineageTag: 76492f2b-d39b-466a-9d50-c6ecd4256420
+		summarizeBy: none
+		sourceColumn: DS_HORARIOS
+
+		annotation SummarizationSetBy = Automatic
+
+	column IE_VIA_APLICACAO
+		dataType: string
+		lineageTag: 7d4b2596-bce1-4128-a72a-bdec314c4154
+		summarizeBy: none
+		sourceColumn: IE_VIA_APLICACAO
+
+		annotation SummarizationSetBy = Automatic
+
+	column IE_APLIC_BOLUS
+		dataType: string
+		lineageTag: 0b34fe47-76d5-4c0c-ac09-d96884582e77
+		summarizeBy: none
+		sourceColumn: IE_APLIC_BOLUS
+
+		annotation SummarizationSetBy = Automatic
+
+	column IE_APLIC_LENTA
+		dataType: string
+		lineageTag: ca23a85b-0c73-43c5-8cf7-972f3a773ed4
+		summarizeBy: none
+		sourceColumn: IE_APLIC_LENTA
+
+		annotation SummarizationSetBy = Automatic
+
+	column VIA_APLICACAO =
+			
+			IF(
+			    Vias_medicamentos[IE_APLIC_BOLUS] = "S" && Vias_medicamentos[IE_VIA_APLICACAO] = "EV",
+			    "EV BOLUS",
+			    Vias_medicamentos[IE_VIA_APLICACAO]
+			)
+		lineageTag: 9af82ae7-acb4-440e-8cc8-97bde54f6661
+		summarizeBy: none
+
+		annotation SummarizationSetBy = Automatic
+
+	column Velocidade
+		dataType: string
+		lineageTag: 7bd46c2a-45d9-46d7-b35d-ff38910e9650
+		summarizeBy: none
+		sourceColumn: Velocidade
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Velocidade Maxima' = ```
+			
+			CALCULATE(
+			    MAX(Vias_medicamentos[Velocidade]),
+			    FILTER(
+			        Vias_medicamentos,
+			        Vias_medicamentos[NR_ATENDIMENTO] = EARLIER(Vias_medicamentos[NR_ATENDIMENTO])
+			    )
+			)
+			
+			```
+		lineageTag: 00859461-c1ab-40d4-9881-fc9c7459b9c8
+		summarizeBy: none
+
+		annotation SummarizationSetBy = Automatic
+
+	column CD_MEDICO
+		dataType: string
+		lineageTag: 8cc28ce5-03fd-4755-bee0-4cf47584de21
+		summarizeBy: none
+		sourceColumn: CD_MEDICO
+
+		annotation SummarizationSetBy = Automatic
+
+	column MEDICO
+		dataType: string
+		lineageTag: 887cd3b0-91c1-4eff-bd43-7fccc67f074f
+		summarizeBy: none
+		sourceColumn: MEDICO
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'VELOCIDADE 2'
+		dataType: string
+		lineageTag: 6f7c5764-0ae4-46ba-ad87-0348f237b2c0
+		summarizeBy: none
+		sourceColumn: VELOCIDADE
+
+		annotation SummarizationSetBy = Automatic
+
+	column NR_SEQ_MAT_CPOE
+		dataType: double
+		lineageTag: fcd57e5c-adc3-4dca-9a53-504a5ce53f66
+		summarizeBy: sum
+		sourceColumn: NR_SEQ_MAT_CPOE
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column CD_COMPONENTE
+		dataType: string
+		lineageTag: 5b22b34e-09bb-4e83-9641-b89667e62cbd
+		summarizeBy: none
+		sourceColumn: CD_COMPONENTE
+
+		annotation SummarizationSetBy = Automatic
+
+	column COMPONENTE
+		dataType: string
+		lineageTag: 226e33e1-8163-4a18-b467-4273b3f87ac7
+		summarizeBy: none
+		sourceColumn: COMPONENTE
+
+		annotation SummarizationSetBy = Automatic
+
+	column ID_ATENCAO_VELOCIDADE
+		dataType: int64
+		formatString: 0
+		lineageTag: 29193652-c549-4140-98fa-5d9b10cee1d1
+		summarizeBy: sum
+		sourceColumn: ID_ATENCAO_VELOCIDADE
+
+		annotation SummarizationSetBy = Automatic
+
+	column TEMPO_INFUSAO
+		dataType: string
+		lineageTag: f8f9ea61-f48c-4006-8b03-df904ae77ee8
+		summarizeBy: none
+		sourceColumn: TEMPO_INFUSAO
+
+		annotation SummarizationSetBy = Automatic
+
+	partition Vias_medicamentos = m
+		mode: import
+		source = ```
+				let
+				    Fonte = PostgreSQL.Database("10.250.50.151:6433", "db"),
+				    cmc_hospital_tbl_vias_medicamentos = Fonte{[Schema="cmc_hospital",Item="tbl_vias_medicamentos"]}[Data],
+				    #"Tipo Alterado" = Table.TransformColumnTypes(#"cmc_hospital_tbl_vias_medicamentos",{{"UNIDADE", type text}, {"CD_ESTABELECIMENTO", Int64.Type}, {"CD_PESSOA_FISICA", Int64.Type}, {"NR_ATENDIMENTO", Int64.Type}, {"PACIENTE", type text}, {"DATA", type date}, {"NR_PRESCRICAO", Int64.Type}, {"DT_LIBERACAO", type datetime}, {"DT_FIM_HORARIO", type datetime}, {"CD_MATERIAL", Int64.Type}, {"DS_MATERIAL", type text}, {"CD_INTERVALO", type text}, {"DS_HORARIOS", type text}, {"IE_VIA_APLICACAO", type text}, {"IE_APLIC_BOLUS", type text}, {"IE_APLIC_LENTA", type text}}),
+				    #"Linhas Filtradas" = Table.SelectRows(#"Tipo Alterado", each true),
+				    #"Personalização Adicionada" = Table.AddColumn(
+				        #"Linhas Filtradas", 
+				        "Velocidade", 
+				        each if [IE_VIA_APLICACAO] = null then 
+				                null
+				            else if 
+				                [IE_VIA_APLICACAO] = "IM" or 
+				                [IE_VIA_APLICACAO] = "VO" or 
+				                (
+				                    [IE_VIA_APLICACAO] = "EV" and 
+				                    [IE_APLIC_BOLUS] = "S"
+				                ) 
+				            then 
+				                "Rápida" 
+				            else 
+				                "Lenta"
+				    ),
+				    #"Consultas Mescladas" = Table.NestedJoin(#"Personalização Adicionada", {"CD_MATERIAL"}, medic_rapidos, {"cd_medicamento"}, "medic_rapidos", JoinKind.LeftOuter),
+				    #"medic_rapidos Expandido" = Table.ExpandTableColumn(#"Consultas Mescladas", "medic_rapidos", {"cd_medicamento"}, {"cd_medicamento"}),
+				    #"Personalização Adicionada1" = Table.AddColumn(#"medic_rapidos Expandido", "ID_ATENCAO_VELOCIDADE", each if [cd_medicamento] <> null and [VELOCIDADE] = "Lenta" then 1 else 0),
+				    #"Colunas Removidas" = Table.RemoveColumns(#"Personalização Adicionada1",{"cd_medicamento"}),
+				    #"Tipo Alterado1" = Table.TransformColumnTypes(#"Colunas Removidas",{{"ID_ATENCAO_VELOCIDADE", Int64.Type}})
+				in
+				    #"Tipo Alterado1"
+				```
+
+	annotation PBI_NavigationStepName = Navegação
+
+	annotation PBI_ResultType = Table
+

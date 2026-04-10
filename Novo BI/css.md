@@ -11,6 +11,9 @@ Esta documentação detalha a arquitetura de estilos que permite que as aplicaç
 | Estado de tema no `<html>` + persistência | `frontend/src/context/ThemeContext.jsx` |
 | Seletor de tema (Geral escuro/claro, PS, Leitos) | `frontend/src/components/ThemeSwitcher.jsx` |
 | Entrada React | `frontend/src/main.jsx` (ThemeProvider) |
+| Gráficos ECharts + painel padrão | `frontend/src/graficos/EchartsCanvas.jsx`, `ChartPanel.jsx`, `chartDefaults.js` |
+| Cores de eixo/tooltip por tema | `frontend/src/utils/chartTheme.js` (`chartUi`) |
+| Biblioteca / sandbox de modelos | `frontend/src/graficos/GraficosContainer.jsx`, `ChartRenderer.jsx`, `registry.js` |
 
 O `index.html` inicia com `class="h-full dark"` para evitar flash; o `ThemeProvider` reaplica a classe salva no `localStorage` (`hospital-bi-theme`).
 
@@ -65,6 +68,38 @@ Paleta fixa replicada em variáveis:
 * **Acento Urgente (Amber):** `#E0B92D` → `--dash-accent-urgent`
 
 Classe utilitária **`.dashboard-panel`** aplica fundo/borda alinhados ao pipeline nas tabelas Gerência (`MetasPorVolumesTable`, `MetricasPorUnidadeTable`, `TempoMedioEtapasTable`), com **sombra interna** suave derivada de `--primary` e ajustes por `.light`, `.dark-green`, `.dark-blue`.
+
+---
+
+## 3.1 Gráficos (ECharts) e `ChartPanel`
+
+| Peça | Função |
+| :--- | :--- |
+| **`EchartsCanvas`** | Wrapper `echarts-for-react`; recebe `option` já montada; `height`, `loading`, `onEvents`. |
+| **`ChartPanel`** | **Recipiente padrão** dos gráficos no produto: `border-table-grid`, fundo **claro** (`bg-white shadow-sm`) ou **escuro** (`bg-slate-900/25 shadow-inner`) conforme `theme === 'light'`. Suporta **`variant="card"`** (caixa `rounded-xl` + borda completa) ou **`variant="embedded"`** (só `border-t`, para área logo abaixo do `.gerencia-panel-head` dentro de um `.dashboard-panel`). Prop opcional **`loading`**: overlay com `Loader2` (mesmo padrão visual da Visão Gerência). |
+| **`chartUi(theme)`** | Tokens de texto, eixos, tooltip e legenda para options montadas à mão (`MetasAcompanhamentoGestao`, `MetasConformesPorUnidadeChart`). |
+| **`chartDefaults.js`** | Modelos da biblioteca (`BarVerticalModel`, `LineModel`, …): grid, tooltip e eixos alinhados ao tema escuro da biblioteca; novos modelos devem preferir `chartUi` quando integrados ao shell com tema claro. |
+
+**Uso recomendado em novos módulos:**
+
+```jsx
+import { useTheme } from '../context/ThemeContext';
+import { chartUi } from '../utils/chartTheme';
+import ChartPanel from '../graficos/ChartPanel';
+import EchartsCanvas from '../graficos/EchartsCanvas';
+
+const { theme } = useTheme();
+const ui = chartUi(theme);
+// … montar option com ui.fg, ui.splitLine, etc.
+
+<ChartPanel theme={theme} variant="card" minHeightClass="min-h-[360px]" loading={loading}>
+  <EchartsCanvas option={option} height={400} loading={false} />
+</ChartPanel>
+```
+
+**Exportação CSV (Visão Gerência):** disponível nas **tabelas** e totais (`ExportCsvButton` + `utils/downloadCsv.js`); **não** nos gráficos de tendência (decisão de produto: evitar CSV duplicado para séries já derivadas da API).
+
+**Tabelas no modo claro:** células condicionais em `MetasPorVolumesTable`, `TempoMedioEtapasTable` e `MetricasPorUnidadeTable` usam paleta pastel / texto escuro quando `theme === 'light'`, mantendo alto contraste nos temas escuros.
 
 ---
 
@@ -131,3 +166,4 @@ Classes e keyframes disponíveis em `index.css` e, para uso via Tailwind, em `ta
 1. Novos tokens: edite `index.css` e, se precisar de utilitário Tailwind, `tailwind.config.js`.
 2. Novos temas: adicione classe no `<html>` + bloco em `index.css`; inclua o nome em `THEMES` em `ThemeContext.jsx` e botão em `ThemeSwitcher.jsx`.
 3. Preferir **cores semânticas** (`bg-app-surface`) em novos componentes em vez de `bg-slate-*` fixo, para respeitar todos os temas.
+4. **Novos gráficos no dashboard:** envolver `EchartsCanvas` em **`ChartPanel`** com o mesmo `theme` do `useTheme()`; reutilizar **`chartUi(theme)`** para tooltip/eixos; evitar fundos `slate-*` soltos no modo claro.

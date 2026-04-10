@@ -1,0 +1,7 @@
+role ES
+	modelPermission: read
+
+	tablePermission fluxo = [CD_ESTABELECIMENTO] IN {3,1}
+
+	annotation PBI_Id = 327a71973dc94e48b97ff792484bae1f
+

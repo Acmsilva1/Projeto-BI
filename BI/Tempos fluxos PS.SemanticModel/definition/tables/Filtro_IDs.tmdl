@@ -1,0 +1,31 @@
+table Filtro_IDs
+	lineageTag: 62b593ab-6acb-498e-8a82-5e2a681be64b
+
+	column Medida
+		lineageTag: 76a16679-8c52-44ce-a3b8-4b600ee53efa
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: [Medida]
+
+		annotation SummarizationSetBy = Automatic
+
+	partition Filtro_IDs = calculated
+		mode: import
+		source =
+				
+				DATATABLE(
+				    "Medida", STRING,
+				    {
+				        {"Permanência Fora Meta"},
+				        {"Consulta Fora Meta"},
+				        {"Medicação Fora Meta"},
+				        {"Reavaliação Fora Meta"},
+				        {"RX/ECG Fora Meta"},
+				        {"TC/US Fora Meta"},
+				        {"Triagem Fora Meta"},
+				        {"Nenhum"}          // opcional: deixa sem filtro ativo
+				    }
+				)
+
+	annotation PBI_Id = 94f8c39c0c534a89adba4e9b2c3556b8
+

@@ -1,6 +1,8 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useCallback } from 'react';
 import { Loader2 } from 'lucide-react';
 import { useApi } from '../hooks/useApi';
+import ExportCsvButton from './ExportCsvButton';
+import { datedExportBasename, downloadCsv } from '../utils/downloadCsv';
 
 /** Faixas superiores distintas — leitura rápida sem depender só do cinza */
 const KPI_TOP_COLORS = [
@@ -34,6 +36,11 @@ export default function GerenciaTotaisCards({ filters }) {
   const { data, loading, error } = useApi('gerencia/totais-ps', params);
   const cards = data?.cards ?? [];
 
+  const onExportCsv = useCallback(() => {
+    const rows = [['Indicador', 'Valor'], ...cards.map((c) => [c.label ?? '', c.value ?? ''])];
+    downloadCsv(`${datedExportBasename('gerencia-totais-ps')}.csv`, rows);
+  }, [cards]);
+
   return (
     <section
       className="dashboard-panel overflow-hidden ring-1 ring-inset ring-pipeline-live/35"
@@ -52,9 +59,14 @@ export default function GerenciaTotaisCards({ filters }) {
             {data?.meta?.titulo || 'Totais PS'}
           </h2>
         </div>
-        {loading ? (
-          <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-pipeline-live" aria-hidden />
-        ) : null}
+        <div className="flex shrink-0 items-center gap-2">
+          {!loading && cards.length > 0 ? (
+            <ExportCsvButton onClick={onExportCsv} title="Baixar totais em CSV" />
+          ) : null}
+          {loading ? (
+            <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-pipeline-live" aria-hidden />
+          ) : null}
+        </div>
       </div>
 
       {error ? (

@@ -1,0 +1,392 @@
+relationship d6650db7-29de-4ed0-82d3-a60ed064aec9
+	joinOnDateBehavior: datePartOnly
+	fromColumn: fluxo.DT_TRIAGEM
+	toColumn: LocalDateTable_fc9eb88e-f3ce-493c-8d2e-a95e06602e56.Date
+
+relationship 8836d9d7-2a78-4cd2-94a7-1021e5669a9f
+	joinOnDateBehavior: datePartOnly
+	fromColumn: fluxo.DT_FIM_TRIAGEM
+	toColumn: LocalDateTable_70efad8f-b74d-4ec9-ab97-9e31093b5b4d.Date
+
+relationship 7ceda53f-9ee2-4121-a8f8-cac1f19a7839
+	joinOnDateBehavior: datePartOnly
+	fromColumn: fluxo.DT_ATEND_MEDICO
+	toColumn: LocalDateTable_fbda6103-0217-46f3-bebd-417a1ebcf9ca.Date
+
+relationship 326eedf8-2085-4375-a8cc-1f25c03ae215
+	joinOnDateBehavior: datePartOnly
+	fromColumn: fluxo.DT_ALTA
+	toColumn: LocalDateTable_d439e39d-2ae8-4f88-a52d-f46b0eab0986.Date
+
+relationship af6ef4de-1194-4a29-9d8a-280933ee11c7
+	joinOnDateBehavior: datePartOnly
+	fromColumn: medicacao.DT_PRESCRICAO
+	toColumn: LocalDateTable_6cc5baf6-b7cf-4c53-9115-54b7a74e97e4.Date
+
+relationship edd3d10c-6796-462e-95fc-461a475552be
+	joinOnDateBehavior: datePartOnly
+	fromColumn: medicacao.DT_ADMINISTRACAO
+	toColumn: LocalDateTable_5a5cce42-dfb8-4143-b40f-1e007d62d2db.Date
+
+relationship AutoDetected_b3d7ea04-fec6-4840-be59-b2807a8a0d5e
+	fromColumn: medicacao.NR_ATENDIMENTO
+	toColumn: fluxo.NR_ATENDIMENTO
+
+relationship 8515bf79-b2da-4a1a-856d-6028b8252c38
+	joinOnDateBehavior: datePartOnly
+	fromColumn: reavaliacao.DT_SOLIC_REAVALIACAO
+	toColumn: LocalDateTable_bd9098e4-f3cc-45d2-a1a4-0cc664e368bc.Date
+
+relationship b72bf84e-bb42-431d-84ae-65794f00028b
+	joinOnDateBehavior: datePartOnly
+	fromColumn: reavaliacao.DT_FIM_REAVALIACAO
+	toColumn: LocalDateTable_c0aa2862-abd0-4600-a311-929d22f622ee.Date
+
+relationship AutoDetected_9c4801f3-db47-4b11-ba0b-a959d9106a81
+	fromColumn: reavaliacao.NR_ATENDIMENTO
+	toColumn: fluxo.NR_ATENDIMENTO
+
+relationship 3a74248f-86fa-4b0f-a9ec-de00d2341d1b
+	joinOnDateBehavior: datePartOnly
+	fromColumn: 'RX e ECG'.DT_SOLICITACAO
+	toColumn: LocalDateTable_e8a5ce40-c3d4-4c7e-9a5c-2a338cf2e5f6.Date
+
+relationship 2447db91-a604-4d53-a5fa-e5d498509a5d
+	joinOnDateBehavior: datePartOnly
+	fromColumn: 'RX e ECG'.DT_EXAME
+	toColumn: LocalDateTable_1a93416a-ee23-4888-ba4a-12f4e656c51a.Date
+
+relationship AutoDetected_de7a1c9d-5c18-4b66-8f1e-1841bff84be4
+	fromColumn: 'RX e ECG'.NR_ATENDIMENTO
+	toColumn: fluxo.NR_ATENDIMENTO
+
+relationship 37bf0e1f-1100-4a80-94b0-6fb13337980f
+	joinOnDateBehavior: datePartOnly
+	fromColumn: medicacao.DATA
+	toColumn: LocalDateTable_0afbfa7a-d933-4253-8f80-3e31e81c7c33.Date
+
+relationship c54ceb7d-19bd-4589-b4c0-34e457306b64
+	joinOnDateBehavior: datePartOnly
+	fromColumn: 'TC e US'.DATA
+	toColumn: LocalDateTable_2691775a-9b37-463e-b353-b1bde12717e4.Date
+
+relationship 7bcfa397-b859-4959-b14c-f55334399593
+	joinOnDateBehavior: datePartOnly
+	fromColumn: 'TC e US'.DT_REALIZADO
+	toColumn: LocalDateTable_cd1651f2-d322-47c1-9743-0a16a8f54f9d.Date
+
+relationship 5c18c80e-e1c2-4968-bdcd-4cb7f3a868b1
+	joinOnDateBehavior: datePartOnly
+	fromColumn: 'TC e US'.DT_LAUDO
+	toColumn: LocalDateTable_fcb6468a-7b1b-4611-a7cf-29d045aa9b77.Date
+
+relationship 98dd7400-71e0-4662-bdec-7c4190736f43
+	joinOnDateBehavior: datePartOnly
+	fromColumn: 'TC e US'.MES
+	toColumn: LocalDateTable_da428845-0d64-45c8-b27e-ca12572fdb00.Date
+
+relationship AutoDetected_b1887ab3-ffd3-458a-b403-8f8864aa0c71
+	fromColumn: 'TC e US'.NR_ATENDIMENTO
+	toColumn: fluxo.NR_ATENDIMENTO
+
+relationship 811c969c-2337-4e21-9501-056bfde05ca2
+	joinOnDateBehavior: datePartOnly
+	fromColumn: 'TC e US'.DT_LIBERACAO
+	toColumn: LocalDateTable_26a7afa4-ddd6-461f-adef-fcaaf4e2858a.Date
+
+relationship d2f62ba4-ab00-46d6-abe7-6e1b18282ca8
+	joinOnDateBehavior: datePartOnly
+	fromColumn: fluxo.DT_ENTRADA
+	toColumn: LocalDateTable_febe5996-d337-4737-ba20-131bd1a46319.Date
+
+relationship dd2f6d26-ad32-e3f7-84e7-e9fb82b61ae1
+	fromColumn: fluxo.DATA
+	toColumn: Calendario.Data
+
+relationship 2f9dc8f0-6338-4d64-9475-3d760b9145cc
+	joinOnDateBehavior: datePartOnly
+	fromColumn: 'RX e ECG'.DATA
+	toColumn: LocalDateTable_bcc68dfd-c902-4c6d-91ef-e6fdcfb22033.Date
+
+relationship d7e036ea-8a08-4758-96da-bff89d756e32
+	joinOnDateBehavior: datePartOnly
+	fromColumn: reavaliacao.DATA
+	toColumn: LocalDateTable_21376ba9-98ce-42c5-92a0-d11ee22b5e74.Date
+
+relationship 41901b9a-e694-9d8f-1836-64ee55bb7fb0
+	isActive: false
+	crossFilteringBehavior: bothDirections
+	toCardinality: many
+	fromColumn: fluxo.HR_ALTA
+	toColumn: Horas.HORAS
+
+relationship d7cb3946-bc3f-a5b7-1546-14f87d82b181
+	isActive: false
+	crossFilteringBehavior: bothDirections
+	toCardinality: many
+	fromColumn: fluxo.HR_CONSULTA
+	toColumn: Horas.HORAS
+
+relationship f72ce401-b3fb-d86c-b8e1-df4a1e4adacf
+	isActive: false
+	crossFilteringBehavior: bothDirections
+	toCardinality: many
+	fromColumn: fluxo.HR_ENTRADA
+	toColumn: Horas.HORAS
+
+relationship f3f934c7-112b-6871-e9f4-4c519497cdb3
+	isActive: false
+	crossFilteringBehavior: bothDirections
+	toCardinality: many
+	fromColumn: medicacao.HR_MEDICACAO
+	toColumn: Horas.HORAS
+
+relationship 25068888-d006-3ac7-a898-e79a559d7aeb
+	isActive: false
+	crossFilteringBehavior: bothDirections
+	toCardinality: many
+	fromColumn: 'RX e ECG'.HR_RX_ECG
+	toColumn: Horas.HORAS
+
+relationship c9e29c8c-3685-01ee-bf1f-31233a0dba15
+	isActive: false
+	crossFilteringBehavior: bothDirections
+	toCardinality: many
+	fromColumn: reavaliacao.HR_REAVALIACAO
+	toColumn: Horas.HORAS
+
+relationship a70183b6-95d3-dee7-76b1-604bb9585f7b
+	isActive: false
+	crossFilteringBehavior: bothDirections
+	toCardinality: many
+	fromColumn: 'TC e US'.HR_TC_US
+	toColumn: Horas.HORAS
+
+relationship 477563f8-c9c1-48b0-bc2f-a70c09a69e6d
+	joinOnDateBehavior: datePartOnly
+	fromColumn: Vias_medicamentos.DT_LIBERACAO
+	toColumn: LocalDateTable_c336346c-21d6-424d-85e6-d0bc841651a8.Date
+
+relationship 445ffd1e-4d9a-4d0e-98ce-61cc91dbfe01
+	joinOnDateBehavior: datePartOnly
+	fromColumn: Vias_medicamentos.DT_FIM_HORARIO
+	toColumn: LocalDateTable_e01f40c8-b5cf-4047-b19e-0ef4907ea758.Date
+
+relationship AutoDetected_a129a185-7c83-4b80-9801-ccc09f913ebf
+	fromColumn: Vias_medicamentos.NR_ATENDIMENTO
+	toColumn: fluxo.NR_ATENDIMENTO
+
+relationship 77663b91-7e3b-4296-9e78-88967d167b45
+	joinOnDateBehavior: datePartOnly
+	fromColumn: laboratorio.DT_SOLICITACAO
+	toColumn: LocalDateTable_c2d18390-e8d6-4047-bd71-683cdbafc988.Date
+
+relationship 327184f2-532d-450a-a9fc-d35d628c957f
+	joinOnDateBehavior: datePartOnly
+	fromColumn: laboratorio.DT_EXAME
+	toColumn: LocalDateTable_e6dc309e-57a6-4075-8811-302124e3ce44.Date
+
+relationship AutoDetected_75966dd1-0cf1-4c3c-a147-e0410968b117
+	fromColumn: laboratorio.NR_ATENDIMENTO
+	toColumn: fluxo.NR_ATENDIMENTO
+
+relationship a2d28463-53f1-4e6f-b434-df76c631cdc5
+	joinOnDateBehavior: datePartOnly
+	fromColumn: fluxo.Data_Anterior
+	toColumn: LocalDateTable_e1e1fe90-7ed1-4aa0-a064-d3ea2e648e64.Date
+
+relationship 8b019207-d681-91ff-1eaf-863f5940f68a
+	isActive: false
+	fromColumn: fluxo.DT_ALTA_DATA
+	toColumn: Calendario.Data
+
+relationship a43630dc-d785-43ab-afdd-d71fcbbc9173
+	joinOnDateBehavior: datePartOnly
+	fromColumn: fluxo.DT_ALTA_MEDICO
+	toColumn: LocalDateTable_3dbd6ec8-185b-4569-9007-ff615f2711d8.Date
+
+relationship c2f1592e-5240-4a15-87c7-91b2429be589
+	joinOnDateBehavior: datePartOnly
+	fromColumn: laboratorio.DATA
+	toColumn: LocalDateTable_1fedebc9-1ae8-463d-b644-8a0ece2d419b.Date
+
+relationship ba176443-0779-476b-bfa9-f7115beb06b1
+	joinOnDateBehavior: datePartOnly
+	fromColumn: Vias_medicamentos.DATA
+	toColumn: LocalDateTable_eaff665b-673b-4084-8198-96fe4cdc88ac.Date
+
+relationship 7ef1fead-226e-46a1-a861-214c0f7385ef
+	joinOnDateBehavior: datePartOnly
+	fromColumn: fluxo.DT_INTERNACAO
+	toColumn: LocalDateTable_635e07cf-7b9f-43e5-93cc-eeafcffde169.Date
+
+relationship 9526e265-35b0-a0bc-7b12-096f4fc165aa
+	isActive: false
+	fromColumn: fluxo.DT_INTERNACAO_DATA
+	toColumn: Calendario.Data
+
+relationship 763d8692-e8dd-4c57-ab37-effe9ecb31a8
+	joinOnDateBehavior: datePartOnly
+	fromColumn: medicacao.DT_DISPENSACAO
+	toColumn: LocalDateTable_de178a12-0561-4a35-be65-0000ec4195e2.Date
+
+relationship 58b9cee1-f2a3-0b8d-17de-e38e1f8fb0eb
+	fromColumn: Custos.ATENDIMENTO
+	toColumn: fluxo.NR_ATENDIMENTO
+
+relationship 57e2109d-5dfc-49d6-a7f2-54035e0ba8c1
+	joinOnDateBehavior: datePartOnly
+	fromColumn: Calendario.'Semana Início'
+	toColumn: LocalDateTable_99bc953c-a6f4-430e-a844-e718ad7d2765.Date
+
+relationship d28c9b02-d26b-425b-89f4-2d6bb1592f99
+	joinOnDateBehavior: datePartOnly
+	fromColumn: Calendario.'Semana Fim'
+	toColumn: LocalDateTable_ad9f4c65-42d3-4fd8-93dc-76c960f38e6b.Date
+
+relationship 7d232230-d68f-4f9d-ac86-d1d2f6525f52
+	joinOnDateBehavior: datePartOnly
+	fromColumn: 'TC e US'.DT_EXAME
+	toColumn: LocalDateTable_e36a23e6-2a62-46da-88fa-b6b40e2e650e.Date
+
+relationship 86c3ea4d-9ec3-411c-bd12-078acb487d29
+	joinOnDateBehavior: datePartOnly
+	fromColumn: 'TC e US'.DT_CHECAGEM
+	toColumn: LocalDateTable_5fafa5f0-d704-4339-ac5a-560735bb57b2.Date
+
+relationship d229e969-9f23-602a-4d3d-84618c7097cf
+	fromColumn: fluxo.COR
+	toColumn: CorClassificacao.Classificação
+
+relationship 45baf8f8-41e2-43dc-ada9-70cdfbe445e5
+	joinOnDateBehavior: datePartOnly
+	fromColumn: 'RX e ECG'.DT_CHECAGEM
+	toColumn: LocalDateTable_561e3c9a-f371-4c34-b5e6-7b2a96cc1ec3.Date
+
+relationship 12095a25-d1d8-4ea0-ad55-7565dd305e2f
+	joinOnDateBehavior: datePartOnly
+	fromColumn: Calendario_conversao.Data
+	toColumn: LocalDateTable_d60538f5-972d-4ae0-8206-bcff80286058.Date
+
+relationship fd01894f-092a-765f-a8ac-18bc1dc96932
+	fromColumn: fluxo.DT_INTERNACAO_DATA
+	toColumn: Calendario_conversao.Data
+
+relationship 630541b1-a818-9e86-fc9d-d60e2634f4a5
+	fromColumn: fluxo.CD_ESTABELECIMENTO
+	toColumn: Unidades.Codigo
+
+relationship 01c45c11-588f-4699-a32f-edc17bee0e25
+	joinOnDateBehavior: datePartOnly
+	fromColumn: fluxo.DT_AUDITORIA
+	toColumn: LocalDateTable_ae06fed4-5619-4c5f-8dde-07f965b922d5.Date
+
+relationship 8b78513d-1d76-4840-9def-3f34460ee0b6
+	joinOnDateBehavior: datePartOnly
+	fromColumn: Calendario.Data
+	toColumn: LocalDateTable_fe66b504-cae0-4f15-97ee-10c54f00595e.Date
+
+relationship 5312ab83-9263-4ce4-8ab5-36444df42288
+	joinOnDateBehavior: datePartOnly
+	fromColumn: procedimento.DT_SOLICITACAO
+	toColumn: LocalDateTable_7c16547e-86a4-415d-b743-3059f6c68d8d.Date
+
+relationship 47e43d19-9c68-4484-aac7-cd61105e457b
+	joinOnDateBehavior: datePartOnly
+	fromColumn: procedimento.DATA
+	toColumn: LocalDateTable_13f03cee-ed5f-45bf-bb10-7b66215ceaf0.Date
+
+relationship c87273d4-2fce-f3d4-b5d8-bc855b7a84ef
+	fromColumn: procedimento.NR_ATENDIMENTO
+	toColumn: fluxo.NR_ATENDIMENTO
+
+relationship d701eb5d-0a45-4bf4-886a-29c7e3c70180
+	joinOnDateBehavior: datePartOnly
+	fromColumn: fluxo.DT_INICIO_ATENDIMENTO
+	toColumn: LocalDateTable_e49b7036-3b9d-4aca-8316-941cad72c2eb.Date
+
+relationship d63ad6ff-6161-43ec-b9ab-32d6be6e0199
+	joinOnDateBehavior: datePartOnly
+	fromColumn: procedimento.DT_EXAME
+	toColumn: LocalDateTable_ecaacb9e-0b8d-4f94-ba03-548a0284bd1b.Date
+
+relationship d43c9171-6323-44d6-8f8e-beb081802252
+	joinOnDateBehavior: datePartOnly
+	fromColumn: fluxo.DT_EVOLUCAO
+	toColumn: LocalDateTable_c115c671-e75b-4dff-a343-abfbdf8379be.Date
+
+relationship 5842da30-afe4-4cff-92ac-f35bda7970d4
+	joinOnDateBehavior: datePartOnly
+	fromColumn: reavaliacao.DT_EVO_PRESC
+	toColumn: LocalDateTable_18e9dfe9-c554-482d-a009-5b492643aa9e.Date
+
+relationship 67081c4d-61b8-380d-4ad9-9616be96de41
+	fromColumn: fluxo.MEDICO_ATENDIMENTO
+	toColumn: DimMedico.Medico
+
+relationship 9a56509b-37ee-1216-7b47-5993ab48c048
+	isActive: false
+	fromColumn: fluxo.MEDICO_DESFECHO
+	toColumn: DimMedico.Medico
+
+relationship b1dc7e60-889e-ecdd-a851-97995c2a2e7f
+	fromColumn: fluxo.TURNO_ATENDIMENTO
+	toColumn: DimTurno.Turno
+
+relationship d073fc44-490b-3644-174e-0425b4f4340f
+	isActive: false
+	fromColumn: fluxo.TURNO_DESFECHO
+	toColumn: DimTurno.Turno
+
+relationship 3f809bab-1298-4ed1-b6b5-a8474190ecaa
+	joinOnDateBehavior: datePartOnly
+	fromColumn: Calendario.InicioMes
+	toColumn: LocalDateTable_093e9804-aa0a-4554-922b-d50c98cb7434.Date
+
+relationship 5b466bee-497c-49d0-baa7-83e92bc5cc85
+	joinOnDateBehavior: datePartOnly
+	fromColumn: EixoMes.InicioMes
+	toColumn: LocalDateTable_45ee5a9c-1fb0-41e4-82fd-d73ff3b8be5c.Date
+
+relationship 7a479972-80fd-c3fb-60db-edb0eff065fc
+	isActive: false
+	crossFilteringBehavior: bothDirections
+	toCardinality: many
+	fromColumn: fluxo.HR_DESFECHO
+	toColumn: Horas.HORAS
+
+relationship eb8182f3-4aab-47c1-8bc2-731aa220e1dc
+	joinOnDateBehavior: datePartOnly
+	fromColumn: fluxo.DT_DESFECHO
+	toColumn: LocalDateTable_d8ee344a-de18-47d6-8ede-a1429fc9010c.Date
+
+relationship 74443049-daee-3889-f7c2-b57e7e9d8871
+	isActive: false
+	fromColumn: fluxo.DATA_DESFECHO
+	toColumn: Calendario.Data
+
+relationship 5b44f1f2-8844-4a9a-b7a7-25a46c3fad60
+	joinOnDateBehavior: datePartOnly
+	fromColumn: laboratorio.DT_ENTRADA
+	toColumn: LocalDateTable_2ee95e3e-3908-4c41-a7fa-3384a06a390a.Date
+
+relationship a09d4004-c6b5-4939-83f6-969b0bf8eb20
+	joinOnDateBehavior: datePartOnly
+	fromColumn: procedimento.DT_REALIZADO
+	toColumn: LocalDateTable_ababc080-4028-4bbf-acdd-e349a9896612.Date
+
+relationship 4942bef9-e5a3-48c5-bca0-aa5f86bc1b0f
+	joinOnDateBehavior: datePartOnly
+	fromColumn: 'Resumo Gerencial Cache Semana Unidade'.'Semana Início'
+	toColumn: LocalDateTable_dbca5ab3-2f3e-45c3-b573-a8a67914aee6.Date
+
+relationship 7576cad6-9047-40d0-8600-935d33f4aef6
+	joinOnDateBehavior: datePartOnly
+	fromColumn: 'RG Cache Semana Unidade'.SemanaInicio
+	toColumn: LocalDateTable_5aa2fd57-2c71-4b2e-a87f-d142fe7dd22b.Date
+
+relationship 33ee768f-2945-4a6f-b388-62c42dc08bfe
+	joinOnDateBehavior: datePartOnly
+	fromColumn: 'RG Cache Semana Unidade Alertas'.SemanaInicio
+	toColumn: LocalDateTable_7aa7dc0f-73b4-49e8-a47e-7dc24132fe74.Date
+

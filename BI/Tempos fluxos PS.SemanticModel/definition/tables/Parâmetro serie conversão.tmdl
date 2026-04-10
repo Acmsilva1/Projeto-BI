@@ -1,0 +1,48 @@
+table 'Parâmetro serie conversão'
+	lineageTag: d7518ea2-600a-45ef-b514-a6e27f5bf34a
+
+	column 'Parâmetro serie conversão'
+		lineageTag: 41c0f1c8-e334-4965-aa70-9c28646a7075
+		summarizeBy: none
+		sourceColumn: [Value1]
+		sortByColumn: 'Parâmetro serie conversão Pedido'
+
+		relatedColumnDetails
+			groupByColumn: 'Parâmetro serie conversão Campos'
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Parâmetro serie conversão Campos'
+		isHidden
+		lineageTag: 15119df9-0376-4a8f-99e2-fc1b7f1bd2aa
+		summarizeBy: none
+		sourceColumn: [Value2]
+		sortByColumn: 'Parâmetro serie conversão Pedido'
+
+		extendedProperty ParameterMetadata =
+				{
+				  "version": 3,
+				  "kind": 2
+				}
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Parâmetro serie conversão Pedido'
+		isHidden
+		formatString: 0
+		lineageTag: 06c5e032-7020-446d-9f2e-c2adbbd90feb
+		summarizeBy: sum
+		sourceColumn: [Value3]
+
+		annotation SummarizationSetBy = Automatic
+
+	partition 'Parâmetro serie conversão' = calculated
+		mode: import
+		source =
+				{
+				    ("UNIDADE", NAMEOF('fluxo'[UNIDADE]), 0),
+				    ("Serie", NAMEOF('Eixo conversao global'[Serie]), 1)
+				}
+
+	annotation PBI_Id = 909e624a39f84429aaeef8afd02d8eb4
+

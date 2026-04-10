@@ -1,0 +1,7 @@
+role SIG
+	modelPermission: read
+
+	tablePermission fluxo = [CD_ESTABELECIMENTO] == 13
+
+	annotation PBI_Id = 96a2a44cb71849d88f61347c18752b33
+

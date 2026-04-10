@@ -1,0 +1,26 @@
+table Meta_reavaliacao
+	lineageTag: e7cf786f-a980-4359-b5b9-9abc3572e09f
+
+	measure 'Valor Meta_reavaliacao' = SELECTEDVALUE('Meta_reavaliacao'[Tempo minutos])
+		formatString: 0
+		lineageTag: 920b7bf1-3cd6-43e3-9abb-31df8be6bc52
+
+	column 'Tempo minutos'
+		formatString: 0
+		lineageTag: 27a694ae-036c-4319-88d7-edaa39511b22
+		summarizeBy: none
+		sourceColumn: [Value]
+
+		extendedProperty ParameterMetadata =
+				{
+				  "version": 0
+				}
+
+		annotation SummarizationSetBy = User
+
+	partition Meta_reavaliacao = calculated
+		mode: import
+		source = GENERATESERIES(0, 240, 1)
+
+	annotation PBI_Id = c710c482914d471ca82b728803a025d6
+

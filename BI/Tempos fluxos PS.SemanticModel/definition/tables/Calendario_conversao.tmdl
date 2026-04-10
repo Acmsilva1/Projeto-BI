@@ -1,0 +1,240 @@
+table Calendario_conversao
+	lineageTag: bdba15be-d710-4e63-b391-bdc8e38ab2d6
+
+	column Data
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: cba5d45b-2030-4043-984c-5e71810dadfe
+		summarizeBy: none
+		sourceColumn: Data
+
+		variation Variation
+			isDefault
+			relationship: 12095a25-d1d8-4ea0-ad55-7565dd305e2f
+			defaultHierarchy: LocalDateTable_d60538f5-972d-4ae0-8206-bcff80286058.'Hierarquia de datas'
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column Ano
+		dataType: int64
+		formatString: 0
+		lineageTag: c8380194-bed6-499a-b250-a1f071ad49a2
+		summarizeBy: sum
+		sourceColumn: Ano
+
+		annotation SummarizationSetBy = Automatic
+
+	column Mês
+		dataType: int64
+		formatString: 0
+		lineageTag: fb303927-b0ca-483a-87ba-ed379eba1898
+		summarizeBy: sum
+		sourceColumn: Mês
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Nome Mês'
+		dataType: string
+		lineageTag: c2c694f9-ad4d-4cf1-b8ab-a5fcb354a41b
+		summarizeBy: none
+		sourceColumn: Nome Mês
+
+		annotation SummarizationSetBy = Automatic
+
+	column Trimestre
+		dataType: string
+		lineageTag: c6888fc3-c160-4266-84b5-8254e2882fe5
+		summarizeBy: none
+		sourceColumn: Trimestre
+
+		annotation SummarizationSetBy = Automatic
+
+	column Semestre
+		dataType: string
+		lineageTag: af2d64bc-af3b-4616-b498-532a4ae651c0
+		summarizeBy: none
+		sourceColumn: Semestre
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Dia da Semana'
+		dataType: int64
+		formatString: 0
+		lineageTag: 0bbc61fd-2fb2-4a85-a324-820e8a3492d0
+		summarizeBy: sum
+		sourceColumn: Dia da Semana
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Nome Dia Semana'
+		dataType: string
+		lineageTag: a0de1e2f-055f-4464-a6a6-90efc2303532
+		summarizeBy: none
+		sourceColumn: Nome Dia Semana
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'É Final de Semana?'
+		dataType: string
+		lineageTag: db1e2abb-4696-43e9-a52a-57f43b7f5d8d
+		summarizeBy: none
+		sourceColumn: É Final de Semana?
+
+		annotation SummarizationSetBy = Automatic
+
+	column Dia
+		dataType: int64
+		formatString: 0
+		lineageTag: 39ba31f1-7809-4fa7-a328-3ef1aabb0213
+		summarizeBy: sum
+		sourceColumn: Dia
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Mes e Ano'
+		dataType: string
+		lineageTag: 3ae691f0-aaa3-450f-8227-e981042a3236
+		summarizeBy: none
+		sourceColumn: Mes e Ano
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Ano Mes Num'
+		dataType: int64
+		formatString: 0
+		lineageTag: ced59c6a-c1dd-4cd8-8153-600db1c03460
+		summarizeBy: sum
+		sourceColumn: Ano Mes Num
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Nome Feriado'
+		dataType: string
+		lineageTag: dad43e7f-e5c6-43d8-9e66-c9a3511ccc95
+		summarizeBy: none
+		sourceColumn: Nome Feriado
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'É Feriado?'
+		dataType: string
+		lineageTag: d118c1fe-fdeb-496a-a43a-e9eee149e20b
+		summarizeBy: none
+		sourceColumn: É Feriado?
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Semana do Ano'
+		dataType: int64
+		formatString: 0
+		lineageTag: 819be5ab-07cf-4083-a829-ea4729d6717e
+		summarizeBy: sum
+		sourceColumn: Semana do Ano
+
+		annotation SummarizationSetBy = Automatic
+
+	partition Calendario_conversao = m
+		mode: import
+		source = ```
+				let
+				    // Datas de início e fim
+				    DataInicio = #date(2025, 1, 1),
+				    DataFim = #date(Date.Year(DateTime.LocalNow()), 12, 31),
+				 
+				    // Lista de datas
+				    ListaDatas = List.Dates(DataInicio, Duration.Days(Duration.From(DataFim - DataInicio)) + 1, #duration(1, 0, 0, 0)),
+				    TabelaDatas = Table.FromList(ListaDatas, Splitter.SplitByNothing(), {"Data"}),
+				 
+				    // Adiciona colunas úteis
+				    DatasComAno = Table.AddColumn(TabelaDatas, "Ano", each Date.Year([Data]), Int64.Type),
+				    DatasComMes = Table.AddColumn(DatasComAno, "Mês", each Date.Month([Data]), Int64.Type),
+				    DatasComNomeMes = Table.AddColumn(DatasComMes, "Nome Mês", each Date.ToText([Data], "MMMM"), type text),
+				    DatasComTrimestre = Table.AddColumn(DatasComNomeMes, "Trimestre", each "T" & Number.ToText(Date.QuarterOfYear([Data])), type text),
+				    DatasComSemestre = Table.AddColumn(DatasComTrimestre, "Semestre", each "S" & Number.ToText(Number.RoundUp(Date.QuarterOfYear([Data]) / 2)), type text),
+				    DatasComDiaSemana = Table.AddColumn(DatasComSemestre, "Dia da Semana", each Date.DayOfWeek([Data]) + 1, Int64.Type),
+				    DatasComNomeDiaSemana = Table.AddColumn(DatasComDiaSemana, "Nome Dia Semana", each Text.Proper(Date.ToText([Data], "dddd")), type text),
+				    DatasComFinalSemana = Table.AddColumn(DatasComNomeDiaSemana, "É Final de Semana?", each if List.Contains({0, 6}, Date.DayOfWeek([Data])) then "Sim" else "Não", type text),
+				    DatasComDia = Table.AddColumn(DatasComFinalSemana, "Dia", each Date.Day([Data]), Int64.Type),
+				    DatasComMesAno = Table.AddColumn(DatasComDia, "Mes e Ano", each Text.Combine({Text.Start(Text.Proper([Nome Mês]), 3), " ", Text.From([Ano], "pt-BR")}), type text),
+				    DatasComAnoMesNum = Table.AddColumn(DatasComMesAno, "Ano Mes Num", each Text.Combine({Text.From([Ano], "pt-BR"), Text.PadStart(Text.From([Mês], "pt-BR"), 2, "0")}), type text),
+				    DatasComAnoMesNumTipo = Table.TransformColumnTypes(DatasComAnoMesNum,{{"Ano Mes Num", Int64.Type}}),
+				 
+				    // Geração automática dos feriados fixos
+				    Anos = {2025..Date.Year(DateTime.LocalNow())},
+				    FeriadosFixos = Table.Combine(
+				        List.Transform(Anos, each
+				            let
+				                ano = _,
+				                feriados = {
+				                    {#date(ano, 1, 1), "Confraternização Universal"},
+				                    {#date(ano, 4, 21), "Tiradentes"},
+				                    {#date(ano, 5, 1), "Dia do Trabalho"},
+				                    {#date(ano, 9, 7), "Independência do Brasil"},
+				                    {#date(ano, 10, 12), "Nossa Senhora Aparecida"},
+				                    {#date(ano, 11, 2), "Finados"},
+				                    {#date(ano, 11, 15), "Proclamação da República"},
+				                    {#date(ano, 11, 20), "Dia da Consciência Negra"},
+				                    {#date(ano, 12, 25), "Natal"}
+				                }
+				            in
+				                Table.FromRows(feriados, {"Data", "Nome Feriado"})
+				        )
+				    ),
+				 
+				    // Feriados móveis
+				    CalcularFeriadosMoveis = (ano as number) as table =>
+				        let
+				            a = Number.Mod(ano, 19),
+				            b = Number.IntegerDivide(ano, 100),
+				            c = Number.Mod(ano, 100),
+				            d = Number.IntegerDivide(b, 4),
+				            e = Number.Mod(b, 4),
+				            f = Number.IntegerDivide(b + 8, 25),
+				            g = Number.IntegerDivide(b - f + 1, 3),
+				            h = Number.Mod(19 * a + b - d - g + 15, 30),
+				            i = Number.IntegerDivide(c, 4),
+				            k = Number.Mod(c, 4),
+				            l = Number.Mod(32 + 2 * e + 2 * i - h - k, 7),
+				            m = Number.IntegerDivide(a + 11 * h + 22 * l, 451),
+				            mesPascoa = Number.IntegerDivide(h + l - 7 * m + 114, 31),
+				            diaPascoa = Number.Mod(h + l - 7 * m + 114, 31) + 1,
+				            dataPascoa = #date(ano, mesPascoa, diaPascoa),
+				            feriadosMoveis = {
+				                {Date.AddDays(dataPascoa, -47), "Carnaval"},
+				                {Date.AddDays(dataPascoa, -2), "Sexta-feira Santa"},
+				                {dataPascoa, "Páscoa"},
+				                {Date.AddDays(dataPascoa, 60), "Corpus Christi"}
+				            }
+				        in
+				            Table.FromRows(feriadosMoveis, {"Data", "Nome Feriado"}),
+				 
+				    FeriadosMoveis = Table.Combine(List.Transform(Anos, each CalcularFeriadosMoveis(_))),
+				    TodosFeriados = Table.Combine({FeriadosFixos, FeriadosMoveis}),
+				
+				    // 1 linha por Data (evita duplicar o calendário)
+				    TodosFeriadosAgrupado =
+				        Table.Group(
+				            TodosFeriados,
+				            {"Data"},
+				            {{"Nome Feriado", each Text.Combine(List.Distinct([Nome Feriado]), " / "), type text}}
+				        ),
+				
+				    // Join com calendário
+				    D_CalendarioFinal = Table.NestedJoin(DatasComAnoMesNumTipo, "Data", TodosFeriadosAgrupado, "Data", "Feriado", JoinKind.LeftOuter),
+				    ExpandirFeriados = Table.ExpandTableColumn(D_CalendarioFinal, "Feriado", {"Nome Feriado"}, {"Nome Feriado"}),
+				    D_CalendarioCompleta = Table.AddColumn(ExpandirFeriados, "É Feriado?", each if [Nome Feriado] <> null then "Sim" else "Não", type text),
+				    #"Tipo Alterado" = Table.TransformColumnTypes(D_CalendarioCompleta, {{"Data", type date}}),
+				
+				    // Cria a coluna Semana do Ano (para toda a tabela)
+				    #"Semana do Ano Inserida" = Table.AddColumn(#"Tipo Alterado", "Semana do Ano", each Date.WeekOfYear([Data], Day.Monday), Int64.Type),
+				    #"Linhas Classificadas" = Table.Sort(#"Semana do Ano Inserida",{{"Semana do Ano", Order.Ascending}})
+				in
+				    #"Linhas Classificadas"
+				```
+
+	annotation PBI_NavigationStepName = Navegação
+
+	annotation PBI_ResultType = Table
+

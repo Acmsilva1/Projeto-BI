@@ -1,0 +1,79 @@
+table Horas
+	lineageTag: c529bd45-b17b-4a9d-b2b6-2675ebcc88ca
+
+	column Hora_Minuto
+		dataType: dateTime
+		formatString: Long Time
+		lineageTag: 1c7fe49b-8269-4984-a715-475598d2c957
+		summarizeBy: none
+		sourceColumn: Hora_Minuto
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Time
+
+	column Hora
+		dataType: int64
+		formatString: 0
+		lineageTag: f6948e9e-9d00-47e7-9398-2b433966a60e
+		summarizeBy: sum
+		sourceColumn: Hora
+
+		annotation SummarizationSetBy = Automatic
+
+	column Minuto
+		dataType: int64
+		formatString: 0
+		lineageTag: c73199c3-f29d-4f36-b81c-f756d2d3f61b
+		summarizeBy: sum
+		sourceColumn: Minuto
+
+		annotation SummarizationSetBy = Automatic
+
+	column HORAS = FORMAT(Horas[Hora_Minuto],"HH:00")
+		lineageTag: 82ec8b26-ea6f-42cf-943f-2dc1fcd55a65
+		summarizeBy: none
+
+		annotation SummarizationSetBy = Automatic
+
+	column Plantao_6h(10h-16h) = ```
+			
+			IF (
+			    Horas[Hora_Minuto] >= TIME ( 10, 0, 0 )
+			        && Horas[Hora_Minuto] < TIME ( 16, 0, 0 ),
+			    1,
+			    0
+			)
+			
+			```
+		formatString: 0
+		lineageTag: 28865f53-75e7-4646-9a0b-96c3cc7329ba
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+	partition Horas = m
+		mode: import
+		source = ```
+				let
+				    // Criando a lista de horas e minutos
+				    HoraMinutoList = List.Transform({0..23}, each List.Transform({0..59}, (minuto) => Text.PadStart(Text.From(_), 2, "0") & ":" & Text.PadStart(Text.From(minuto), 2, "0"))),
+				    
+				    // Transformando a lista em uma tabela
+				    HoraMinutoTable = Table.FromList(List.Combine(HoraMinutoList), Splitter.SplitByNothing(), {"Hora_Minuto"}),
+				
+				    // Adicionando colunas para Hora e Minuto
+				    HoraTable = Table.AddColumn(HoraMinutoTable, "Hora", each Text.Start([Hora_Minuto], 2)),
+				    MinutoTable = Table.AddColumn(HoraTable, "Minuto", each Text.End([Hora_Minuto], 2)),
+				    
+				    // Transformando os tipos de dados
+				    FinalTable = Table.TransformColumnTypes(MinutoTable,{{"Hora", Int64.Type}, {"Minuto", Int64.Type}, {"Hora_Minuto", type time}})
+				    
+				in
+				    FinalTable
+				```
+
+	annotation PBI_ResultType = Table
+
+	annotation PBI_NavigationStepName = Navegação
+

@@ -1,6 +1,9 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useCallback } from 'react';
 import { Loader2 } from 'lucide-react';
 import { useApi } from '../hooks/useApi';
+import { useTheme } from '../context/ThemeContext';
+import ExportCsvButton from './ExportCsvButton';
+import { datedExportBasename, downloadCsv, roundCsvNumber } from '../utils/downloadCsv';
 
 /** Emojis alinhados aos nomes enviados pela API (icons: ['Ticket', …]). */
 const EMOJI_BY_ICON = {
@@ -20,7 +23,7 @@ const EMOJI_BY_ICON = {
 function fmtMin(n) {
   const x = Number(n);
   if (Number.isNaN(x)) return '—';
-  return x.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return Math.round(x).toLocaleString('pt-BR', { maximumFractionDigits: 0 });
 }
 
 /** Seta mais visível que o caractere Unicode → (ex.: Totem ➡️ Triagem). */
@@ -66,6 +69,8 @@ export default function TempoMedioEtapasTable({ filters }) {
   );
 
   const { data, loading, error } = useApi('gerencia/tempo-medio-etapas', params);
+  const { theme } = useTheme();
+  const isLight = theme === 'light';
 
   const etapas = data?.etapas ?? [];
   const linhas = data?.linhas ?? [];
@@ -82,13 +87,28 @@ export default function TempoMedioEtapasTable({ filters }) {
 
   const colDataClass = (e, raw) => {
     if (isForaDaMeta(e, raw)) {
-      return 'bg-rose-950/45 text-rose-200 font-bold ring-1 ring-inset ring-rose-500/35';
+      return isLight
+        ? 'bg-rose-100 text-rose-900 font-bold ring-1 ring-inset ring-rose-300/70'
+        : 'bg-rose-950/45 text-rose-200 font-bold ring-1 ring-inset ring-rose-500/35';
     }
     return 'bg-table-cell-neutral text-table-header-fg font-bold';
   };
 
   /** Cabeçalhos neutros; cor de alerta só nas células fora da meta. */
   const colHeadClass = () => 'bg-transparent text-table-header-fg';
+
+  const onExportCsv = useCallback(() => {
+    const head = ['Unidade', ...etapas.map((e) => e.label ?? e.key ?? '')];
+    const body = linhas.map((row) => [
+      row.unidadeLabel ?? '',
+      ...etapas.map((e) => roundCsvNumber(row.valores?.[e.key], 0)),
+    ]);
+    const foot = [
+      'Total',
+      ...etapas.map((e) => roundCsvNumber(totais[e.key], 0)),
+    ];
+    downloadCsv(`${datedExportBasename('gerencia-tempo-medio-etapas')}.csv`, [head, ...body, foot]);
+  }, [etapas, linhas, totais]);
 
   if (error) {
     return (
@@ -109,11 +129,12 @@ export default function TempoMedioEtapasTable({ filters }) {
             {data?.titulo || 'Tempo médio por etapa (min)'}
           </h2>
         </div>
-        {loading ? (
-          <div className="flex flex-wrap items-center justify-center sm:justify-end">
-            <Loader2 className="h-4 w-4 animate-spin text-pipeline-live" aria-hidden />
-          </div>
-        ) : null}
+        <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-end">
+          {!loading && linhas.length > 0 ? (
+            <ExportCsvButton onClick={onExportCsv} title="Baixar tabela em CSV (minutos por etapa)" />
+          ) : null}
+          {loading ? <Loader2 className="h-4 w-4 animate-spin text-pipeline-live" aria-hidden /> : null}
+        </div>
       </div>
 
       <div className="overflow-x-auto">

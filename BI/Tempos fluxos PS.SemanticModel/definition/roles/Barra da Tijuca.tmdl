@@ -1,0 +1,7 @@
+role 'Barra da Tijuca'
+	modelPermission: read
+
+	tablePermission fluxo = [CD_ESTABELECIMENTO] == 25
+
+	annotation PBI_Id = e69f5dad235f4bd5850baba562cb2cb1
+

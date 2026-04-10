@@ -1,4 +1,16 @@
-require('dotenv').config({ path: require('path').join(__dirname, '.env') });
+const fs = require('fs');
+const path = require('path');
+const dotenv = require('dotenv');
+
+const envCandidates = [
+  path.join(__dirname, '..', 'pipeline', '.env'),
+  path.join(__dirname, '..', '.env'),
+  path.join(__dirname, '.env'),
+];
+
+envCandidates.forEach((p) => {
+  if (fs.existsSync(p)) dotenv.config({ path: p, override: false });
+});
 const express = require('express');
 const cors    = require('cors');
 const liveService = require('./live_service');

@@ -4,6 +4,8 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const vitePort = Number(process.env.VITE_PORT || 5174);
+const apiPort = Number(process.env.PORT || 3000);
 
 export default defineConfig({
   resolve: {
@@ -31,7 +33,7 @@ export default defineConfig({
   server: {
     /** true = escuta em 0.0.0.0; acessível por localhost e 127.0.0.1 (evita proxy “só em um host”). */
     host: true,
-    port: 5173,
+    port: vitePort,
     strictPort: true,
     /** Hot reload imediato ao salvar arquivos (Fast Refresh do React). */
     hmr: {
@@ -44,7 +46,7 @@ export default defineConfig({
     },
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:3001',
+        target: `http://127.0.0.1:${apiPort}`,
         changeOrigin: true,
         secure: false,
       },
@@ -52,11 +54,11 @@ export default defineConfig({
   },
   preview: {
     host: true,
-    port: 5173,
+    port: vitePort,
     strictPort: true,
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:3001',
+        target: `http://127.0.0.1:${apiPort}`,
         changeOrigin: true,
       },
     },

@@ -1,10 +1,10 @@
-# Libera portas do Hospital BI (Node/Vite) — encerra processos em LISTEN.
+# Libera portas do Hospital BI (Node/Vite) — encerra processos que estejam usando as portas.
 param(
-    [int[]]$Ports = @(3001, 5173)
+    [int[]]$Ports = @(3000, 5174)
 )
 
 foreach ($port in $Ports) {
-    $conns = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue
+    $conns = Get-NetTCPConnection -LocalPort $port -ErrorAction SilentlyContinue
     foreach ($c in $conns) {
         $procId = $c.OwningProcess
         if (-not $procId) { continue }

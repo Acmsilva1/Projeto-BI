@@ -2,10 +2,12 @@
 chcp 65001 >nul
 setlocal
 
-rem Único ponto de entrada: API (3001) + Vite (5173)
+rem Único ponto de entrada: API (3000) + Vite (5174)
 set "ROOT=%~dp0"
 set "FRONT=%ROOT%frontend"
 set "FREE_PORTS=%ROOT%scripts\free-ports.ps1"
+set "API_PORT=3000"
+set "VITE_PORT=5174"
 
 if not exist "%FRONT%\package.json" (
   echo [ERRO] Frontend não encontrado: "%FRONT%"
@@ -37,22 +39,24 @@ echo.
 echo ============================================
 echo   Hospital BI — desenvolvimento local
 echo ============================================
-echo   API ^(Express^) :  http://127.0.0.1:3001
-echo   App ^(Vite^)    :  http://127.0.0.1:5173
+echo   API ^(Express^) :  http://127.0.0.1:%API_PORT%
+echo   App ^(Vite^)    :  http://127.0.0.1:%VITE_PORT%
 echo ============================================
 echo.
-echo [1/3] Liberando portas 3001 e 5173...
-powershell -NoProfile -ExecutionPolicy Bypass -File "%FREE_PORTS%"
+echo [1/3] Liberando portas %API_PORT% e %VITE_PORT%...
+powershell -NoProfile -ExecutionPolicy Bypass -File "%FREE_PORTS%" -Ports %API_PORT%,%VITE_PORT%
 
 cd /d "%FRONT%"
 echo.
 echo [2/3] Iniciando stack ^(Ctrl+C para encerrar^).
 echo.
+set "PORT=%API_PORT%"
+set "VITE_PORT=%VITE_PORT%"
 npm run dev
 
 echo.
 echo [3/3] Encerrado — liberando portas...
-powershell -NoProfile -ExecutionPolicy Bypass -File "%FREE_PORTS%"
+powershell -NoProfile -ExecutionPolicy Bypass -File "%FREE_PORTS%" -Ports %API_PORT%,%VITE_PORT%
 echo Pronto.
 pause
 exit /b 0

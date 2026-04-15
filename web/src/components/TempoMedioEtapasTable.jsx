@@ -57,8 +57,9 @@ const STICKY_UN =
 
 /**
  * Jornada: tempo médio por etapa (min) — GET /api/v1/gerencia/tempo-medio-etapas
+ * @param {object} [prefetched] — slice de `dashboard-bundle`.
  */
-export default function TempoMedioEtapasTable({ filters }) {
+export default function TempoMedioEtapasTable({ filters, prefetched }) {
   const params = useMemo(
     () => ({
       period: filters.period,
@@ -68,7 +69,10 @@ export default function TempoMedioEtapasTable({ filters }) {
     [filters.period, filters.regional, filters.unidade],
   );
 
-  const { data, loading, error } = useApi('gerencia/tempo-medio-etapas', params);
+  const api = useApi('gerencia/tempo-medio-etapas', params, { enabled: prefetched == null });
+  const data = prefetched != null ? prefetched : api.data;
+  const loading = prefetched != null ? false : api.loading;
+  const error = prefetched != null ? null : api.error;
   const { theme } = useTheme();
   const isLight = theme === 'light';
 

@@ -1,6 +1,6 @@
 /**
  * Base da API v1.
- * - Dev (sem .env): `/api/v1` → proxy do Vite → Node (PORT, ex. 3020)
+ * - Dev (sem .env): `/api/v1` → proxy do Vite → FastAPI (HOSPITAL_BI_API_PORT, ex. 3020)
  * - VITE_API_BASE: origem ou prefixo (sem duplicar /api/v1)
  *   Ex.: http://127.0.0.1:3020 | /api | http://host:3000/api/v1
  */

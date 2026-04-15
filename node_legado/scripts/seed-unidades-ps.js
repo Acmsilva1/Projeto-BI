@@ -1,12 +1,12 @@
 /**
  * Substitui cadastro de unidades no SQLite por apenas as 9 unidades PS indicadas.
- * Uso: na raiz do repositório: node scripts/seed-unidades-ps.js
+ * Uso: na raiz do repositório: node node_legado/scripts/seed-unidades-ps.js
  */
 const fs = require('fs');
 const path = require('path');
 const { DatabaseSync } = require('node:sqlite');
 
-const root = path.join(__dirname, '..');
+const root = path.join(__dirname, '..', '..');
 const dbPath = path.join(root, 'db local', 'db_testes_replica.sqlite3');
 
 if (!fs.existsSync(dbPath)) {

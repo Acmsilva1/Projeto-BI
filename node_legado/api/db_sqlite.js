@@ -94,11 +94,29 @@ function createSqliteDataLayer(sqliteFilePath) {
       orderBy,
       ascending = true,
       limit,
+      dateFrom,
+      dateColumns,
     } = options;
 
     const cols = sanitizeColumns(columns);
     const tableSql = quoteSqlitePhysicalTable(sqliteTable);
     let sql = `SELECT ${cols} FROM ${tableSql}`;
+
+    const bindArgs = [];
+    if (dateFrom instanceof Date && Array.isArray(dateColumns) && dateColumns.length > 0) {
+      const tsec = Math.floor(dateFrom.getTime() / 1000);
+      const orExpr = dateColumns
+        .map((c) => {
+          const n = String(c).trim();
+          if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(n)) {
+            throw new Error(`SQLite: nome de coluna inválido em filtro de data: ${n}`);
+          }
+          return `strftime('%s', ${n}) >= ?`;
+        })
+        .join(' OR ');
+      sql += ` WHERE (${orExpr})`;
+      dateColumns.forEach(() => bindArgs.push(tsec));
+    }
 
     if (orderBy) {
       sql += ` ORDER BY ${quoteSqliteIdent(orderBy)} ${ascending ? 'ASC' : 'DESC'}`;
@@ -110,7 +128,7 @@ function createSqliteDataLayer(sqliteFilePath) {
     }
 
     const stmt = db.prepare(sql);
-    const rows = stmt.all();
+    const rows = bindArgs.length ? stmt.all(...bindArgs) : stmt.all();
     return rows.map(normalizeSqliteRow);
   }
 

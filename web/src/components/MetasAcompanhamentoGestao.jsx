@@ -30,8 +30,9 @@ function gaugeAxisColors(sense, meta, max) {
 /**
  * Painel Metas de acompanhamento — botões de métrica, medidor global e tendência por unidade (cores fixas).
  * GET /api/v1/gerencia/metas-acompanhamento-gestao?metric=&period=&regional=&unidade=
+ * @param {Record<string, object>} [prefetchedByMetric] — mapa métrica → payload (ex.: `dashboard-bundle`).
  */
-export default function MetasAcompanhamentoGestao({ filters }) {
+export default function MetasAcompanhamentoGestao({ filters, prefetchedByMetric }) {
   const { theme } = useTheme();
   const ui = chartUi(theme);
   const [metric, setMetric] = useState('conversao');
@@ -47,7 +48,10 @@ export default function MetasAcompanhamentoGestao({ filters }) {
     [filters.period, filters.regional, filters.unidade, metric],
   );
 
-  const { data, loading, error } = useApi('gerencia/metas-acompanhamento-gestao', params);
+  const api = useApi('gerencia/metas-acompanhamento-gestao', params, { enabled: prefetchedByMetric == null });
+  const data = prefetchedByMetric != null ? prefetchedByMetric[metric] : api.data;
+  const loading = prefetchedByMetric != null ? false : api.loading;
+  const error = prefetchedByMetric != null ? null : api.error;
 
   const catalog = data?.catalog ?? [];
   const gauge = data?.gauge;

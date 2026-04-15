@@ -4,6 +4,7 @@
   "description": "",
   "main": "server.js",
   "scripts": {
+    "test:db": "node scripts/test-db-connection.js",
     "start": "node server.js",
     "seed:unidades": "node ../scripts/seed-unidades-ps.js",
     "seed:gerencia": "node ../scripts/seed-gerencia-dados.js",
@@ -16,6 +17,7 @@
   "dependencies": {
     "cors": "^2.8.6",
     "dotenv": "^17.4.1",
-    "express": "^5.2.1"
+    "express": "^5.2.1",
+    "pg": "^8.14.1"
   }
 }

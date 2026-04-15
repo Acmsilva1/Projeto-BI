@@ -2,12 +2,13 @@
 DADOS — fonte da API (Hospital BI / Projeto-BI)
 ================================================================================
 
-  • A aplicação Node (api/db.js) lê apenas o arquivo SQLite em
-    "db local/db_testes_replica.sqlite3" na raiz do repositório (ou o caminho em SQLITE_PATH).
-  • O mapeamento tabela lógica → nome físico no .sqlite3 está em api/db_sqlite.js.
+  • A API principal é Python (FastAPI): lê PostgreSQL via asyncpg (variáveis na
+    raiz do repositório) ou, em cenários legados, SQLite.
+  • O mapeamento tabela lógica → nome físico no Postgres está em
+    bi_core/db_pg.py (alinhado ao antigo node_legado/api/db_sqlite.js).
   • Seeds de exemplo (unidades PS + fatos gerência): na raiz do repositório,
-    node scripts/seed-unidades-ps.js  e  node scripts/seed-gerencia-dados.js
-    (ou npm run seed:all em api/). O seed de gerência cobre 12 meses
+    node node_legado/scripts/seed-unidades-ps.js  e  node node_legado/scripts/seed-gerencia-dados.js
+    (ou npm run seed:all em node_legado/api/). O seed de gerência cobre 12 meses
     para gráficos de acompanhamento / % conformes e 3 meses da matriz Metas por volumes.
 
 ================================================================================
@@ -21,6 +22,7 @@ Pasta postgres/sql/ (opcional)
 Contratos das rotas /api/v1 (resumo)
 ================================================================================
 
-  Ver comentários em api/live_service.js e rotas em api/server.js.
+  Ver bi_api/main.py e, para referência histórica, node_legado/api/live_service.js
+  e node_legado/api/server.js.
 
 ================================================================================

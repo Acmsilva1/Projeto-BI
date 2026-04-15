@@ -1,7 +1,7 @@
 /**
  * live_service.js — Camada de API (fina).
  *
- * Dados: SQLite local (db.js → fetchView) → mapeamento leve linha→JSON → { ok, data }.
+ * Dados: db.js → fetchView (PostgreSQL ou SQLite) → mapeamento leve linha→JSON → { ok, data }.
  *
  * Evitar aqui: agregações pesadas, joins simulados em JS, laços sobre fatos
  * brutos muito grandes — isso aumenta delay na API.
@@ -622,6 +622,47 @@ async function safeFetchView(viewName, options = {}) {
   }
 }
 
+/**
+ * Filtro de período no SQL (menos linhas lidas que SELECT * + filtro em Node).
+ * Desligar: GERENCIA_SQL_DATE_FILTER=0
+ * Por omissão ativo (valor vazio ou diferente de "0").
+ */
+function gerenciaSqlDateFilterEnabled() {
+  const v = process.env.GERENCIA_SQL_DATE_FILTER;
+  if (v == null || String(v).trim() === '') return true;
+  return String(v).trim() !== '0';
+}
+
+/** Colunas de data por tabela lógica (nomes como no catálogo / PBI). Postgres usa minúsculas no SQL. */
+const GERENCIA_FACT_DATE_COLUMNS = {
+  tbl_tempos_entrada_consulta_saida: ['DATA', 'DT_ENTRADA'],
+  tbl_tempos_medicacao: ['DATA', 'DT_PRESCRICAO'],
+  tbl_tempos_laboratorio: ['DATA', 'DT_SOLICITACAO', 'DT_EXAME', 'DT_ENTRADA'],
+  tbl_tempos_rx_e_ecg: ['DATA', 'DT_SOLICITACAO', 'DT_EXAME'],
+  tbl_tempos_tc_e_us: ['DATA', 'DT_EXAME', 'DT_REALIZADO', 'DT_LIBERACAO'],
+  tbl_tempos_reavaliacao: ['DATA', 'DT_SOLIC_REAVALIACAO'],
+  tbl_altas_ps: ['DT_ALTA', 'DT_ENTRADA'],
+  tbl_intern_conversoes: ['DT_ENTRADA', 'DT_ALTA'],
+  tbl_vias_medicamentos: ['DATA', 'DT_LIBERACAO'],
+};
+
+function gerenciaFetchOpts(logical, query) {
+  if (!gerenciaSqlDateFilterEnabled()) return {};
+  const cols = GERENCIA_FACT_DATE_COLUMNS[logical];
+  if (!cols?.length) return {};
+  return {
+    dateFrom: parsePeriodStart(query),
+    dateColumns: cols,
+  };
+}
+
+function gerenciaDatasetCacheKey(query) {
+  if (!gerenciaSqlDateFilterEnabled()) return 'full';
+  const p = Number(query?.period);
+  const periodKey = Number.isFinite(p) && p > 0 ? p : 365;
+  return `df:${periodKey}`;
+}
+
 function asNumber(v) {
   const n = Number(v);
   return Number.isFinite(n) ? n : 0;
@@ -649,10 +690,15 @@ function toMonthKey(d) {
   return `${y}-${m}`;
 }
 
+/**
+ * Início do intervalo do filtro "period" (dias).
+ * - 366 = ano civil corrente (1 jan → hoje), para YTD alinhado ao PBI.
+ * - Qualquer outro N finito > 0 = últimos N dias (rolante), ex.: 365 = ~12 meses, não só jan–dez do ano atual.
+ */
 function parsePeriodStart(query = {}) {
   const days = Number(query.period);
   const now = new Date();
-  if (days === 365) return new Date(now.getFullYear(), 0, 1);
+  if (days === 366) return new Date(now.getFullYear(), 0, 1);
   if (Number.isFinite(days) && days > 0) {
     const d = new Date(now);
     d.setDate(d.getDate() - days);
@@ -787,6 +833,16 @@ function buildRollingMonthKeys(n) {
   return out;
 }
 
+/** Postgres / PBI: coluna ps pode ser boolean, 0/1, 't'/'f', 'S'/'N', etc. */
+function rowIsPsAtivo(r) {
+  const v = r?.ps;
+  if (v == null) return true;
+  if (v === true || v === 1) return true;
+  const s = String(v).trim().toLowerCase();
+  if (s === 'true' || s === 't' || s === '1' || s === 's' || s === 'sim' || s === 'yes') return true;
+  return false;
+}
+
 async function loadUnidadesPsFromDb() {
   const candidates = ['tbl_unidades', 'tbl_unidades_teste', 'tbl_unidades_prod'];
   for (const table of candidates) {
@@ -796,10 +852,7 @@ async function loadUnidadesPsFromDb() {
     });
     if (!rows.length) continue;
     const mapped = rows
-      .filter((r) => {
-        if (r.ps == null) return true;
-        return r.ps === true || r.ps === 1 || String(r.ps).toLowerCase() === 'true';
-      })
+      .filter((r) => rowIsPsAtivo(r))
       .map((r) => ({
         codigo: String(r.cd_estabelecimento ?? r.id ?? ''),
         unidadeId: String(r.cd_estabelecimento ?? r.id ?? ''),
@@ -925,48 +978,61 @@ function buildMonthlyGerenciaRowPack(ds, pred, unitMap, unidadeId, mk, query = {
   };
 }
 
-async function loadGerenciaDatasets() {
-  const [
-    painelRows,
-    snapshotRows,
-    fluxRows,
-    medRows,
-    labRows,
-    rxRows,
-    tcusRows,
-    reavRows,
-    altasRows,
-    convRows,
-    viasRows,
-    metasRows,
-  ] = await Promise.all([
-    safeFetchView('vw_painel_ps_base'),
-    safeFetchView('ps_resumo_unidades_snapshot_prod'),
-    safeFetchView('tbl_tempos_entrada_consulta_saida'),
-    safeFetchView('tbl_tempos_medicacao'),
-    safeFetchView('tbl_tempos_laboratorio'),
-    safeFetchView('tbl_tempos_rx_e_ecg'),
-    safeFetchView('tbl_tempos_tc_e_us'),
-    safeFetchView('tbl_tempos_reavaliacao'),
-    safeFetchView('tbl_altas_ps'),
-    safeFetchView('tbl_intern_conversoes'),
-    safeFetchView('tbl_vias_medicamentos'),
-    safeFetchView('meta_tempos'),
-  ]);
-  return {
-    painelRows,
-    snapshotRows,
-    fluxRows,
-    medRows,
-    labRows,
-    rxRows,
-    tcusRows,
-    reavRows,
-    altasRows,
-    convRows,
-    viasRows: viasRows || [],
-    metasRows,
-  };
+/**
+ * Vários GET /gerencia/* partilham o mesmo dataset em memória.
+ * Chave de cache inclui o período quando o filtro SQL está ativo (datasets distintos).
+ */
+const GERENCIA_DS_TTL_MS = 25_000;
+const gerenciaDsCache = new Map();
+const gerenciaDsInflightByKey = new Map();
+
+async function loadGerenciaDatasets(query = {}) {
+  const cacheKey = gerenciaDatasetCacheKey(query);
+  const now = Date.now();
+  const hit = gerenciaDsCache.get(cacheKey);
+  if (hit && now - hit.at < GERENCIA_DS_TTL_MS) {
+    return hit.data;
+  }
+  let inflight = gerenciaDsInflightByKey.get(cacheKey);
+  if (inflight) return inflight;
+
+  inflight = (async () => {
+    try {
+      const fo = (logical) => gerenciaFetchOpts(logical, query);
+      const [fluxRows, medRows, labRows, rxRows, tcusRows, reavRows, altasRows, convRows, viasRows, metasRows] =
+        await Promise.all([
+          safeFetchView('tbl_tempos_entrada_consulta_saida', fo('tbl_tempos_entrada_consulta_saida')),
+          safeFetchView('tbl_tempos_medicacao', fo('tbl_tempos_medicacao')),
+          safeFetchView('tbl_tempos_laboratorio', fo('tbl_tempos_laboratorio')),
+          safeFetchView('tbl_tempos_rx_e_ecg', fo('tbl_tempos_rx_e_ecg')),
+          safeFetchView('tbl_tempos_tc_e_us', fo('tbl_tempos_tc_e_us')),
+          safeFetchView('tbl_tempos_reavaliacao', fo('tbl_tempos_reavaliacao')),
+          safeFetchView('tbl_altas_ps', fo('tbl_altas_ps')),
+          safeFetchView('tbl_intern_conversoes', fo('tbl_intern_conversoes')),
+          safeFetchView('tbl_vias_medicamentos', fo('tbl_vias_medicamentos')),
+          safeFetchView('meta_tempos', fo('meta_tempos')),
+        ]);
+      const out = {
+        fluxRows,
+        medRows,
+        labRows,
+        rxRows,
+        tcusRows,
+        reavRows,
+        altasRows,
+        convRows,
+        viasRows: viasRows || [],
+        metasRows,
+      };
+      gerenciaDsCache.set(cacheKey, { data: out, at: Date.now() });
+      return out;
+    } finally {
+      gerenciaDsInflightByKey.delete(cacheKey);
+    }
+  })();
+
+  gerenciaDsInflightByKey.set(cacheKey, inflight);
+  return inflight;
 }
 
 function metaLimitRowsByKey(rows, keyText, fallback) {
@@ -1436,7 +1502,7 @@ class LiveService {
     const units = filterUnitsByQuery(allUnits, query);
     const unitMap = unitMetaMap(allUnits);
     const pred = buildRowPredicate(query, unitMap);
-    const ds = await loadGerenciaDatasets();
+    const ds = await loadGerenciaDatasets(query);
     const mesKeys = monthKeysOverlappingQueryPeriod(query);
     const months = monthsLabelsFromKeys(mesKeys);
     const { rowsByMonthByUnit, prevMonthKey, januaryKey } = buildMetasPorVolumesRowsByMonthByUnit(
@@ -1478,7 +1544,7 @@ class LiveService {
           sec: metasPorVolumesRefSec(mMonths[i], ind.key),
         }));
         const ytd =
-          periodDays === 365
+          periodDays === 366
             ? (vMonths.length ? vMonths[vMonths.length - 1] - vJan : 0)
             : vMonths.length > 1
               ? vMonths[vMonths.length - 1] - vMonths[0]
@@ -1510,7 +1576,7 @@ class LiveService {
         sec: gMonthSecs[i],
       }));
       const gYtd =
-        periodDays === 365
+        periodDays === 366
           ? (gMonths.length ? gMonths[gMonths.length - 1] - gJan : 0)
           : gMonths.length > 1
             ? gMonths[gMonths.length - 1] - gMonths[0]
@@ -1551,7 +1617,7 @@ class LiveService {
     const units = filterUnitsByQuery(allUnits, query);
     const unitMap = unitMetaMap(allUnits);
     const pred = buildRowPredicate(query, unitMap);
-    const ds = await loadGerenciaDatasets();
+    const ds = await loadGerenciaDatasets(query);
 
     const fluxByUnit = groupRowsByUnit(ds.fluxRows, unitMap, pred, ['DATA', 'DT_ENTRADA'], query);
     const viasByUnit = groupRowsByUnit(ds.viasRows || [], unitMap, pred, ['DATA'], query);
@@ -1622,7 +1688,7 @@ class LiveService {
     const allUnits = await loadUnidadesPsFromDb();
     const unitMap = unitMetaMap(allUnits);
     const pred = buildRowPredicate(query, unitMap);
-    const ds = await loadGerenciaDatasets();
+    const ds = await loadGerenciaDatasets(query);
     const rows = {
       fluxRows: ds.fluxRows.filter((r) => pred(r) && isInPeriod(pickDate(r, ['DATA', 'DT_ENTRADA']), query)),
       medRows: ds.medRows.filter((r) => pred(r) && isInPeriod(pickDate(r, ['DATA', 'DT_PRESCRICAO']), query)),
@@ -1677,7 +1743,7 @@ class LiveService {
     const units = filterUnitsByQuery(allUnits, query);
     const unitMap = unitMetaMap(allUnits);
     const pred = buildRowPredicate(query, unitMap);
-    const ds = await loadGerenciaDatasets();
+    const ds = await loadGerenciaDatasets(query);
     const metaRows = ds.metasRows || [];
     const triagemMeta = metaLimitRowsByKey(metaRows, 'TRIAGEM', 12);
     const consultaMeta = metaLimitRowsByKey(metaRows, 'CONSULTA', 90);
@@ -1762,7 +1828,7 @@ class LiveService {
     const units = filterUnitsByQuery(allUnits, query);
     const unitMap = unitMetaMap(allUnits);
     const pred = buildRowPredicate(query, unitMap);
-    const ds = await loadGerenciaDatasets();
+    const ds = await loadGerenciaDatasets(query);
 
     const rawKey = query.metric != null ? String(query.metric) : 'conversao';
     const found = METAS_POR_VOLUMES_INDICADORES.find((x) => x.key === rawKey);
@@ -1857,7 +1923,7 @@ class LiveService {
     const units = filterUnitsByQuery(allUnits, query);
     const unitMap = unitMetaMap(allUnits);
     const pred = buildRowPredicate(query, unitMap);
-    const ds = await loadGerenciaDatasets();
+    const ds = await loadGerenciaDatasets(query);
     const monthKeys = monthKeysOverlappingQueryPeriod(query);
     const months = monthsLabelsFromKeys(monthKeys);
     const metas = {
@@ -1923,9 +1989,9 @@ class LiveService {
     const allUnits = await loadUnidadesPsFromDb();
     const units = filterUnitsByQuery(allUnits, filters || {});
     const unitMap = unitMetaMap(allUnits);
-    const pred = buildRowPredicate(filters || {}, unitMap);
-    const ds = await loadGerenciaDatasets();
     const q = filters || {};
+    const pred = buildRowPredicate(q, unitMap);
+    const ds = await loadGerenciaDatasets(q);
     const mesKeys = monthKeysOverlappingQueryPeriod(q);
     const months = monthsLabelsFromKeys(mesKeys);
     const { rowsByMonthByUnit, prevMonthKey, januaryKey } = buildMetasPorVolumesRowsByMonthByUnit(
@@ -1952,7 +2018,7 @@ class LiveService {
         sec: metasPorVolumesRefSec(mMonths[i], key),
       }));
       const ytd =
-        periodDays === 365
+        periodDays === 366
           ? (vMonths.length ? vMonths[vMonths.length - 1] - vJan : 0)
           : vMonths.length > 1
             ? vMonths[vMonths.length - 1] - vMonths[0]
@@ -1972,6 +2038,41 @@ class LiveService {
       months,
       mesKeys,
       unidades,
+    };
+  }
+
+  /**
+   * Um único payload para a visão Gerência — uma ida ao Postgres (datasets partilhados)
+   * e agregação no Node; o React faz um só GET e pinta tudo de uma vez.
+   */
+  async getGerenciaDashboardBundle(query = {}) {
+    const q = { ...query };
+    const metasAcompPromises = METAS_POR_VOLUMES_INDICADORES.map((ind) =>
+      this.getGerenciaMetasAcompanhamentoGestao({ ...q, metric: ind.key }),
+    );
+    const parts = await Promise.all([
+      this.getGerenciaTotaisPs(q),
+      this.getGerenciaTempoMedioEtapas(q),
+      this.getGerenciaMetasPorVolumes(q),
+      this.getGerenciaMetasConformesPorUnidade(q),
+      this.getGerenciaMetricasPorUnidade(q),
+      this.getGerenciaUnidadesPs(q),
+      ...metasAcompPromises,
+    ]);
+    const metasAcompanhamentoByMetric = {};
+    METAS_POR_VOLUMES_INDICADORES.forEach((ind, i) => {
+      metasAcompanhamentoByMetric[ind.key] = parts[6 + i];
+    });
+    return {
+      schemaVersion: 1,
+      generatedAt: new Date().toISOString(),
+      totaisPs: parts[0],
+      tempoMedioEtapas: parts[1],
+      metasPorVolumes: parts[2],
+      metasConformesPorUnidade: parts[3],
+      metricasPorUnidade: parts[4],
+      unidadesPs: parts[5],
+      metasAcompanhamentoByMetric,
     };
   }
 

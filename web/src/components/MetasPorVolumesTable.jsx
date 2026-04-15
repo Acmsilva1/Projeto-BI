@@ -322,8 +322,9 @@ function DataRow({
 /**
  * Matriz “Metas por volumes” — GET /api/v1/gerencia/metas-por-volumes
  * Drill por unidade (➕/➖); filtros vêm só do topo da tela.
+ * @param {object} [prefetched] — slice de `dashboard-bundle`.
  */
-export default function MetasPorVolumesTable({ filters }) {
+export default function MetasPorVolumesTable({ filters, prefetched }) {
   const params = useMemo(
     () => ({
       period: filters.period,
@@ -333,7 +334,10 @@ export default function MetasPorVolumesTable({ filters }) {
     [filters.period, filters.regional, filters.unidade],
   );
 
-  const { data, loading, error } = useApi('gerencia/metas-por-volumes', params);
+  const api = useApi('gerencia/metas-por-volumes', params, { enabled: prefetched == null });
+  const data = prefetched != null ? prefetched : api.data;
+  const loading = prefetched != null ? false : api.loading;
+  const error = prefetched != null ? null : api.error;
   const { theme } = useTheme();
   const isLight = theme === 'light';
   const [open, setOpen] = useState(() => new Set());

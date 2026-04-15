@@ -22,8 +22,9 @@ function fmtTotal(v) {
 
 /**
  * Faixa horizontal de totais PS — GET /api/v1/gerencia/totais-ps
+ * @param {object} [prefetched] — slice de `GET /gerencia/dashboard-bundle` (sem segundo fetch).
  */
-export default function GerenciaTotaisCards({ filters }) {
+export default function GerenciaTotaisCards({ filters, prefetched }) {
   const params = useMemo(
     () => ({
       period: filters.period,
@@ -33,7 +34,10 @@ export default function GerenciaTotaisCards({ filters }) {
     [filters.period, filters.regional, filters.unidade],
   );
 
-  const { data, loading, error } = useApi('gerencia/totais-ps', params);
+  const api = useApi('gerencia/totais-ps', params, { enabled: prefetched == null });
+  const data = prefetched != null ? prefetched : api.data;
+  const loading = prefetched != null ? false : api.loading;
+  const error = prefetched != null ? null : api.error;
   const cards = data?.cards ?? [];
 
   const onExportCsv = useCallback(() => {

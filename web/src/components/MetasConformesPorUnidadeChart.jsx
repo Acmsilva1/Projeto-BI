@@ -10,8 +10,9 @@ import GerenciaChartToolbar from './GerenciaChartToolbar.jsx';
 /**
  * % de metas conformes por unidade — tendência mensal; só filtros globais (regional/unidade).
  * GET /api/v1/gerencia/metas-conformes-por-unidade
+ * @param {object} [prefetched] — slice de `dashboard-bundle`.
  */
-export default function MetasConformesPorUnidadeChart({ filters }) {
+export default function MetasConformesPorUnidadeChart({ filters, prefetched }) {
   const { theme } = useTheme();
   const ui = chartUi(theme);
   const [chartKind, setChartKind] = useState('line');
@@ -25,7 +26,10 @@ export default function MetasConformesPorUnidadeChart({ filters }) {
     [filters.period, filters.regional, filters.unidade],
   );
 
-  const { data, loading, error } = useApi('gerencia/metas-conformes-por-unidade', params);
+  const api = useApi('gerencia/metas-conformes-por-unidade', params, { enabled: prefetched == null });
+  const data = prefetched != null ? prefetched : api.data;
+  const loading = prefetched != null ? false : api.loading;
+  const error = prefetched != null ? null : api.error;
 
   const titulo = data?.titulo ?? '% de metas conformes por unidade';
   const months = data?.months ?? [];

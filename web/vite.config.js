@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
@@ -5,7 +6,38 @@ import react from '@vitejs/plugin-react';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const vitePort = Number(process.env.VITE_PORT || 5180);
-const apiPort = Number(process.env.PORT || 3020);
+
+/**
+ * Lê porta da API Hospital BI no .env da raiz.
+ * Não usar `PORT` genérico (muitas vezes é de outra stack no mesmo .env → proxy 502).
+ */
+function readHospitalApiPortFromEnvFile(filePath) {
+  try {
+    if (!fs.existsSync(filePath)) return null;
+    const text = fs.readFileSync(filePath, 'utf8');
+    for (const line of text.split(/\r?\n/)) {
+      const m = line.match(/^\s*HOSPITAL_BI_API_PORT\s*=\s*(.+)$/i);
+      if (!m) continue;
+      let v = m[1].trim();
+      if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) v = v.slice(1, -1);
+      const n = Number(v);
+      if (Number.isFinite(n) && n > 0) return n;
+    }
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
+const repoRootEnv = path.resolve(__dirname, '..', '.env');
+const apiPort = Number(
+  process.env.VITE_API_PORT ||
+    process.env.HOSPITAL_BI_API_PORT ||
+    readHospitalApiPortFromEnvFile(repoRootEnv) ||
+    3020,
+);
+// Ajuda a diagnosticar 502 (proxy vs porta real da API)
+console.log(`[vite] proxy /api -> http://127.0.0.1:${apiPort}`);
 
 export default defineConfig({
   resolve: {

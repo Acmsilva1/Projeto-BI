@@ -86,8 +86,9 @@ const STICKY_UN =
 
 /**
  * Grade de indicadores por unidade PS — GET /api/v1/gerencia/metricas-por-unidade
+ * @param {object} [prefetched] — slice de `dashboard-bundle`.
  */
-export default function MetricasPorUnidadeTable({ filters }) {
+export default function MetricasPorUnidadeTable({ filters, prefetched }) {
   const params = useMemo(
     () => ({
       period: filters.period,
@@ -97,7 +98,10 @@ export default function MetricasPorUnidadeTable({ filters }) {
     [filters.period, filters.regional, filters.unidade],
   );
 
-  const { data, loading, error } = useApi('gerencia/metricas-por-unidade', params);
+  const api = useApi('gerencia/metricas-por-unidade', params, { enabled: prefetched == null });
+  const data = prefetched != null ? prefetched : api.data;
+  const loading = prefetched != null ? false : api.loading;
+  const error = prefetched != null ? null : api.error;
   const { theme } = useTheme();
   const isLight = theme === 'light';
 

@@ -2,27 +2,35 @@ const fs = require('fs');
 const path = require('path');
 const dotenv = require('dotenv');
 
+/** Pipeline e .env local da api primeiro (override: false). */
 const envCandidates = [
   path.join(__dirname, '..', 'pipeline', '.env'),
-  path.join(__dirname, '..', '.env'),
   path.join(__dirname, '.env'),
 ];
-
 envCandidates.forEach((p) => {
   if (fs.existsSync(p)) dotenv.config({ path: p, override: false });
 });
+/** Raiz do repositório por último com override — DB_HOST / Postgres e HOSPITAL_BI_API_PORT ganham sobre valores vazios ou antigos. */
+const rootEnvPath = path.join(__dirname, '..', '.env');
+if (fs.existsSync(rootEnvPath)) dotenv.config({ path: rootEnvPath, override: true });
 require('./db');
 const express = require('express');
 const cors    = require('cors');
 const liveService = require('./live_service');
 
-const app  = express();
-const PORT = process.env.PORT || 3020;
+const app = express();
+/**
+ * Porta só desta API (não usar `PORT` do .env da raiz — costuma ser de outra app, ex. Command Center).
+ * Defina HOSPITAL_BI_API_PORT=3020 no .env deste repo ou no shell ao arrancar.
+ */
+const PORT = Number(process.env.HOSPITAL_BI_API_PORT || 3020);
 
 // CORS — dev local (Vite) e FRONTEND_URL opcional
 const ALLOWED = [
   'http://127.0.0.1:5180',
   'http://localhost:5180',
+  'http://127.0.0.1:5188',
+  'http://localhost:5188',
   'http://127.0.0.1:5174',
   'http://localhost:5174',
   'http://127.0.0.1:5173',
@@ -43,7 +51,7 @@ app.get(['/api', '/api/'], (_, res) => {
   });
 });
 
-/** Rotas: dados SQLite via fetchView; handler orquestra fetch + shape leve de resposta. */
+/** Rotas: dados via fetchView (PostgreSQL ou SQLite); handler orquestra fetch + shape leve de resposta. */
 const route = (handler) => async (req, res) => {
   try {
     const data = await handler(req, res);
@@ -93,6 +101,8 @@ app.get(
   '/api/v1/gerencia/metas-por-volumes/indicador/:indicadorKey/unidades',
   route((req) => liveService.getGerenciaMetasPorVolumesPorIndicador(req.params.indicadorKey, req.query)),
 );
+/** Payload único da Gerência (totais, tabelas, gráficos) — um GET para o React montar o painel de uma vez. */
+app.get('/api/v1/gerencia/dashboard-bundle', route((req) => liveService.getGerenciaDashboardBundle(req.query)));
 
 /**
  * Roteador Pronto Socorro (PS)
@@ -157,8 +167,8 @@ app.get('/health', (req, res) => {
   });
 });
 
-app.listen(PORT, () => {
-  console.log(`[Hospital BI] API iniciada na porta ${PORT}`);
+app.listen(PORT, '127.0.0.1', () => {
+  console.log(`[Hospital BI] API iniciada em http://127.0.0.1:${PORT}`);
 });
 
 

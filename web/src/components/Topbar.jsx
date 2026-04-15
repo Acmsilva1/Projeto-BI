@@ -16,7 +16,9 @@ const REGIONAIS = [
 const PERIODOS = [
   { value: 30, label: 'Últimos 30 dias' },
   { value: 90, label: 'Últimos 90 dias' },
-  { value: 365, label: 'Ano Atual' },
+  { value: 365, label: 'Últimos 12 meses' },
+  { value: 1095, label: 'Últimos 3 anos' },
+  { value: 366, label: 'Ano civil (jan–hoje)' },
 ];
 
 /** Estilo alto contraste: lista nativa legível em SO com tema escuro */

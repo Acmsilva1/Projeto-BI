@@ -5,13 +5,13 @@
  * - Últimos 12 meses corridos: séries mensais dos gráficos (acompanhamento / conformes).
  * - Últimos ~28 dias: reforço para totais PS e tempo médio (filtro period=30).
  *
- * Uso: na raiz do repositório: node scripts/seed-gerencia-dados.js
+ * Uso: na raiz do repositório: node node_legado/scripts/seed-gerencia-dados.js
  */
 const fs = require('fs');
 const path = require('path');
 const { DatabaseSync } = require('node:sqlite');
 
-const root = path.join(__dirname, '..');
+const root = path.join(__dirname, '..', '..');
 const dbPath = path.join(root, 'db local', 'db_testes_replica.sqlite3');
 
 const T = {

@@ -5,9 +5,8 @@
 import React, { useState, useCallback, Suspense, lazy } from 'react';
 import Sidebar from './components/Sidebar';
 import Topbar  from './components/Topbar';
+import OverviewSection from './components/sections/OverviewSection';
 
-// Lazy-load das seções → cada bundle só carrega quando necessário
-const GerenciaSection   = lazy(() => import('./components/sections/OverviewSection'));
 const PsSection         = lazy(() => import('./components/sections/PsSection'));
 const CirurgiasSection  = lazy(() => import('./components/sections/CirurgiasSection'));
 const InternacoesSection= lazy(() => import('./components/sections/InternacoesSection'));
@@ -20,7 +19,7 @@ const SECTION_LABELS = {
 };
 
 const SECTIONS = {
-  gerencia:    GerenciaSection,
+  gerencia:    OverviewSection,
   ps:          PsSection,
   cirurgias:   CirurgiasSection,
   internacoes: InternacoesSection,
@@ -40,7 +39,7 @@ export default function App() {
   const [section,   setSection]   = useState('gerencia');
   const [collapsed, setCollapsed] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [filters, setFilters] = useState({ period: 30, regional: '', unidade: '' });
+  const [filters, setFilters] = useState({ period: 365, regional: '', unidade: '' });
 
   const handleFilterChange = useCallback((patch) => {
     setFilters(f => ({ ...f, ...patch }));
@@ -50,7 +49,7 @@ export default function App() {
     setRefreshKey(k => k + 1);
   }, []);
 
-  const ActiveSection = SECTIONS[section] || GerenciaSection;
+  const ActiveSection = SECTIONS[section] || OverviewSection;
 
   return (
     <div className="flex h-screen overflow-hidden bg-app-bg text-app-fg animate-fade-in-up">

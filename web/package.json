@@ -2,12 +2,13 @@
   "name": "hospital_bi_mvc",
   "version": "2.0.0",
   "type": "module",
-  "description": "Hospital BI — Node.js + React (shell)",
-  "main": "../api/server.js",
+  "description": "Hospital BI — FastAPI (Python) + React",
+  "main": "../bi_api/main.py",
   "scripts": {
-    "dev": "concurrently \"npm run api\" \"npm run vite\"",
+    "dev": "concurrently -k \"npm run api\" \"npm run vite:wait\"",
+    "vite:wait": "node ../node_legado/web-dev/wait-api.cjs && vite",
     "vite": "vite",
-    "api": "node ../api/server.js",
+    "api": "node ../node_legado/web-dev/launch-api-python.cjs",
     "build": "vite build",
     "preview": "vite preview"
   },

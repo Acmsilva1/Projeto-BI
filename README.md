@@ -2,7 +2,17 @@
 
 Aplicação web de indicadores com **Visão Gerência** (totais, tempos por etapa, metas, indicadores por unidade), **troca de tipo de gráfico por painel** (linha, barras, pizza nos mesmos dados), temas múltiplos e biblioteca **ECharts** (`web/src/graficos/`).
 
-A estrutura na raiz concentra-se em **`bi_core/`**, **`bi_gerencia/`**, **`bi_api/`** (Python / FastAPI) e **`web/`** (React + Vite). Tudo o que é **Node** (legado Express, seeds, scripts de dev, `viz.mjs`) está em **`node_legado/`**. Há ainda **`BI/`**, **`postgres/`**, **`db local/`**, **`docs/`**, etc.
+A estrutura na raiz concentra-se em **`bi_core/`**, **`bi_gerencia/`**, **`bi_api/`** (Python / FastAPI) e **`web/`** (React + Vite). Tudo o que é **Node** (legado Express, seeds, scripts de dev, `viz.mjs`) está em **`node_legado/`**. Há ainda **`BI/`**, **`postgres/`**, **`db local/`**, e opcionalmente **`docs/`**, etc.
+
+## Repositório Git e GitHub
+
+| Item | Detalhe |
+| :--- | :--- |
+| **Repositório** | `https://github.com/Acmsilva1/Projeto-BI` (remoto Git: `origin`) |
+| **Conta** | **Acmsilva1** no GitHub |
+| **Branch por defeito** | **`main`** no remoto (`origin/main`) |
+| **Commits** | Configurar neste clone `user.name` / `user.email` coerentes com a conta (ex.: email verificado no GitHub). Ver também **`AGENTS.md`** (secção Git). |
+| **Push** | `git push` envia para `origin` na branch com *upstream* configurado (ex.: `main` ou branches `feature/*`). |
 
 ## Stack
 
@@ -59,6 +69,8 @@ Isto sobe a API e o Vite em paralelo (`concurrently`). Build de produção: `npm
 
 | Documento | Conteúdo |
 | :--- | :--- |
+| **`AGENTS.md`** | Guia para agentes (Cursor/IA): arquitetura `bi_*`, arranque, rotas, convenções e **Git/GitHub (Acmsilva1/Projeto-BI)** |
+| **`agents.md`** | Atalho — remete a **`AGENTS.md`** |
 | **`css.md`** | Tokens CSS, temas (`.dark`, `.light`, `.dark-green`, `.dark-blue`), pipeline, tabelas Gerência, **`ChartPanel`** / ECharts, extensibilidade |
 | **`web/src/graficos/index.js`** | API pública da biblioteca de gráficos (`ChartRenderer`, `ChartPanel`, modelos, `buildOptionById`) |
 
@@ -89,7 +101,9 @@ Projeto-BI/
   BI/               # Artefatos Power BI / modelo semântico (legado)
   postgres/
   db local/
-  docs/
+  docs/             # opcional
+  AGENTS.md
+  agents.md
   css.md
 ```
 

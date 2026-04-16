@@ -1,6 +1,8 @@
 /**
  * Regras de intervalo de datas partilhadas (filtro `period` da API).
+ * Omissão = poucos dias para arranque rápido (CSV / agregação no Node).
  */
+export const DEFAULT_PERIOD_DAYS = 7;
 
 export function parsePeriodStart(query: Record<string, unknown> = {}): Date {
   const days = Number(query.period);
@@ -12,11 +14,18 @@ export function parsePeriodStart(query: Record<string, unknown> = {}): Date {
     return d;
   }
   const d = new Date(now);
-  d.setDate(d.getDate() - 30);
+  d.setDate(d.getDate() - DEFAULT_PERIOD_DAYS);
   return d;
+}
+
+/** Instantâneo “agora” para fechar a janela [início, fim] do mesmo pedido. */
+export function parsePeriodEnd(): Date {
+  return new Date();
 }
 
 export function isInPeriod(rowDate: Date | null, query: Record<string, unknown> = {}): boolean {
   if (!rowDate) return false;
-  return rowDate >= parsePeriodStart(query);
+  const from = parsePeriodStart(query);
+  const to = parsePeriodEnd();
+  return rowDate >= from && rowDate <= to;
 }

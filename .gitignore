@@ -18,6 +18,9 @@
 **/*.db
 **/*.sqlite3
 
+# CSV em dados/ — volumes reais excedem o limite do GitHub; DATA_SOURCE=csv lê cópia local em dados/
+dados/*.csv
+
 # Vite cache (dev)
 **/.vite/
 

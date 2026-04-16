@@ -143,18 +143,30 @@ export function createPostgresDataLayer() {
       throw new Error(`PostgreSQL: objeto não mapeado: ${logical}`);
     }
     const { schema, table } = parseSchemaTable(dotted);
-    const { columns = '*', orderBy, ascending = true, limit, dateFrom, dateColumns } = options;
+    const { columns = '*', orderBy, ascending = true, limit, dateFrom, dateTo, dateColumns } = options;
     const cols = sanitizeColumns(columns);
     const fromSql = `${quotePgIdent(schema)}.${quotePgIdent(table)}`;
     let sql = `SELECT ${cols} FROM ${fromSql}`;
-    const params: string[] = [];
+    const params: unknown[] = [];
     if (dateFrom instanceof Date && Array.isArray(dateColumns) && dateColumns.length > 0) {
-      const iso = dateFrom.toISOString();
-      const orExpr = dateColumns
-        .map((c) => `${quotePgIdent(String(c).trim().toLowerCase())}::timestamp >= $1::timestamp`)
-        .join(' OR ');
-      sql += ` WHERE (${orExpr})`;
-      params.push(iso);
+      const isoFrom = dateFrom.toISOString();
+      const isoTo = dateTo instanceof Date ? dateTo.toISOString() : new Date().toISOString();
+      if (dateTo instanceof Date) {
+        const orExpr = dateColumns
+          .map((c) => {
+            const qi = quotePgIdent(String(c).trim().toLowerCase());
+            return `(${qi}::timestamp >= $1::timestamp AND ${qi}::timestamp <= $2::timestamp)`;
+          })
+          .join(' OR ');
+        sql += ` WHERE (${orExpr})`;
+        params.push(isoFrom, isoTo);
+      } else {
+        const orExpr = dateColumns
+          .map((c) => `${quotePgIdent(String(c).trim().toLowerCase())}::timestamp >= $1::timestamp`)
+          .join(' OR ');
+        sql += ` WHERE (${orExpr})`;
+        params.push(isoFrom);
+      }
     }
     if (orderBy) {
       sql += ` ORDER BY ${quotePgIdent(orderBy)} ${ascending ? 'ASC' : 'DESC'}`;

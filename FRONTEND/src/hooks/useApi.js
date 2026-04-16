@@ -8,11 +8,16 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { getApiV1Base, buildApiQuery } from '../utils/apiBase';
+import { emitGerenciaUx, GerenciaUxEvents } from '../messaging/gerenciaUxBus.js';
 
 // Cache simples em memória (chave = url)
 const _cache = new Map();
 
-export function useApi(endpoint, params = {}, { ttl = 30_000, timeoutMs = 240_000, enabled = true } = {}) {
+export function useApi(
+  endpoint,
+  params = {},
+  { ttl = 30_000, timeoutMs = 240_000, enabled = true, uxGerencia = false } = {},
+) {
   const [data, setData]       = useState(null);
   const [loading, setLoading] = useState(() => Boolean(enabled));
   const [error, setError]     = useState(null);
@@ -28,22 +33,28 @@ export function useApi(endpoint, params = {}, { ttl = 30_000, timeoutMs = 240_00
     const path = String(endpoint || '').replace(/^\/+/, '');
     const url = `${base}/${path}${buildApiQuery(params)}`;
 
-    // Cache hit
-    const cached = _cache.get(url);
-    if (cached && Date.now() - cached.ts < ttl) {
-      if (!mountedRef.current) return;
-      setData(cached.data);
-      setLoading(false);
-      return;
-    }
-
-    // Nova requisição
+    // Cancelar pedido anterior antes de sequência/cache — evita resposta lenta (ex. 30 d) sobrescrever 7 d.
     abortRef.current?.abort();
+    const mySeq = ++seqRef.current;
     abortRef.current = new AbortController();
     const ac = abortRef.current;
     const meta = { reason: null };
     abortMetaRef.current = meta;
-    const mySeq = ++seqRef.current;
+
+    if (uxGerencia) {
+      emitGerenciaUx(GerenciaUxEvents.RequestStart, { url, params: { ...params } });
+    }
+
+    // Cache hit (validado com a mesma sequência)
+    const cached = _cache.get(url);
+    if (cached && Date.now() - cached.ts < ttl) {
+      if (mySeq !== seqRef.current || !mountedRef.current) return;
+      setData(cached.data);
+      setLoading(false);
+      setError(null);
+      if (uxGerencia) emitGerenciaUx(GerenciaUxEvents.RequestSettled, { url, params: { ...params }, fromCache: true });
+      return;
+    }
 
     setLoading(true);
     setError(null);
@@ -80,7 +91,16 @@ export function useApi(endpoint, params = {}, { ttl = 30_000, timeoutMs = 240_00
       _cache.set(url, { data: json.data, ts: Date.now() });
       if (!mountedRef.current) return;
       setData(json.data);
+      if (uxGerencia) emitGerenciaUx(GerenciaUxEvents.RequestSettled, { url, params: { ...params } });
     } catch (err) {
+      if (err.name === 'AbortError' && uxGerencia) {
+        const superseded = mySeq !== seqRef.current;
+        emitGerenciaUx(GerenciaUxEvents.RequestAborted, {
+          url,
+          params: { ...params },
+          reason: meta.reason || (superseded ? 'superseded' : 'abort'),
+        });
+      }
       if (mySeq !== seqRef.current || !mountedRef.current) return;
       if (err.name === 'AbortError') {
         if (meta.reason === 'timeout') {
@@ -96,7 +116,7 @@ export function useApi(endpoint, params = {}, { ttl = 30_000, timeoutMs = 240_00
       if (tid) clearTimeout(tid);
       if (mySeq === seqRef.current && mountedRef.current) setLoading(false);
     }
-  }, [endpoint, JSON.stringify(params), ttl, timeoutMs, enabled]); // eslint-disable-line
+  }, [endpoint, JSON.stringify(params), ttl, timeoutMs, enabled, uxGerencia]); // eslint-disable-line
 
   useEffect(() => {
     mountedRef.current = true;

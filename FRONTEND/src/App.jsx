@@ -39,7 +39,7 @@ export default function App() {
   const [section,   setSection]   = useState('gerencia');
   const [collapsed, setCollapsed] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [filters, setFilters] = useState({ period: 365, regional: '', unidade: '' });
+  const [filters, setFilters] = useState({ period: 7, regional: '', unidade: '' });
 
   const handleFilterChange = useCallback((patch) => {
     setFilters(f => ({ ...f, ...patch }));

@@ -1,15 +1,32 @@
 /**
  * Camada CSV — mesma assinatura que fetchView em SQLite/Postgres.
  * Ficheiros: <CSV_DATOS_DIR ou repo/dados>/<nome_logico>.csv (nome lógico = chave em LOGICAL_TO_SQLITE_TABLE).
+ *
+ * Com `dateFrom` + `dateTo` + `dateColumns`, fact tables grandes são lidas em streaming
+ * (só linhas na janela ficam em memória).
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import { parseCsv } from '../lib/parsr/csv.js';
+import readline from 'node:readline';
+import { parsePeriodEnd } from '../domain/shared/period.js';
+import { parseCsv, parseCsvLine } from '../lib/parsr/csv.js';
 import { LOGICAL_TO_SQLITE_TABLE, repoRoot, type FetchViewOptions } from './db_sqlite.js';
 
 const UNIDADES_LOGICAL = new Set(['tbl_unidades', 'tbl_unidades_teste', 'tbl_unidades_prod']);
 
 const tableCache = new Map<string, { mtimeMs: number; rows: Record<string, unknown>[] }>();
+/** Cache por janela [dateFrom, dateTo] — chave inclui instantes para 30d vs 90d. */
+const slicedTableCache = new Map<string, Record<string, unknown>[]>();
+const SLICE_CACHE_MAX = 32;
+
+function setSlicedTableCache(key: string, rows: Record<string, unknown>[]): void {
+  while (slicedTableCache.size >= SLICE_CACHE_MAX) {
+    const first = slicedTableCache.keys().next().value;
+    if (first === undefined) break;
+    slicedTableCache.delete(first);
+  }
+  slicedTableCache.set(key, rows);
+}
 
 function normalizeRow(logical: string, row: Record<string, unknown>): Record<string, unknown> {
   if (UNIDADES_LOGICAL.has(logical)) {
@@ -48,17 +65,23 @@ function toDate(v: unknown): Date | null {
   return d;
 }
 
-function rowMatchesDateFrom(
+/** Linha incluída se alguma coluna de data cair em [dateFrom, dateTo] (inclusive). */
+function rowInDateWindow(
   row: Record<string, unknown>,
   dateFrom: Date,
+  dateTo: Date,
   dateColumns: string[],
 ): boolean {
-  const t = dateFrom.getTime();
+  const from = dateFrom.getTime();
+  const to = dateTo.getTime();
   for (const col of dateColumns) {
     const variants = [col, col.toUpperCase(), col.toLowerCase()];
     for (const k of variants) {
       const d = toDate(row[k]);
-      if (d && d.getTime() >= t) return true;
+      if (d) {
+        const t = d.getTime();
+        if (t >= from && t <= to) return true;
+      }
     }
   }
   return false;
@@ -108,6 +131,50 @@ function loadTable(csvDir: string, logical: string): Record<string, unknown>[] {
   return rows;
 }
 
+function sliceCacheKey(
+  fp: string,
+  mtimeMs: number,
+  logical: string,
+  dateFrom: Date,
+  dateTo: Date,
+  dateColumns: string[],
+): string {
+  return [fp, mtimeMs, logical, dateFrom.getTime(), dateTo.getTime(), dateColumns.join('|')].join('\0');
+}
+
+async function loadTableWindowedFromStream(
+  fp: string,
+  logical: string,
+  dateFrom: Date,
+  dateTo: Date,
+  dateColumns: string[],
+): Promise<Record<string, unknown>[]> {
+  const rows: Record<string, unknown>[] = [];
+  const rl = readline.createInterface({
+    input: fs.createReadStream(fp, { encoding: 'utf8' }),
+    crlfDelay: Infinity,
+  });
+  let headers: string[] | null = null;
+  for await (const rawLine of rl) {
+    const line = String(rawLine ?? '');
+    if (headers == null) {
+      headers = parseCsvLine(line).map((h) => String(h ?? '').trim()).filter(Boolean);
+      continue;
+    }
+    if (!line.trim()) continue;
+    const cells = parseCsvLine(line);
+    if (!cells.some((c) => String(c ?? '').trim() !== '')) continue;
+    const obj: Record<string, unknown> = {};
+    headers.forEach((h, j) => {
+      obj[h] = cells[j] != null ? cells[j] : '';
+    });
+    const norm = normalizeSqliteStyleRow(normalizeRow(logical, obj));
+    if (!rowInDateWindow(norm, dateFrom, dateTo, dateColumns)) continue;
+    rows.push(norm);
+  }
+  return rows;
+}
+
 export function resolveCsvDatosDir(): string {
   const raw = String(process.env.CSV_DATOS_DIR || '').trim();
   if (raw) {
@@ -130,12 +197,37 @@ export function createCsvDataLayer(csvDir: string) {
       throw new Error(`CSV: objeto não mapeado: ${logical}`);
     }
 
-    let rows = loadTable(absDir, logical);
+    const fp = path.join(absDir, `${logical}.csv`);
+    if (!fs.existsSync(fp)) {
+      return [];
+    }
+    const st = fs.statSync(fp);
 
-    const { columns = '*', orderBy, ascending = true, limit, dateFrom, dateColumns } = options;
+    const { columns = '*', orderBy, ascending = true, limit, dateFrom, dateTo, dateColumns } = options;
 
-    if (dateFrom instanceof Date && Array.isArray(dateColumns) && dateColumns.length > 0) {
-      rows = rows.filter((r) => rowMatchesDateFrom(r, dateFrom, dateColumns));
+    const hasWindow =
+      dateFrom instanceof Date &&
+      dateTo instanceof Date &&
+      Array.isArray(dateColumns) &&
+      dateColumns.length > 0;
+
+    let rows: Record<string, unknown>[] = [];
+
+    if (hasWindow) {
+      const sk = sliceCacheKey(fp, st.mtimeMs, logical, dateFrom, dateTo, dateColumns);
+      const hit = slicedTableCache.get(sk);
+      if (hit) {
+        rows = hit;
+      } else {
+        rows = await loadTableWindowedFromStream(fp, logical, dateFrom, dateTo, dateColumns);
+        setSlicedTableCache(sk, rows);
+      }
+    } else {
+      rows = loadTable(absDir, logical);
+      if (dateFrom instanceof Date && Array.isArray(dateColumns) && dateColumns.length > 0) {
+        const to = dateTo instanceof Date ? dateTo : parsePeriodEnd();
+        rows = rows.filter((r) => rowInDateWindow(r, dateFrom, to, dateColumns));
+      }
     }
 
     if (columns && String(columns).trim() !== '*') {

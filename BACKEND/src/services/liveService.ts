@@ -98,6 +98,12 @@ function monthKeysOverlappingQueryPeriod(query = {}) {
     cur.setMonth(cur.getMonth() + 1);
   }
   if (!keys.length) keys.push(toMonthKey(new Date()));
+  // ECharts linha/barras precisam de ≥2 categorias; com 7 dias no mesmo mês só havia 1 chave.
+  while (keys.length > 0 && keys.length < 2) {
+    const prev = shiftMonthKey(keys[0], -1);
+    if (prev === keys[0]) break;
+    keys.unshift(prev);
+  }
   const MAX = 24;
   if (keys.length > MAX) return keys.slice(-MAX);
   return keys;
@@ -1932,6 +1938,12 @@ class LiveService {
     const bundle = {
       schemaVersion: 1,
       generatedAt: new Date().toISOString(),
+      /** Eco do pedido para o React evitar mostrar dados “de outro período” após corridas. */
+      queryEcho: {
+        period: q.period != null && String(q.period).trim() !== '' ? String(q.period).trim() : '',
+        regional: q.regional != null && String(q.regional).trim() !== '' ? String(q.regional).trim() : '',
+        unidade: q.unidade != null && String(q.unidade).trim() !== '' ? String(q.unidade).trim() : '',
+      },
       totaisPs: parts[0],
       tempoMedioEtapas: parts[1],
       metasPorVolumes: parts[2],

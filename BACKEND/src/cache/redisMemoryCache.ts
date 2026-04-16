@@ -95,8 +95,10 @@ export async function initStaleCache(): Promise<void> {
 
 function stableOptionsJson(options: Record<string, unknown>): string {
   const norm: Record<string, unknown> = { ...options };
-  const df = norm.dateFrom;
-  if (df instanceof Date) norm.dateFrom = df.toISOString();
+  for (const k of Object.keys(norm)) {
+    const v = norm[k];
+    if (v instanceof Date) norm[k] = v.toISOString();
+  }
   const keys = Object.keys(norm).sort();
   return JSON.stringify(keys.map((k) => [k, norm[k]]));
 }

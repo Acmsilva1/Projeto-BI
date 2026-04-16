@@ -87,6 +87,8 @@ export type FetchViewOptions = {
   ascending?: boolean;
   limit?: number;
   dateFrom?: Date;
+  /** Limite superior da janela (normalmente “agora”); com `dateFrom` filtra só o período pedido. */
+  dateTo?: Date;
   dateColumns?: string[];
 };
 
@@ -105,7 +107,7 @@ export function createSqliteDataLayer(sqliteFilePath: string) {
       throw new Error(`SQLite: objeto nao mapeado: ${logical}`);
     }
 
-    const { columns = '*', orderBy, ascending = true, limit, dateFrom, dateColumns } = options;
+    const { columns = '*', orderBy, ascending = true, limit, dateFrom, dateTo, dateColumns } = options;
 
     const cols = sanitizeColumns(columns);
     const tableSql = quoteSqlitePhysicalTable(sqliteTable);
@@ -113,18 +115,29 @@ export function createSqliteDataLayer(sqliteFilePath: string) {
 
     const bindArgs: number[] = [];
     if (dateFrom instanceof Date && Array.isArray(dateColumns) && dateColumns.length > 0) {
-      const tsec = Math.floor(dateFrom.getTime() / 1000);
+      const t0 = Math.floor(dateFrom.getTime() / 1000);
+      const t1 = dateTo instanceof Date ? Math.floor(dateTo.getTime() / 1000) : Math.floor(Date.now() / 1000);
       const orExpr = dateColumns
         .map((c) => {
           const n = String(c).trim();
           if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(n)) {
             throw new Error(`SQLite: nome de coluna inválido em filtro de data: ${n}`);
           }
-          return `strftime('%s', ${n}) >= ?`;
+          const q = quoteSqliteIdent(n);
+          if (dateTo instanceof Date) {
+            return `(strftime('%s', ${q}) >= ? AND strftime('%s', ${q}) <= ?)`;
+          }
+          return `strftime('%s', ${q}) >= ?`;
         })
         .join(' OR ');
       sql += ` WHERE (${orExpr})`;
-      dateColumns.forEach(() => bindArgs.push(tsec));
+      if (dateTo instanceof Date) {
+        dateColumns.forEach(() => {
+          bindArgs.push(t0, t1);
+        });
+      } else {
+        dateColumns.forEach(() => bindArgs.push(t0));
+      }
     }
 
     if (orderBy) {

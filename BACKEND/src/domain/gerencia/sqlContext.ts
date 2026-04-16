@@ -1,7 +1,7 @@
 /**
  * Contexto SQL Gerência — colunas de data por tabela lógica e opções de fetch (pré-repositório / SQL nomeado futuro).
  */
-import { parsePeriodStart } from '../shared/period.js';
+import { DEFAULT_PERIOD_DAYS, parsePeriodEnd, parsePeriodStart } from '../shared/period.js';
 
 export function gerenciaSqlDateFilterEnabled(): boolean {
   const v = process.env.GERENCIA_SQL_DATE_FILTER;
@@ -29,8 +29,11 @@ export function gerenciaFetchOpts(
   if (!gerenciaSqlDateFilterEnabled()) return {};
   const cols = GERENCIA_FACT_DATE_COLUMNS[logical];
   if (!cols?.length) return {};
+  const dateFrom = parsePeriodStart(query);
+  const dateTo = parsePeriodEnd();
   return {
-    dateFrom: parsePeriodStart(query),
+    dateFrom,
+    dateTo,
     dateColumns: cols,
   };
 }
@@ -38,6 +41,6 @@ export function gerenciaFetchOpts(
 export function gerenciaDatasetCacheKey(query: Record<string, unknown> = {}): string {
   if (!gerenciaSqlDateFilterEnabled()) return 'full';
   const p = Number(query?.period);
-  const periodKey = Number.isFinite(p) && p > 0 ? p : 365;
+  const periodKey = Number.isFinite(p) && p > 0 ? p : DEFAULT_PERIOD_DAYS;
   return `df:${periodKey}`;
 }

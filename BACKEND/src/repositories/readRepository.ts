@@ -9,6 +9,7 @@ import {
   cacheSetStale,
   staleCacheKey,
 } from '../cache/redisMemoryCache.js';
+import { getDataSourceKind } from '../models/dataSource.js';
 import { fetchView as dbFetchView } from '../models/db.js';
 import type { FetchViewOptions } from '../models/db_sqlite.js';
 
@@ -16,6 +17,14 @@ function envFlag(name: string, defaultOn = true): boolean {
   const v = String(process.env[name] ?? '').trim().toLowerCase();
   if (v === '') return defaultOn;
   return v === '1' || v === 'true' || v === 'yes' || v === 'on';
+}
+
+/** Leituras CSV em paralelo por lotes (streaming por ficheiro — pico de RAM ≈ conc × maior tabela filtrada). */
+function gerenciaCsvParallelConcurrency(): number {
+  const raw = String(process.env.GERENCIA_CSV_PARALLEL_FETCHES ?? '').trim();
+  const n = raw === '' ? 3 : Number(raw);
+  if (!Number.isFinite(n) || n < 1) return 1;
+  return Math.min(10, Math.floor(n));
 }
 
 export class ReadRepository {
@@ -55,13 +64,31 @@ export class ReadRepository {
     }
   }
 
-  /** Orquestração em paralelo (N reads). */
+  /**
+   * Orquestração em paralelo (N reads).
+   * CSV: lotes de `GERENCIA_CSV_PARALLEL_FETCHES` (omissão 3) — mais rápido que sequencial puro em 30/90 dias.
+   * Postgres/SQLite: todos em paralelo.
+   */
   async safeViewParallel(
     specs: Array<{ logical: string; options?: Record<string, unknown> }>,
   ): Promise<Record<string, unknown>[][]> {
-    return Promise.all(
-      specs.map((s) => this.safeView(s.logical, s.options ?? {})),
-    );
+    if (getDataSourceKind() === 'csv') {
+      const conc = gerenciaCsvParallelConcurrency();
+      const out: Record<string, unknown>[][] = [];
+      if (conc <= 1) {
+        for (const s of specs) {
+          out.push(await this.safeView(s.logical, s.options ?? {}));
+        }
+        return out;
+      }
+      for (let i = 0; i < specs.length; i += conc) {
+        const chunk = specs.slice(i, i + conc);
+        const part = await Promise.all(chunk.map((s) => this.safeView(s.logical, s.options ?? {})));
+        out.push(...part);
+      }
+      return out;
+    }
+    return Promise.all(specs.map((s) => this.safeView(s.logical, s.options ?? {})));
   }
 }
 

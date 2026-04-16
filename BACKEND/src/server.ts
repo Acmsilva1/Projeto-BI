@@ -4,6 +4,9 @@
 import './config/loadEnv.js';
 import { initStaleCache } from './cache/redisMemoryCache.js';
 import { createApp } from './app.js';
+import { registerGerenciaDataSliceMessaging } from './messaging/registerGerenciaDataSliceMessaging.js';
+
+registerGerenciaDataSliceMessaging();
 
 const PORT = Number(process.env.HOSPITAL_BI_API_PORT || 3020);
 const BIND_HOST = String(process.env.BIND_HOST || '127.0.0.1').trim() || '127.0.0.1';

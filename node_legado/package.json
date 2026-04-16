@@ -1,9 +1,0 @@
-{
-  "name": "node-legado",
-  "private": true,
-  "description": "Express legado, seeds e npm scripts auxiliares (não é a API principal).",
-  "scripts": {
-    "api:legado": "npm start --prefix api",
-    "seed:all": "npm run seed:all --prefix api"
-  }
-}

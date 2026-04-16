@@ -1,0 +1,92 @@
+# Hospital BI — backend + frontend + Redis
+#
+# Variáveis (ficheiro opcional .env.docker na raiz ou export no shell):
+#
+# --- Redis / cache stale ---
+# REDIS_URL=redis://redis:6379          # URL do Redis no compose
+# REDIS_OFFLINE_USE_MEMORY=1           # Se 1: falha ao ligar Redis → cache stale só em memória no Node (omissão: 1)
+# CACHE_FORCE_MEMORY=1                 # Forçar só memória (ignora Redis)
+# REDIS_CONNECT_TIMEOUT_MS=4000
+#
+# --- Quando o banco / fetch falha ---
+# DB_FALLBACK_READ_STALE=1             # Se 1: devolver último snapshot em Redis/memória (omissão: 1)
+# DB_FALLBACK_WRITE_STALE=1            # Se 1: gravar snapshot após leituras OK (omissão: 1)
+# DB_FALLBACK_STALE_TTL_SEC=86400      # TTL do snapshot no Redis e na memória
+#
+# --- API / CORS ---
+# HOSPITAL_BI_API_PORT=3020
+# BIND_HOST=0.0.0.0                    # Obrigatório em Docker para aceitar tráfego externo
+# CORS_EXTRA_ORIGINS=http://localhost,http://127.0.0.1
+#
+# --- Dados (CSV em Docker) ---
+# DATA_SOURCE=csv
+# CSV_DATOS_DIR=/data/dados            # Caminho dentro do contentor (montar volume em ./dados)
+#
+# Arranque: docker compose --env-file docker-compose.env.example up --build
+#           ou copie docker-compose.env.example → docker.env e ajuste.
+#           Sem --env-file usam-se os defaults abaixo.
+
+services:
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    ports:
+      - "${REDIS_PUBLISH_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    volumes:
+      - redis-data:/data
+
+  backend:
+    build:
+      context: ./BACKEND
+      dockerfile: Dockerfile
+    ports:
+      - "${BACKEND_PUBLISH_PORT:-3020}:3020"
+    environment:
+      BIND_HOST: ${BIND_HOST:-0.0.0.0}
+      HOSPITAL_BI_API_PORT: ${HOSPITAL_BI_API_PORT:-3020}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      REDIS_OFFLINE_USE_MEMORY: ${REDIS_OFFLINE_USE_MEMORY:-1}
+      CACHE_FORCE_MEMORY: ${CACHE_FORCE_MEMORY:-0}
+      REDIS_CONNECT_TIMEOUT_MS: ${REDIS_CONNECT_TIMEOUT_MS:-4000}
+      DB_FALLBACK_READ_STALE: ${DB_FALLBACK_READ_STALE:-1}
+      DB_FALLBACK_WRITE_STALE: ${DB_FALLBACK_WRITE_STALE:-1}
+      DB_FALLBACK_STALE_TTL_SEC: ${DB_FALLBACK_STALE_TTL_SEC:-86400}
+      DATA_SOURCE: ${DATA_SOURCE:-csv}
+      CSV_DATOS_DIR: ${CSV_DATOS_DIR:-/data/dados}
+      CORS_EXTRA_ORIGINS: ${CORS_EXTRA_ORIGINS:-http://localhost,http://127.0.0.1,http://frontend}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost}
+    volumes:
+      - ./dados:/data/dados:ro
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -sf \"http://127.0.0.1:$${HOSPITAL_BI_API_PORT:-3020}/health\" || exit 1",
+        ]
+      interval: 20s
+      timeout: 8s
+      retries: 5
+      start_period: 25s
+
+  frontend:
+    build:
+      context: .
+      dockerfile: FRONTEND/Dockerfile
+      args:
+        VITE_API_BASE: ${VITE_API_BASE:-/api}
+    ports:
+      - "${FRONTEND_PUBLISH_PORT:-80}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  redis-data:

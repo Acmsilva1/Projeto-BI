@@ -1,0 +1,37 @@
+{
+  "name": "hospital-bi-server",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "API Express TypeScript — dados PostgreSQL ou SQLite (Hospital BI).",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "dev:vite": "npm --prefix ../FRONTEND run dev",
+    "build": "tsc -p tsconfig.json",
+    "build:web": "npm --prefix ../FRONTEND run build",
+    "build:all": "npm run build:web && npm run build",
+    "start": "node dist/server.js",
+    "test:db": "tsx scripts/test-db-connection.ts",
+    "seed:unidades": "node scripts/seed-unidades-ps.js",
+    "seed:gerencia": "node scripts/seed-gerencia-dados.js",
+    "seed:all": "node scripts/seed-unidades-ps.js && node scripts/seed-gerencia-dados.js",
+    "pipeline:dados": "tsx src/cli/ingestDadosCsv.ts"
+  },
+  "dependencies": {
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.1",
+    "express": "^5.2.1",
+    "pg": "^8.14.1",
+    "redis": "^4.7.1"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/node": "^22.19.3",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

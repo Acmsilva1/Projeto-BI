@@ -1,0 +1,17 @@
+{
+  "name": "hospital-bi-testes-pipeline",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Watcher + verificações de pipeline (builds, compose, API) com logs em testes/logs/",
+  "scripts": {
+    "start": "node watch-pipeline.js",
+    "once": "node watch-pipeline.js --once"
+  },
+  "dependencies": {
+    "chokidar": "^4.0.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

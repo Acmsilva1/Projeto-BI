@@ -30,7 +30,7 @@ export function gerenciaFetchOpts(
   const cols = GERENCIA_FACT_DATE_COLUMNS[logical];
   if (!cols?.length) return {};
   const dateFrom = parsePeriodStart(query);
-  const dateTo = parsePeriodEnd();
+  const dateTo = parsePeriodEnd(query);
   return {
     dateFrom,
     dateTo,

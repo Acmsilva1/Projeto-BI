@@ -1,7 +1,7 @@
 /**
  * Identificação da fonte ativa (para /api/v1/_meta/stack e health).
  */
-export type DataSourceKind = 'postgres' | 'sqlite' | 'csv';
+export type DataSourceKind = 'postgres' | 'sqlite' | 'csv' | 'duckdb';
 
 let kind: DataSourceKind = 'sqlite';
 

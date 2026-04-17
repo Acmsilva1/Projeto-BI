@@ -12,15 +12,56 @@ import { emitGerenciaUx, GerenciaUxEvents } from '../messaging/gerenciaUxBus.js'
 
 // Cache simples em memória (chave = url)
 const _cache = new Map();
+const LS_PREFIX = 'hospital-bi:api-cache:v1:';
+const LOCAL_MAX_BYTES = 1_500_000;
+
+function localKey(url) {
+  return `${LS_PREFIX}${url}`;
+}
+
+function getLocalCache(url, ttlMs) {
+  try {
+    const raw = localStorage.getItem(localKey(url));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return null;
+    if (!Number.isFinite(parsed.ts)) return null;
+    if (Date.now() - parsed.ts > ttlMs) return null;
+    return { data: parsed.data ?? null, ts: parsed.ts };
+  } catch {
+    return null;
+  }
+}
+
+function setLocalCache(url, data) {
+  try {
+    const payload = JSON.stringify({ ts: Date.now(), data });
+    if (payload.length > LOCAL_MAX_BYTES) return;
+    localStorage.setItem(localKey(url), payload);
+  } catch {
+    /* quota/serialization issues: ignore */
+  }
+}
 
 export function useApi(
   endpoint,
   params = {},
-  { ttl = 30_000, timeoutMs = 240_000, enabled = true, uxGerencia = false } = {},
+  {
+    ttl = 30_000,
+    timeoutMs = 240_000,
+    enabled = true,
+    uxGerencia = false,
+    persistLocal,
+    localTtlMs = 15 * 60_000,
+    revalidateLocal = false,
+  } = {},
 ) {
   const [data, setData]       = useState(null);
   const [loading, setLoading] = useState(() => Boolean(enabled));
   const [error, setError]     = useState(null);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [lastSyncAt, setLastSyncAt] = useState(null);
+  const [lastSyncSource, setLastSyncSource] = useState(null);
   const abortRef              = useRef(null);
   const abortMetaRef          = useRef(null);
   const seqRef                = useRef(0);
@@ -32,6 +73,7 @@ export function useApi(
     const base = getApiV1Base().replace(/\/+$/, '');
     const path = String(endpoint || '').replace(/^\/+/, '');
     const url = `${base}/${path}${buildApiQuery(params)}`;
+    const shouldPersistLocal = persistLocal ?? path.startsWith('gerencia/');
 
     // Cancelar pedido anterior antes de sequência/cache — evita resposta lenta (ex. 30 d) sobrescrever 7 d.
     abortRef.current?.abort();
@@ -51,12 +93,43 @@ export function useApi(
       if (mySeq !== seqRef.current || !mountedRef.current) return;
       setData(cached.data);
       setLoading(false);
+      setIsSyncing(false);
       setError(null);
+      setLastSyncAt(cached.ts);
+      setLastSyncSource('memory');
       if (uxGerencia) emitGerenciaUx(GerenciaUxEvents.RequestSettled, { url, params: { ...params }, fromCache: true });
       return;
     }
 
-    setLoading(true);
+    // Cache persistido no navegador: reduz carga no backend/DuckDB entre sessões.
+    let localSeed = null;
+    if (shouldPersistLocal) {
+      const localHit = getLocalCache(url, localTtlMs);
+      if (localHit?.data != null) {
+        if (mySeq !== seqRef.current || !mountedRef.current) return;
+        localSeed = localHit.data;
+        setData(localHit.data);
+        setLoading(false);
+        setIsSyncing(false);
+        setError(null);
+        _cache.set(url, { data: localHit.data, ts: Date.now() });
+        setLastSyncAt(localHit.ts || Date.now());
+        setLastSyncSource('localStorage');
+        if (uxGerencia) {
+          emitGerenciaUx(GerenciaUxEvents.RequestSettled, {
+            url,
+            params: { ...params },
+            fromCache: true,
+            cacheLayer: 'localStorage',
+          });
+        }
+        if (!revalidateLocal) return;
+      }
+    }
+
+    const silentRevalidate = localSeed != null && revalidateLocal;
+    if (silentRevalidate) setIsSyncing(true);
+    if (!silentRevalidate) setLoading(true);
     setError(null);
 
     const tid =
@@ -88,9 +161,14 @@ export function useApi(
       if (mySeq !== seqRef.current) return;
 
       // Gravar cache antes do mountedRef: no React Strict Mode a resposta pode chegar no “meio” do remount.
+      const changed =
+        localSeed == null || JSON.stringify(localSeed) !== JSON.stringify(json.data);
       _cache.set(url, { data: json.data, ts: Date.now() });
+      if (shouldPersistLocal) setLocalCache(url, json.data);
       if (!mountedRef.current) return;
-      setData(json.data);
+      if (changed) setData(json.data);
+      setLastSyncAt(Date.now());
+      setLastSyncSource('network');
       if (uxGerencia) emitGerenciaUx(GerenciaUxEvents.RequestSettled, { url, params: { ...params } });
     } catch (err) {
       if (err.name === 'AbortError' && uxGerencia) {
@@ -114,14 +192,16 @@ export function useApi(
       setError(err.message);
     } finally {
       if (tid) clearTimeout(tid);
+      if (mySeq === seqRef.current && mountedRef.current) setIsSyncing(false);
       if (mySeq === seqRef.current && mountedRef.current) setLoading(false);
     }
-  }, [endpoint, JSON.stringify(params), ttl, timeoutMs, enabled, uxGerencia]); // eslint-disable-line
+  }, [endpoint, JSON.stringify(params), ttl, timeoutMs, enabled, uxGerencia, persistLocal, localTtlMs, revalidateLocal]); // eslint-disable-line
 
   useEffect(() => {
     mountedRef.current = true;
     if (!enabled) {
       setLoading(false);
+      setIsSyncing(false);
       setError(null);
       return () => {
         mountedRef.current = false;
@@ -137,5 +217,5 @@ export function useApi(
     };
   }, [fetchData, enabled]);
 
-  return { data, loading, error, refetch: fetchData };
+  return { data, loading, error, refetch: fetchData, isSyncing, lastSyncAt, lastSyncSource };
 }

@@ -1,28 +1,32 @@
 /**
- * Topbar.jsx — Cabeçalho global com filtros (regional, unidade, período)
- * Selects com color-scheme claro + fundo branco para contraste no menu nativo.
+ * Topbar: cabecalho global com filtros.
  */
 import React, { useState, useEffect, useMemo } from 'react';
 import { getApiV1Base, buildApiQuery } from '../utils/apiBase';
 
 const REGIONAIS = [
   { value: '', label: 'Todas Regionais' },
-  { value: 'ES', label: 'Espírito Santo' },
+  { value: 'ES', label: 'Espirito Santo' },
   { value: 'DF', label: 'Distrito Federal' },
   { value: 'RJ', label: 'Rio de Janeiro' },
   { value: 'MG', label: 'Minas Gerais' },
 ];
 
-const PERIODOS = [
-  { value: 7, label: 'Últimos 7 dias (rápido)' },
-  { value: 30, label: 'Últimos 30 dias' },
-  { value: 90, label: 'Últimos 90 dias' },
-  { value: 365, label: 'Últimos 12 meses' },
-  { value: 1095, label: 'Últimos 3 anos' },
-  { value: 366, label: 'Ano civil (jan–hoje)' },
+const PERIODOS_DEFAULT = [
+  { value: 7, label: 'Ultimos 7 dias (rapido)' },
+  { value: 30, label: 'Ultimos 30 dias' },
+  { value: 90, label: 'Ultimos 90 dias' },
+  { value: 365, label: 'Ultimos 12 meses' },
+  { value: 1095, label: 'Ultimos 3 anos' },
+  { value: 366, label: 'Ano civil (jan-hoje)' },
 ];
 
-/** Estilo alto contraste: lista nativa legível em SO com tema escuro */
+const PERIODOS_GERENCIA = [
+  { value: 7, label: 'Ultimos 7 dias (aperitivo)' },
+  { value: 30, label: 'Ultimos 30 dias' },
+  { value: 60, label: 'Ultimos 60 dias (cache quente)' },
+];
+
 const selectContrast =
   'max-w-[min(100%,14rem)] sm:max-w-[16rem] truncate rounded-lg border border-slate-300 bg-white px-2.5 py-2 ' +
   'text-xs font-medium text-slate-900 shadow-sm outline-none cursor-pointer ' +
@@ -38,15 +42,14 @@ const Topbar = ({ activeSection, filters, onFilterChange, onRefresh, sectionLabe
   useEffect(() => {
     const tick = () => {
       const now = new Date();
-      setClock(now.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).replace(',', ' —'));
+      setClock(now.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).replace(',', ' -'));
     };
     tick();
     const id = setInterval(tick, 60_000);
     return () => clearInterval(id);
   }, []);
 
-  const unidadesEndpoint =
-    activeSection === 'gerencia' ? 'gerencia/unidades-ps' : 'kpi/unidades';
+  const unidadesEndpoint = activeSection === 'gerencia' ? 'gerencia/unidades-ps' : 'kpi/unidades';
 
   useEffect(() => {
     setUnidadesReady(false);
@@ -85,18 +88,13 @@ const Topbar = ({ activeSection, filters, onFilterChange, onRefresh, sectionLabe
     });
   }, [unidades]);
 
-  /** Mesmo padrão do backend: código - NOME_UF */
   const labelUnidadeOption = (u) => {
     const nome = String(u.unidadeNome || '').trim();
     const reg = String(u.regional || '').trim();
-    const cod =
-      u.codigo != null && String(u.codigo).trim() !== ''
-        ? String(u.codigo).padStart(3, '0')
-        : '';
+    const cod = u.codigo != null && String(u.codigo).trim() !== '' ? String(u.codigo).padStart(3, '0') : '';
     if (cod && nome && reg) return `${cod} - ${nome}_${reg}`;
-    const uf = reg;
-    if (uf && nome) return `${uf} - ${nome}`;
-    return nome || uf || String(u.unidadeId || '');
+    if (reg && nome) return `${reg} - ${nome}`;
+    return nome || reg || String(u.unidadeId || '');
   };
 
   useEffect(() => {
@@ -104,6 +102,18 @@ const Topbar = ({ activeSection, filters, onFilterChange, onRefresh, sectionLabe
     const ok = unidadesSorted.some((u) => u.unidadeId === filters.unidade);
     if (!ok) onFilterChange({ unidade: '' });
   }, [unidadesReady, unidadesSorted, filters.unidade, onFilterChange]);
+
+  useEffect(() => {
+    if (activeSection !== 'gerencia') return;
+    const p = Number(filters.period);
+    if (!Number.isFinite(p) || p <= 0) {
+      onFilterChange({ period: 7 });
+      return;
+    }
+    if (p > 60) onFilterChange({ period: 60 });
+  }, [activeSection, filters.period, onFilterChange]);
+
+  const periodOptions = activeSection === 'gerencia' ? PERIODOS_GERENCIA : PERIODOS_DEFAULT;
 
   return (
     <header className="h-16 shrink-0 flex items-center justify-between px-4 sm:px-6 bg-app-surface/80 border-b border-app-border backdrop-blur-sm z-10 shadow-[inset_0_-1px_0_0_color-mix(in_srgb,var(--primary)_08%,transparent)]">
@@ -150,12 +160,7 @@ const Topbar = ({ activeSection, filters, onFilterChange, onRefresh, sectionLabe
               Todas as unidades
             </option>
             {unidadesSorted.map((u) => (
-              <option
-                key={u.unidadeId}
-                value={u.unidadeId}
-                className="bg-white text-slate-900"
-                title={labelUnidadeOption(u)}
-              >
+              <option key={u.unidadeId} value={u.unidadeId} className="bg-white text-slate-900" title={labelUnidadeOption(u)}>
                 {labelUnidadeOption(u)}
               </option>
             ))}
@@ -165,11 +170,11 @@ const Topbar = ({ activeSection, filters, onFilterChange, onRefresh, sectionLabe
 
           <select
             className={selectContrast}
-            aria-label="Período"
+            aria-label="Periodo"
             value={filters.period}
             onChange={(e) => onFilterChange({ period: Number(e.target.value) })}
           >
-            {PERIODOS.map((p) => (
+            {periodOptions.map((p) => (
               <option key={p.value} value={p.value} className="bg-white text-slate-900">
                 {p.label}
               </option>
@@ -192,3 +197,4 @@ const Topbar = ({ activeSection, filters, onFilterChange, onRefresh, sectionLabe
 };
 
 export default Topbar;
+

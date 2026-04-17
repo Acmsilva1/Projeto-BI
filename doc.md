@@ -1,18 +1,34 @@
-# Hospital BI — Projeto-BI
+# Hospital BI - Projeto-BI
 
-## agents.md (único, minúsculas)
+## agents.md (unico, minusculas)
 
-Na **raiz deste repositório**, ao lado deste `doc.md`, existe apenas **`agents.md`** (nome em **minúsculas**). É a **única** fonte de contexto para **agentes de código (IA)** e detalhe de implementação deste projeto.
+Na raiz deste repositorio, ao lado deste `doc.md`, existe apenas `agents.md`.
+Ele e a unica fonte de contexto para agentes de codigo (IA) e detalhe de implementacao.
 
-- Conteúdo completo: **`[agents.md](./agents.md)`**
-- Não há `AGENTS.md` nem outro ficheiro paralelo de agentes.
+- Conteudo completo: [agents.md](./agents.md)
+- Nao ha `AGENTS.md` nem outro ficheiro paralelo de agentes.
 
-Outros apoios:
+## Nota de operacao atual
 
-- Estilos e gráficos: **`css.md`**, **`FRONTEND/src/graficos/index.js`**.
-- **Docker:** `docker-compose.yml` na raiz; variáveis em **`docker-compose.env.example`** — detalhes em **`agents.md`**.
-- **Testes da pipeline:** pasta **`testes/`** (watcher + logs em `testes/logs/`) — ver **`agents.md`**.
+O backend agora suporta fonte local via DuckDB:
 
-## Licença / uso
+```env
+DATA_SOURCE=duckdb
+CSV_DATOS_DIR=dados
+DUCKDB_PATH=db local/hospital_bi.duckdb
+```
 
-Uso interno do projeto BI; ajustar conforme política da organização.
+Validacao:
+- `GET /api/v1/_meta/stack`
+- `data_source = duckdb`
+- `duckdb_local = true`
+
+Cache progressivo da Gerencia:
+- `GET /api/v1/gerencia/aperitivo` (7 dias)
+- aquecimento 30 dias na primeira onda
+- aquecimento 60 dias apos 10 minutos
+- filtro de periodo da Gerencia limitado a 60 dias na UI
+
+## Licenca / uso
+
+Uso interno do projeto BI; ajustar conforme politica da organizacao.

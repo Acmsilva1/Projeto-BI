@@ -1,18 +1,19 @@
-# agents.md — fonte única para agentes (IA) e contexto técnico do repositório
+# agents.md - fonte unica para agentes (IA) e contexto tecnico do repositorio
 
-**Localização:** na **raiz do repositório**, na **mesma pasta** que `doc.md` (ex.: `Projeto-BI/agents.md`).
+**Localizacao:** na raiz do repositorio, na mesma pasta que `doc.md` (ex.: `Projeto-BI/agents.md`).
 
-Toda a documentação orientada a assistentes de código e a detalhe de implementação está **neste ficheiro**. Não há `AGENTS.md` nem outro guia paralelo de agentes.
+Toda a documentacao orientada a assistentes de codigo e detalhe de implementacao esta **neste ficheiro**.  
+Nao ha `AGENTS.md` nem outro guia paralelo de agentes.
 
 ---
 
 ## Produto (resumo)
 
-Aplicação web de indicadores com **Visão Gerência** (totais, tempos por etapa, metas, indicadores por unidade), troca de tipo de gráfico por painel (ECharts em `FRONTEND/src/graficos/`), temas múltiplos.
+Aplicacao web de indicadores com **Visao Gerencia** (totais, tempos por etapa, metas, indicadores por unidade), troca de tipo de grafico por painel (ECharts em `FRONTEND/src/graficos/`) e temas multiplos.
 
 ---
 
-## Repositório e GitHub
+## Repositorio e GitHub
 
 | Item | Detalhe |
 | :--- | :--- |
@@ -24,127 +25,220 @@ Aplicação web de indicadores com **Visão Gerência** (totais, tempos por etap
 
 ## Arquitetura
 
-- **`FRONTEND/`** — React 19 + Vite: dashboards, gráficos, chamadas a **`/api/v1/*`**. Regras de negócio e agregações devem viver no **BACKEND**; o UI prioriza apresentação.
-- **`BACKEND/`** — Express 5 + TypeScript: MVC em `src/` — rotas em **`modules/*`**, **`services/liveService.ts`**, **`models/`** (fonte de dados), **`views/`**, **`repositories/`**, **`domain/`**, **`messaging/`**. Em produção, se existir **`FRONTEND/dist/index.html`**, o mesmo processo serve o **SPA** (estático + fallback) e a **API** na **mesma origem** (porta `HOSPITAL_BI_API_PORT`). **`FRONTEND_DIST`** (caminho absoluto ou relativo à raiz do repo) sobrepõe a pasta do `dist`.
+- **`FRONTEND/`** - React 19 + Vite: dashboards, graficos, chamadas a **`/api/v1/*`**.
+- **`BACKEND/`** - Express 5 + TypeScript: MVC em `src/`, com rotas em `modules/*`, regras em `services/liveService.ts`, e fontes de dados em `models/`.
+- Em producao, se existir `FRONTEND/dist/index.html`, o mesmo processo serve SPA + API na mesma origem (`HOSPITAL_BI_API_PORT`).
 
 ---
 
 ## Pastas na raiz
 
-```
+```text
 Projeto-BI/
   FRONTEND/          # App React + Vite
   BACKEND/           # API Node (TypeScript em src/)
-  dados/             # CSV por nome lógico (modo leitura direta)
-  db local/          # SQLite de testes / réplica (opcional)
+  dados/             # CSV por nome logico
+  db local/          # SQLite e DuckDB locais (opcional)
   BI/
   postgres/
-  agents.md          # Este ficheiro (ao lado de doc.md)
+  agents.md
   doc.md
   iniciar-hospital-bi.bat
 ```
 
 ---
 
-## BACKEND — `BACKEND/src/`
+## BACKEND - `BACKEND/src/`
 
-| Área | Função |
+| Area | Funcao |
 | :--- | :--- |
-| **`app.ts` / `server.ts`** | Express e arranque |
-| **`modules/*/*.routes.ts`** | Rotas `/api/v1` por domínio (core, gerencia, ps, financeiro, ocupacao, cirurgia, cc) |
-| **`controllers/apiV1Routes.ts`** | Agrega os mounts |
-| **`services/liveService.ts`** | Regras e agregações da API (inclui Gerência) |
-| **`models/db.ts`** | Escolhe fonte: **PostgreSQL**, **SQLite** ou **CSV** |
-| **`models/db_postgres.ts`**, **`db_sqlite.ts`**, **`db_csv.ts`** | `fetchView` por backend |
-| **`models/db_sqlite.ts`** | **`LOGICAL_TO_SQLITE_TABLE`** — nome lógico → tabela física ou ficheiro **`<nome>.csv`** |
-| **`lib/parsr/`** | Parser CSV próprio (`parseCsv`) — usado por `db_csv` e pelo CLI de ingestão |
-| **`repositories/readRepository.ts`** | `safeView` / `safeViewParallel` |
-| **`repositories/gerenciaRepository.ts`** | Leituras paralelas Gerência + cache curto |
-| **`domain/`** | Ex.: `shared/period.ts`, `gerencia/sqlContext.ts`, tons Metas por volumes |
-| **`messaging/domainEventBus.ts`** | Eventos em processo (ex.: bundle Gerência) |
-| **`cli/ingestDadosCsv.ts`** | Opcional: CSV → SQLite (`npm run pipeline:dados`); com **`DATA_SOURCE=csv`** a API lê CSV direto, sem precisar disto |
-| **`config/loadEnv.ts`** | `.env` em `BACKEND/pipeline/`, `BACKEND/`, raiz (raiz com override) |
+| `app.ts` / `server.ts` | Express e arranque |
+| `modules/*/*.routes.ts` | Rotas `/api/v1` por dominio |
+| `controllers/apiV1Routes.ts` | Agrega mounts |
+| `services/liveService.ts` | Regras e agregacoes da API |
+| `models/db.ts` | Selecao de fonte (`postgres`, `duckdb`, `sqlite`, `csv`) |
+| `models/db_postgres.ts` | Camada PostgreSQL (`fetchView`) |
+| `models/db_duckdb.ts` | Camada DuckDB (`fetchView`) para CSV local |
+| `models/db_sqlite.ts` | Camada SQLite + `LOGICAL_TO_SQLITE_TABLE` |
+| `models/db_csv.ts` | Leitura direta de CSV em Node |
+| `lib/parsr/` | Parser CSV proprio |
+| `repositories/readRepository.ts` | `safeView` / `safeViewParallel` |
+| `repositories/gerenciaRepository.ts` | Leituras paralelas Gerencia + cache curto |
+| `cli/ingestDadosCsv.ts` | CSV -> SQLite (opcional) |
+| `cli/syncCsvToSupabase.ts` | CSV -> Supabase/Postgres (automacao) |
+| `config/loadEnv.ts` | Carrega `.env` de `BACKEND/pipeline/`, `BACKEND/` e raiz |
 
-**Inspeção:** `GET /api/v1/_meta/stack` — `data_source` (`postgres` \| `sqlite` \| `csv`), `csv_direct`.
+**Inspecao:** `GET /api/v1/_meta/stack` retorna `data_source`, `csv_direct` e `duckdb_local`.
 
 ---
 
 ## Fontes de dados (`models/db.ts`)
 
-1. **PostgreSQL** — `DATABASE_URL` ou `PGHOST` / credenciais.
-2. **CSV** — `DATA_SOURCE=csv`, ou `CSV_DATOS_DIR` definido, ou **ausência** do SQLite por defeito **e** existir `.csv` em **`dados/`**. Ficheiros: **`dados/<nome_logico>.csv`**, primeira linha = cabeçalho.
-3. **SQLite** — `db local/db_testes_replica.sqlite3` ou `SQLITE_PATH`.
+Ordem e regras:
 
-Detalhe de variáveis: **`BACKEND/sample-local-mode.env`**. Porta: **`HOSPITAL_BI_API_PORT`** (padrão **3020**).
+1. **Fonte explicita via `DATA_SOURCE`**: `postgres`, `duckdb`, `csv`, `sqlite`.
+2. Sem `DATA_SOURCE` explicito:
+   - usa **PostgreSQL** se houver `DATABASE_URL` ou `PGHOST`;
+   - senao usa **CSV** se `CSV_DATOS_DIR` estiver definido ou se SQLite padrao nao existir e houver `.csv` em `dados/`;
+   - senao usa **SQLite**.
+
+Detalhes por fonte:
+
+1. **PostgreSQL**
+   - `DATABASE_URL` ou `PGHOST` + credenciais.
+2. **DuckDB**
+   - `DATA_SOURCE=duckdb`
+   - `CSV_DATOS_DIR` (opcional; default `dados/`)
+   - `DUCKDB_PATH` (opcional; default `db local/hospital_bi.duckdb`; `:memory:` para temporario)
+   - Cria views `schema.tabela` sobre os CSV do mapeamento logico.
+3. **CSV direto**
+   - `DATA_SOURCE=csv`
+   - Leitura em memoria/streaming na camada Node.
+4. **SQLite**
+   - `SQLITE_PATH` ou default `db local/db_testes_replica.sqlite3`.
 
 ---
 
 ## Scripts npm (`BACKEND/`)
 
-| Script | Descrição |
+| Script | Descricao |
 | :--- | :--- |
-| `npm run dev` | Só a API em desenvolvimento (`tsx watch`) |
-| `npm run dev:vite` | API + **Vite** (HMR); delega em `FRONTEND` `npm run dev` |
-| `npm run build` / `npm start` | Build só do TypeScript (`BACKEND/dist`) e servidor |
-| `npm run build:web` | Build do Vite em `FRONTEND/dist` |
-| `npm run build:all` | **`build:web`** + **`build`** — um artefacto lógico: API + ficheiros estáticos |
-| `npm run pipeline:dados` | Importar CSV de `dados/` para SQLite (opcional) |
+| `npm run dev` | API em desenvolvimento (`tsx watch`) |
+| `npm run dev:vite` | API + Vite (HMR) |
+| `npm run build` / `npm start` | Build TS (`dist`) e servidor |
+| `npm run build:web` | Build Vite em `FRONTEND/dist` |
+| `npm run build:all` | Build web + backend |
+| `npm run pipeline:dados` | CSV -> SQLite (opcional) |
+| `npm run pipeline:supabase` | CSV -> Supabase/Postgres (create/import) |
+
+---
+
+## Configuracao DuckDB (passo a passo)
+
+1. Instalar dependencias no backend:
+
+```bash
+cd BACKEND
+npm install
+```
+
+2. No `.env` (raiz ou `BACKEND/.env`):
+
+```env
+DATA_SOURCE=duckdb
+CSV_DATOS_DIR=dados
+DUCKDB_PATH=db local/hospital_bi.duckdb
+```
+
+3. Subir API:
+
+```bash
+cd BACKEND
+npm run dev
+```
+
+4. Verificar:
+
+- `GET /api/v1/_meta/stack`
+- esperado: `data_source: "duckdb"` e `duckdb_local: true`
+
+---
+
+## Orquestracao de cache Gerencia (7/30/60)
+
+Objetivo: reduzir carga no DuckDB e entregar dados rapidos na primeira experiencia.
+
+Fluxo backend (Node):
+
+1. Mantem um **JSON aperitivo de 7 dias** no cache (`Redis`/memoria), para primeiro carregamento.
+2. Na primeira chamada da Gerencia, inicia aquecimento da janela de **30 dias**.
+3. Apos **10 minutos** (configuravel), dispara a segunda onda para **60 dias**.
+4. Para pedidos ate 60 dias, tenta responder do cache quente; se nao houver cobertura, consulta o banco sob demanda e atualiza cache.
+5. Periodos acima de 60 dias sao bloqueados na UX da Gerencia.
+
+Persistencia no cliente (browser):
+- `FRONTEND/src/hooks/useApi.js` persiste respostas em `localStorage` (chave por URL+query)
+- para endpoints de Gerencia, a leitura prioriza cache local antes de chamar backend
+- objetivo: reduzir trafego e manter DuckDB livre para consultas realmente novas
+
+Endpoints novos/relevantes:
+
+- `GET /api/v1/gerencia/aperitivo` -> payload inicial (7 dias cacheado)
+- `GET /api/v1/gerencia/dashboard-bundle` -> bundle principal com `cacheOrchestration` no payload
+
+Campos de telemetria no `dashboard-bundle`:
+
+- `cacheOrchestration.source`: `aperitivo_json_cache` | `hot_window_30d` | `hot_window_60d` | `db_on_demand`
+- `cacheOrchestration.hotCoverageDays`
+- `cacheOrchestration.requestedPeriod`
+- `cacheOrchestration.effectivePeriod`
+- `cacheOrchestration.cappedToMax60`
+- `cacheOrchestration.warmStatus`
 
 ---
 
 ## Docker (`docker-compose.yml` na raiz)
 
-Serviços: **Redis**, **backend** (Node API), **frontend** (Nginx + estático React, proxy `/api` → backend).
+Servicos: Redis, backend (Node API), frontend (Nginx + estatico React, proxy `/api` -> backend).
 
-Variáveis principais (ver comentários no compose e **`docker-compose.env.example`**):
+Variaveis principais:
 
-| Variável | Função |
+| Variavel | Funcao |
 | :--- | :--- |
-| `REDIS_URL` | Ligação ao Redis (ex.: `redis://redis:6379` no compose). |
-| `REDIS_OFFLINE_USE_MEMORY` | `1` (omissão): se o Redis não ligar, cache stale só em **memória** no processo Node. |
-| `CACHE_FORCE_MEMORY` | `1` força ignorar Redis (só memória). |
-| `DB_FALLBACK_READ_STALE` | `1` (omissão): quando **fetchView** falha, devolver último snapshot gravado. |
-| `DB_FALLBACK_WRITE_STALE` | `1` (omissão): após leitura OK ao BD, gravar snapshot em Redis **e** memória. |
-| `DB_FALLBACK_STALE_TTL_SEC` | TTL do snapshot (Redis e memória). |
-| `BIND_HOST` | Em Docker usar `0.0.0.0` para aceitar tráfego externo. |
-| `DATA_SOURCE` / `CSV_DATOS_DIR` | Modo CSV; volume `./dados` → `/data/dados` no contentor. |
-
-`GET /api/v1/_meta/stack` inclui `redis`, `stale_cache_backend` (`redis` \| `memory`).
+| `REDIS_URL` | Ligacao ao Redis |
+| `REDIS_OFFLINE_USE_MEMORY` | Fallback de cache em memoria |
+| `CACHE_FORCE_MEMORY` | Forca ignorar Redis |
+| `DB_FALLBACK_READ_STALE` | Le snapshot stale quando fetch falha |
+| `DB_FALLBACK_WRITE_STALE` | Escreve snapshot stale apos leitura OK |
+| `DB_FALLBACK_STALE_TTL_SEC` | TTL do snapshot |
+| `BIND_HOST` | Em Docker, usar `0.0.0.0` |
+| `DATA_SOURCE` | `postgres` \| `duckdb` \| `sqlite` \| `csv` |
+| `CSV_DATOS_DIR` | Pasta de CSV |
+| `DUCKDB_PATH` | Caminho do banco DuckDB local |
 
 ---
 
 ## Arranque
 
-1. **Mesma URL / mesma build (produção local):** `cd BACKEND && npm install` → `cd ../FRONTEND && npm install` (primeira vez) → `cd ../BACKEND && npm run build:all && npm start` — UI e API em `http://127.0.0.1:<HOSPITAL_BI_API_PORT>/` (omissão **3020**). Requer base de dados configurada (ver `models/db.ts` / `.env`).
-2. **Desenvolvimento com atualização em tempo real (Vite + HMR):** `cd FRONTEND && npm run dev` — sobe a API (`BACKEND` via `concurrently`) e o **Vite** com **Fast Refresh**, proxy `/api` e watcher com **polling** no Windows (`vite.config.js`). Equivalente a partir do BACKEND: `npm run dev:vite`. Na raiz do repo, Windows: **`iniciar-hospital-bi.bat`** (abre `http://127.0.0.1:5180` por omissão). **Não** use `npm start` para iterar no UI — isso é build estático sem HMR.
-3. Windows: **`iniciar-hospital-bi.bat`** na raiz, se existir.
-4. Docker: na raiz, `docker compose up --build` (ou com `--env-file docker-compose.env.example`).
+1. **Producao local (mesma URL):**
+   - `cd BACKEND && npm install`
+   - `cd ../FRONTEND && npm install`
+   - `cd ../BACKEND && npm run build:all && npm start`
+
+2. **Desenvolvimento com HMR (recomendado para UI):**
+   - `cd FRONTEND && npm run dev`
+   - equivalente: `cd BACKEND && npm run dev:vite`
+
+3. **Windows helper:** `iniciar-hospital-bi.bat` na raiz.
+
+4. **Docker:** `docker compose up --build`.
 
 ---
 
-## Pasta `testes/` — watcher da pipeline
+## Pasta `testes/` - watcher da pipeline
 
-Aplicação Node em **`testes/`** que observa mudanças em `BACKEND/src`, `FRONTEND/src`, Dockerfiles, `docker-compose.yml`, etc., e **reexecuta verificações** (build BACKEND, opcionalmente FRONTEND, `docker compose config`, smoke da API). Resultados em **`testes/logs/`** (`run-*.log` por execução e **`latest.log`** sempre atualizado).
+Watcher Node que observa alteracoes em backend/frontend/docker e reexecuta validacoes.
 
 ```bash
 cd testes
 npm install
-npm start              # contínuo (debounce ~3,5 s)
-npm run once           # uma corrida e sair
+npm start
+# ou
+npm run once
 ```
 
-Variáveis: `TESTES_API_BASE`, `SKIP_FRONTEND_BUILD`, `SKIP_DOCKER_COMPOSE`, `TESTES_DEBOUNCE_MS` (ver cabeçalho de `testes/watch-pipeline.js`).
+Logs em `testes/logs/` (`latest.log` e `run-*.log`).
 
 ---
 
-## Outros documentos (não são guias de agente)
+## Outros documentos (nao sao guias de agente)
 
 | Ficheiro | Uso |
 | :--- | :--- |
-| **`css.md`** | Tokens CSS, temas, ECharts |
-| **`FRONTEND/src/graficos/index.js`** | API pública da biblioteca de gráficos |
+| `css.md` | Tokens CSS, temas, ECharts |
+| `FRONTEND/src/graficos/index.js` | API publica da biblioteca de graficos |
 
-**`doc.md`** e **`README.md`** na raiz são atalhos breves; o conteúdo técnico para agentes mantém-se **só em `agents.md`** (esta pasta).
+`doc.md` e `README.md` sao atalhos breves; o detalhe tecnico para agentes fica aqui em `agents.md`.
 
 ---
 

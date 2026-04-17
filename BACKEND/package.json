@@ -16,11 +16,13 @@
     "seed:unidades": "node scripts/seed-unidades-ps.js",
     "seed:gerencia": "node scripts/seed-gerencia-dados.js",
     "seed:all": "node scripts/seed-unidades-ps.js && node scripts/seed-gerencia-dados.js",
-    "pipeline:dados": "tsx src/cli/ingestDadosCsv.ts"
+    "pipeline:dados": "tsx src/cli/ingestDadosCsv.ts",
+    "pipeline:supabase": "tsx src/cli/syncCsvToSupabase.ts"
   },
   "dependencies": {
     "cors": "^2.8.6",
     "dotenv": "^17.4.1",
+    "duckdb": "^1.4.4",
     "express": "^5.2.1",
     "pg": "^8.14.1",
     "redis": "^4.7.1"

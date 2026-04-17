@@ -1,12 +1,10 @@
 /**
- * Rotas v1 — núcleo: KPI, overview, raiz /api inválida, meta stack, health.
+ * Rotas v1: nucleo, meta stack e health.
  */
 import type { Express, Request, Response } from 'express';
-import {
-  getStaleCacheBackend,
-  isRedisConnected,
-} from '../../cache/redisMemoryCache.js';
+import { getStaleCacheBackend, isRedisConnected } from '../../cache/redisMemoryCache.js';
 import { getDataSourceKind } from '../../models/dataSource.js';
+import { getGerenciaMaxPeriodDays, getGerenciaWarmStatus } from '../../repositories/gerenciaRepository.js';
 import liveService from '../../services/liveService.js';
 import { asyncJsonRoute } from '../../views/apiResponse.js';
 
@@ -16,7 +14,7 @@ export function mountInvalidApiRoot(app: Express): void {
   app.get(['/api', '/api/'], (_req: Request, res: Response) => {
     res.status(404).json({
       ok: false,
-      error: 'Rota inválida. Use prefixo /api/v1 (ex.: GET /api/v1/kpi).',
+      error: 'Rota invalida. Use prefixo /api/v1 (ex.: GET /api/v1/kpi).',
     });
   });
 }
@@ -41,6 +39,9 @@ export function mountStackMetaAndHealth(app: Express): void {
         postgres_pool: Boolean(process.env.DATABASE_URL || process.env.PGHOST || process.env.DB_HOST),
         data_source: src,
         csv_direct: src === 'csv',
+        duckdb_local: src === 'duckdb',
+        gerencia_max_period_days: getGerenciaMaxPeriodDays(),
+        gerencia_warm_status: getGerenciaWarmStatus(),
         live_service_engine: 'nodejs_typescript',
       },
     });
@@ -51,7 +52,7 @@ export function mountStackMetaAndHealth(app: Express): void {
       status: 'ok',
       api: 'v1',
       description:
-        'Express + TypeScript (MVC) — dados: PostgreSQL, SQLite réplica, ou CSV em dados/ (leitura no Node; React consome a API).',
+        'Express + TypeScript (MVC) - dados: PostgreSQL, DuckDB, SQLite replica, ou CSV em dados/ (React consome a API).',
     });
   });
 }

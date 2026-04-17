@@ -8,6 +8,7 @@ import { asyncJsonRoute } from '../../views/apiResponse.js';
 const route = asyncJsonRoute;
 
 export function mountGerenciaV1Routes(app: Express): void {
+  app.get('/api/v1/gerencia/aperitivo', route((req) => liveService.getGerenciaAperitivo(req.query)));
   app.get('/api/v1/gerencia/unidades-ps', route((req) => liveService.getGerenciaUnidadesPs(req.query)));
   app.get('/api/v1/gerencia/metas-por-volumes', route((req) => liveService.getGerenciaMetasPorVolumes(req.query)));
   app.get('/api/v1/gerencia/metricas-por-unidade', route((req) => liveService.getGerenciaMetricasPorUnidade(req.query)));

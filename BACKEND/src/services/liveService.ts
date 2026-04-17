@@ -1,24 +1,93 @@
-// @ts-nocheck — domínio herdado do legado JS; tipar gradualmente se necessário.
+﻿// @ts-nocheck â€” domÃ­nio herdado do legado JS; tipar gradualmente se necessÃ¡rio.
 /**
- * live_service — Camada de API (fina).
+ * live_service â€” Camada de API (fina).
  *
- * Dados: db → fetchView (PostgreSQL ou SQLite) → mapeamento leve linha→JSON → { ok, data }.
+ * Dados: db â†’ fetchView (PostgreSQL ou SQLite) â†’ mapeamento leve linhaâ†’JSON â†’ { ok, data }.
  *
- * Evitar aqui: agregações pesadas, joins simulados em JS, laços sobre fatos
- * brutos muito grandes — isso aumenta delay na API.
+ * Evitar aqui: agregaÃ§Ãµes pesadas, joins simulados em JS, laÃ§os sobre fatos
+ * brutos muito grandes â€” isso aumenta delay na API.
  */
 
 import {
   attachMetasPorVolumesPorIndicadorUiTones,
   attachMetasPorVolumesUiTones,
 } from '../domain/gerencia/metasPorVolumesTones.js';
-import { parsePeriodStart, isInPeriod } from '../domain/shared/period.js';
-import { loadGerenciaDatasets } from '../repositories/gerenciaRepository.js';
+import { parsePeriodStart, parsePeriodEnd, isInPeriod } from '../domain/shared/period.js';
+import { cacheGetStale, cacheSetStale } from '../cache/redisMemoryCache.js';
+import {
+  getGerenciaHotCoverageDays,
+  getGerenciaMaxPeriodDays,
+  getGerenciaWarmStatus,
+  loadGerenciaDatasets,
+  ensureGerenciaWarmPlan,
+} from '../repositories/gerenciaRepository.js';
 import { readRepository } from '../repositories/readRepository.js';
 import { domainEventBus } from '../messaging/domainEventBus.js';
 import { DomainEvents } from '../domain/messages/events.js';
 
 const DIAS_SEMANA = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab', 'Dom'];
+const GERENCIA_APERITIVO_CACHE_KEY = 'hospital-bi:gerencia:aperitivo:v1:default';
+
+function normalizeGerenciaQuery(raw = {}) {
+  const q = { ...raw };
+  const maxPeriod = getGerenciaMaxPeriodDays();
+  const pRaw = Number(q.period);
+  let requestedPeriod = Number.isFinite(pRaw) && pRaw > 0 ? Math.floor(pRaw) : 7;
+  if (requestedPeriod === 366) requestedPeriod = maxPeriod;
+  const capped = requestedPeriod > maxPeriod;
+  const effectivePeriod = Math.max(1, Math.min(requestedPeriod, maxPeriod));
+  q.period = effectivePeriod;
+  return {
+    q,
+    requestedPeriod,
+    effectivePeriod,
+    capped,
+  };
+}
+
+function isDefaultGerenciaScope(q = {}) {
+  return String(q.regional ?? '').trim() === '' && String(q.unidade ?? '').trim() === '';
+}
+
+async function loadAperitivoCache() {
+  try {
+    const raw = await cacheGetStale(GERENCIA_APERITIVO_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || !parsed.bundle) return null;
+    return parsed.bundle;
+  } catch {
+    return null;
+  }
+}
+
+async function saveAperitivoCache(bundle) {
+  try {
+    await cacheSetStale(
+      GERENCIA_APERITIVO_CACHE_KEY,
+      JSON.stringify({ at: new Date().toISOString(), bundle }),
+    );
+  } catch {
+    /* ignore */
+  }
+}
+
+function readCell(row, ...keys) {
+  for (const k of keys) {
+    if (row?.[k] != null && String(row[k]).trim() !== '') return row[k];
+    const up = String(k).toUpperCase();
+    if (row?.[up] != null && String(row[up]).trim() !== '') return row[up];
+    const lo = String(k).toLowerCase();
+    if (row?.[lo] != null && String(row[lo]).trim() !== '') return row[lo];
+  }
+  return null;
+}
+
+function numCell(row, ...keys) {
+  const v = readCell(row, ...keys);
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
 
 const emptyKpiField = () => ({
   valor: 0,
@@ -40,21 +109,21 @@ const emptySla = () => ({
 
 const slaKeys = ['triagem', 'consulta', 'medicacao', 'reavaliacao', 'rx_ecg', 'tc_us', 'permanencia'];
 
-/** Indicadores da matriz “Metas por volumes” (alinhado ao modelo Power BI). */
+/** Indicadores da matriz â€œMetas por volumesâ€ (alinhado ao modelo Power BI). */
 const METAS_POR_VOLUMES_INDICADORES = [
-  { key: 'conversao', name: 'Conversão', isReverso: true, isP: true },
+  { key: 'conversao', name: 'ConversÃ£o', isReverso: true, isP: true },
   { key: 'pacs_medicados', name: 'Pacs medicados', isReverso: true, isP: true },
-  { key: 'medicacoes_por_paciente', name: 'Medicações por paciente', isReverso: true, isP: false },
+  { key: 'medicacoes_por_paciente', name: 'MedicaÃ§Ãµes por paciente', isReverso: true, isP: false },
   { key: 'pacs_exames_lab', name: 'Pacs c/ exames laboratoriais', isReverso: true, isP: true },
-  { key: 'lab_por_paciente', name: 'Laboratório por paciente', isReverso: true, isP: false },
+  { key: 'lab_por_paciente', name: 'LaboratÃ³rio por paciente', isReverso: true, isP: false },
   { key: 'pacs_exames_tc', name: 'Pacs c/ exames de TC', isReverso: true, isP: true },
   { key: 'tcs_por_paciente', name: 'TCs por paciente', isReverso: true, isP: false },
   { key: 'triagem_acima_meta', name: 'Triagem acima da meta', isReverso: true, isP: true },
   { key: 'consulta_acima_meta', name: 'Consulta acima da meta', isReverso: true, isP: true },
-  { key: 'medicacao_acima_meta', name: 'Medicação acima da meta', isReverso: true, isP: true },
-  { key: 'reavaliacao_acima_meta', name: 'Reavaliação acima da meta', isReverso: true, isP: true },
-  { key: 'permanencia_acima_meta', name: 'Permanência acima da meta', isReverso: true, isP: true },
-  { key: 'desfecho_medico', name: 'Desfecho do médico do atend.', isReverso: false, isP: true },
+  { key: 'medicacao_acima_meta', name: 'MedicaÃ§Ã£o acima da meta', isReverso: true, isP: true },
+  { key: 'reavaliacao_acima_meta', name: 'ReavaliaÃ§Ã£o acima da meta', isReverso: true, isP: true },
+  { key: 'permanencia_acima_meta', name: 'PermanÃªncia acima da meta', isReverso: true, isP: true },
+  { key: 'desfecho_medico', name: 'Desfecho do mÃ©dico do atend.', isReverso: false, isP: true },
 ];
 
 function emptyMetasMonthCells() {
@@ -86,10 +155,10 @@ function defaultRollingMonths() {
   return { months, mesKeys };
 }
 
-/** Meses (YYYY-MM) que intersectam [parsePeriodStart(query), hoje] — alinhado ao filtro 30 / 90 / ano. */
+/** Meses (YYYY-MM) que intersectam [parsePeriodStart(query), hoje] â€” alinhado ao filtro 30 / 90 / ano. */
 function monthKeysOverlappingQueryPeriod(query = {}) {
   const start = parsePeriodStart(query);
-  const end = new Date();
+  const end = parsePeriodEnd(query);
   const keys = [];
   const cur = new Date(start.getFullYear(), start.getMonth(), 1);
   const endMonth = new Date(end.getFullYear(), end.getMonth(), 1);
@@ -97,8 +166,8 @@ function monthKeysOverlappingQueryPeriod(query = {}) {
     keys.push(toMonthKey(cur));
     cur.setMonth(cur.getMonth() + 1);
   }
-  if (!keys.length) keys.push(toMonthKey(new Date()));
-  // ECharts linha/barras precisam de ≥2 categorias; com 7 dias no mesmo mês só havia 1 chave.
+  if (!keys.length) keys.push(toMonthKey(end));
+  // ECharts linha/barras precisam de â‰¥2 categorias; com 7 dias no mesmo mÃªs sÃ³ havia 1 chave.
   while (keys.length > 0 && keys.length < 2) {
     const prev = shiftMonthKey(keys[0], -1);
     if (prev === keys[0]) break;
@@ -117,7 +186,7 @@ function emptyMetasMesesCells(mesKeys) {
   const z = () => ({ v: 0, d: 0 });
   return {
     meses: (mesKeys || []).map(() => z()),
-    t: { v: 0, ytd: 0, sec: '(—)' },
+    t: { v: 0, ytd: 0, sec: '(â€”)' },
   };
 }
 
@@ -139,7 +208,7 @@ function mergeGerenciaMonthlyRowPacks(ds, pred, unitMap, unidadeId, monthKeys, q
   return out;
 }
 
-/** Desloca YYYY-MM por deltaMonths (ex.: -1 = mês anterior). */
+/** Desloca YYYY-MM por deltaMonths (ex.: -1 = mÃªs anterior). */
 function shiftMonthKey(monthKey, deltaMonths) {
   const parts = String(monthKey).split('-');
   const ys = parseInt(parts[0], 10);
@@ -153,7 +222,7 @@ function januaryKeyOf(monthKey) {
   return `${y}-01`;
 }
 
-/** Meses extras: m-1 do primeiro mês (VAR. da 1ª coluna) e janeiro do ano do último mês (YTD). */
+/** Meses extras: m-1 do primeiro mÃªs (VAR. da 1Âª coluna) e janeiro do ano do Ãºltimo mÃªs (YTD). */
 function metasPorVolumesSupportMonthKeys(mesKeys) {
   if (!mesKeys || !mesKeys.length) return [];
   const have = new Set(mesKeys);
@@ -176,7 +245,7 @@ function buildMetasPorVolumesRowsByMonthByUnit(ds, unitMap, pred, mesKeys, perio
     const clip = mesSet.has(k);
     rowsByMonthByUnit[k] = {
       fluxRows: groupRowsByUnitInMonth(ds.fluxRows, unitMap, pred, ['DATA', 'DT_ENTRADA'], k, periodQuery, clip),
-      /** PBI % conversão: numerador no mês de DT_INTERNACAO (não no mês da DATA do atendimento). */
+      /** PBI % conversÃ£o: numerador no mÃªs de DT_INTERNACAO (nÃ£o no mÃªs da DATA do atendimento). */
       fluxInternacaoMesRows: groupRowsByUnitInMonth(
         fluxInternados,
         unitMap,
@@ -251,8 +320,8 @@ function emptyRowPack() {
 }
 
 /**
- * Agrega os 3 meses da grade num único pacote — “Total” da matriz (VALOR sintético do período).
- * Recalcula razões sobre volumes fundidos (ex.: medicações/paciente ≠ média das taxas mensais).
+ * Agrega os 3 meses da grade num Ãºnico pacote â€” â€œTotalâ€ da matriz (VALOR sintÃ©tico do perÃ­odo).
+ * Recalcula razÃµes sobre volumes fundidos (ex.: medicaÃ§Ãµes/paciente â‰  mÃ©dia das taxas mensais).
  */
 function mergeRowPacksAcrossMonths(rowsByMonthByUnit, mesKeys, unidadeId) {
   const out = emptyRowPack();
@@ -273,11 +342,11 @@ function mergeRowPacksAcrossMonths(rowsByMonthByUnit, mesKeys, unidadeId) {
 }
 
 /**
- * Unidades com PS — cadastro oficial (código + nome + UF).
- * Rótulo exibido: {codigo} - {unidadeNome}_{regional}. Lista via fetchView (SQLite).
+ * Unidades com PS â€” cadastro oficial (cÃ³digo + nome + UF).
+ * RÃ³tulo exibido: {codigo} - {unidadeNome}_{regional}. Lista via fetchView (SQLite).
  */
 const DEMO_UNIDADES_PS = [
-  { codigo: '001', unidadeId: '001', unidadeNome: 'PS HOSPITAL VITÓRIA', regional: 'ES' },
+  { codigo: '001', unidadeId: '001', unidadeNome: 'PS HOSPITAL VITÃ“RIA', regional: 'ES' },
   { codigo: '003', unidadeId: '003', unidadeNome: 'PS VILA VELHA', regional: 'ES' },
   { codigo: '013', unidadeId: '013', unidadeNome: 'PS SIG', regional: 'DF' },
   { codigo: '025', unidadeId: '025', unidadeNome: 'PS BARRA DA TIJUCA', regional: 'RJ' },
@@ -308,14 +377,14 @@ function sortUnidadesPorCodigo(list) {
   });
 }
 
-/** Lista para filtro do cabeçalho: respeita regional; não filtra por unidade (o select precisa de todas da regional). */
+/** Lista para filtro do cabeÃ§alho: respeita regional; nÃ£o filtra por unidade (o select precisa de todas da regional). */
 function listUnidadesPsParaFiltro(query = {}) {
   let list = [...DEMO_UNIDADES_PS];
   if (query.regional) list = list.filter((u) => u.regional === query.regional);
   return sortUnidadesPorCodigo(list);
 }
 
-/** Unidades no contexto da matriz (regional + opcionalmente uma unidade só). */
+/** Unidades no contexto da matriz (regional + opcionalmente uma unidade sÃ³). */
 function filterUnidadesPsMatriz(query = {}) {
   let list = [...DEMO_UNIDADES_PS];
   if (query.regional) list = list.filter((u) => u.regional === query.regional);
@@ -362,23 +431,23 @@ function metasPorVolumesMatrixForQuery(query = {}) {
 }
 
 /**
- * Colunas da grade “indicadores por unidade” (PS) — alinhado ao painel do BI.
+ * Colunas da grade â€œindicadores por unidadeâ€ (PS) â€” alinhado ao painel do BI.
  * kind: int | pct | decimal | text
  *
- * pctSense (só kind pct): como interpretar % para verde/vermelho na UI.
- * - high_good: quanto maior, melhor → verde se valor >= pctGreenAt; vermelho se valor <= pctRedAt
- * - low_good: quanto menor, melhor → verde se valor <= pctGreenAt; vermelho se valor >= pctRedAt
- * Sem pctSense / sem limiares: só negrito neutro (evita generalizar 80/40).
- * Limiares são metas de referência até a réplica SQLite devolver valores por período.
+ * pctSense (sÃ³ kind pct): como interpretar % para verde/vermelho na UI.
+ * - high_good: quanto maior, melhor â†’ verde se valor >= pctGreenAt; vermelho se valor <= pctRedAt
+ * - low_good: quanto menor, melhor â†’ verde se valor <= pctGreenAt; vermelho se valor >= pctRedAt
+ * Sem pctSense / sem limiares: sÃ³ negrito neutro (evita generalizar 80/40).
+ * Limiares sÃ£o metas de referÃªncia atÃ© a rÃ©plica SQLite devolver valores por perÃ­odo.
  */
 const METRICAS_POR_UNIDADE_COLUNAS = [
   { key: 'atendimentos', label: 'Atendimentos', kind: 'int' },
   { key: 'altas', label: 'Altas', kind: 'int' },
-  { key: 'obitos', label: 'Óbitos', kind: 'int' },
-  { key: 'pct_evasao', label: '% Evasão', kind: 'pct', pctSense: 'low_good', pctGreenAt: 8, pctRedAt: 22 },
+  { key: 'obitos', label: 'Ã“bitos', kind: 'int' },
+  { key: 'pct_evasao', label: '% EvasÃ£o', kind: 'pct', pctSense: 'low_good', pctGreenAt: 8, pctRedAt: 22 },
   {
     key: 'pct_desfecho_sobre_altas',
-    label: '% desfecho médico (s/ altas)',
+    label: '% desfecho mÃ©dico (s/ altas)',
     kind: 'pct',
     pctSense: 'high_good',
     pctGreenAt: 82,
@@ -386,16 +455,16 @@ const METRICAS_POR_UNIDADE_COLUNAS = [
   },
   {
     key: 'pct_desfecho_medico',
-    label: '% desfecho do médico do atend.',
+    label: '% desfecho do mÃ©dico do atend.',
     kind: 'pct',
     pctSense: 'high_good',
     pctGreenAt: 82,
     pctRedAt: 58,
   },
-  { key: 'saidas', label: 'Saídas', kind: 'int' },
-  { key: 'internacoes', label: 'Internações', kind: 'int' },
-  { key: 'pct_conversao', label: '% Conversão', kind: 'pct', pctSense: 'high_good', pctGreenAt: 12, pctRedAt: 4 },
-  { key: 'pct_reavaliacao', label: '% Reavaliação', kind: 'pct', pctSense: 'high_good', pctGreenAt: 22, pctRedAt: 8 },
+  { key: 'saidas', label: 'SaÃ­das', kind: 'int' },
+  { key: 'internacoes', label: 'InternaÃ§Ãµes', kind: 'int' },
+  { key: 'pct_conversao', label: '% ConversÃ£o', kind: 'pct', pctSense: 'high_good', pctGreenAt: 12, pctRedAt: 4 },
+  { key: 'pct_reavaliacao', label: '% ReavaliaÃ§Ã£o', kind: 'pct', pctSense: 'high_good', pctGreenAt: 22, pctRedAt: 8 },
   {
     key: 'pct_pacientes_medicados',
     label: '% pacientes medicados',
@@ -404,21 +473,21 @@ const METRICAS_POR_UNIDADE_COLUNAS = [
     pctGreenAt: 88,
     pctRedAt: 68,
   },
-  { key: 'media_medicacoes_por_pac', label: 'Média medicações por pac', kind: 'decimal' },
+  { key: 'media_medicacoes_por_pac', label: 'MÃ©dia medicaÃ§Ãµes por pac', kind: 'decimal' },
   {
     key: 'pct_medicacoes_rapidas',
-    label: '% medicações rápidas',
+    label: '% medicaÃ§Ãµes rÃ¡pidas',
     kind: 'pct',
     pctSense: 'high_good',
     pctGreenAt: 72,
     pctRedAt: 42,
   },
-  { key: 'pct_pacientes_lab', label: '% pacientes com laboratório', kind: 'pct', pctSense: 'high_good', pctGreenAt: 55, pctRedAt: 28 },
-  { key: 'media_lab_por_pac', label: 'Média laborat./pac', kind: 'decimal' },
+  { key: 'pct_pacientes_lab', label: '% pacientes com laboratÃ³rio', kind: 'pct', pctSense: 'high_good', pctGreenAt: 55, pctRedAt: 28 },
+  { key: 'media_lab_por_pac', label: 'MÃ©dia laborat./pac', kind: 'decimal' },
   { key: 'pct_pacientes_rx', label: '% pacientes com RX', kind: 'pct', pctSense: 'high_good', pctGreenAt: 48, pctRedAt: 22 },
   { key: 'pct_pacientes_ecg', label: '% pacientes com ECG', kind: 'pct', pctSense: 'high_good', pctGreenAt: 32, pctRedAt: 14 },
   { key: 'pct_pacientes_tc', label: '% pacientes com TC', kind: 'pct', pctSense: 'high_good', pctGreenAt: 22, pctRedAt: 8 },
-  { key: 'media_tcs_por_pac', label: 'Média TCs/pac', kind: 'decimal' },
+  { key: 'media_tcs_por_pac', label: 'MÃ©dia TCs/pac', kind: 'decimal' },
   { key: 'pct_pacientes_us', label: '% pacientes com US', kind: 'pct', pctSense: 'high_good', pctGreenAt: 28, pctRedAt: 10 },
 ];
 
@@ -448,25 +517,25 @@ function metricasPorUnidadeForQuery(query = {}) {
 }
 
 /**
- * Faixa de totais consolidados (mesmas dimensões da grade por unidade, valores absolutos).
- * Query: ?period=&regional=&unidade= — agregação conforme dados na réplica.
+ * Faixa de totais consolidados (mesmas dimensÃµes da grade por unidade, valores absolutos).
+ * Query: ?period=&regional=&unidade= â€” agregaÃ§Ã£o conforme dados na rÃ©plica.
  */
 const GERENCIA_TOTAIS_PS_DEF = [
   { key: 'atendimentos', label: 'Atendimentos' },
   { key: 'altas', label: 'Altas' },
-  { key: 'obitos', label: 'Óbitos' },
-  { key: 'evasoes', label: 'Evasões' },
+  { key: 'obitos', label: 'Ã“bitos' },
+  { key: 'evasoes', label: 'EvasÃµes' },
   { key: 'desfecho', label: 'Desfecho' },
-  { key: 'desfecho_medico', label: 'Desfecho médico do atend.' },
-  { key: 'saidas', label: 'Saídas' },
-  { key: 'internacoes', label: 'Internações' },
-  { key: 'conversoes', label: 'Conversões' },
-  { key: 'reavaliacoes', label: 'Reavaliações' },
+  { key: 'desfecho_medico', label: 'Desfecho mÃ©dico do atend.' },
+  { key: 'saidas', label: 'SaÃ­das' },
+  { key: 'internacoes', label: 'InternaÃ§Ãµes' },
+  { key: 'conversoes', label: 'ConversÃµes' },
+  { key: 'reavaliacoes', label: 'ReavaliaÃ§Ãµes' },
   { key: 'pacientes_medicados', label: 'Pacientes medicados' },
-  { key: 'medicacoes', label: 'Medicações' },
-  { key: 'medicacoes_rapidas', label: 'Medicações rápidas' },
-  { key: 'pacientes_lab', label: 'Pacientes c/ laboratório' },
-  { key: 'exames_lab', label: 'Exames laboratório' },
+  { key: 'medicacoes', label: 'MedicaÃ§Ãµes' },
+  { key: 'medicacoes_rapidas', label: 'MedicaÃ§Ãµes rÃ¡pidas' },
+  { key: 'pacientes_lab', label: 'Pacientes c/ laboratÃ³rio' },
+  { key: 'exames_lab', label: 'Exames laboratÃ³rio' },
   { key: 'pacientes_rx', label: 'Pacientes c/ RX' },
   { key: 'pacientes_ecg', label: 'Pacientes c/ ECG' },
   { key: 'pacientes_tc', label: 'Pacientes c/ TC' },
@@ -500,36 +569,36 @@ function gerenciaTotaisPsForQuery(query = {}) {
 }
 
 /**
- * Jornada: tempo médio por etapa (min) — colunas alinhadas ao BI.
- * columnBg: cor do destaque só quando valor > slaMaxMinutos (fora da meta). Na meta = visual neutro.
- * slaMaxMinutos: null até dados ou configuração definirem o SLA (min). Com null, não há destaque.
+ * Jornada: tempo mÃ©dio por etapa (min) â€” colunas alinhadas ao BI.
+ * columnBg: cor do destaque sÃ³ quando valor > slaMaxMinutos (fora da meta). Na meta = visual neutro.
+ * slaMaxMinutos: null atÃ© dados ou configuraÃ§Ã£o definirem o SLA (min). Com null, nÃ£o hÃ¡ destaque.
  */
 const TEMPO_MEDIO_ETAPAS_COLS = [
-  { key: 'totem_triagem', label: 'Totem → Triagem', icons: ['Ticket', 'Megaphone'], columnBg: null, slaMaxMinutos: null },
-  { key: 'totem_consulta', label: 'Totem → Consulta', icons: ['Ticket', 'Stethoscope'], columnBg: null, slaMaxMinutos: null },
-  { key: 'presc_medicacao', label: 'Prescrição → Medicação', icons: ['ClipboardList', 'Pill'], columnBg: null, slaMaxMinutos: null },
+  { key: 'totem_triagem', label: 'Totem â†’ Triagem', icons: ['Ticket', 'Megaphone'], columnBg: null, slaMaxMinutos: null },
+  { key: 'totem_consulta', label: 'Totem â†’ Consulta', icons: ['Ticket', 'Stethoscope'], columnBg: null, slaMaxMinutos: null },
+  { key: 'presc_medicacao', label: 'PrescriÃ§Ã£o â†’ MedicaÃ§Ã£o', icons: ['ClipboardList', 'Pill'], columnBg: null, slaMaxMinutos: null },
   {
     key: 'presc_rx_ecg',
-    label: 'Prescrição → Revisão (Execução)',
+    label: 'PrescriÃ§Ã£o â†’ RevisÃ£o (ExecuÃ§Ã£o)',
     icons: ['ClipboardList', 'ScanLine'],
     columnBg: null,
     slaMaxMinutos: null,
   },
   {
     key: 'presc_tc_us',
-    label: 'Prescrição → TC/US (Laudo)',
+    label: 'PrescriÃ§Ã£o â†’ TC/US (Laudo)',
     icons: ['ClipboardList', 'Scan'],
     columnBg: 'blue',
     slaMaxMinutos: null,
   },
   {
     key: 'pedido_reavaliacao',
-    label: 'Pedido → Reavaliação',
+    label: 'Pedido â†’ ReavaliaÃ§Ã£o',
     icons: ['PencilLine', 'RefreshCw'],
     columnBg: 'green',
     slaMaxMinutos: null,
   },
-  { key: 'permanencia_total', label: 'Permanência total', icons: ['Building2', 'Clock'], columnBg: null, slaMaxMinutos: null },
+  { key: 'permanencia_total', label: 'PermanÃªncia total', icons: ['Building2', 'Clock'], columnBg: null, slaMaxMinutos: null },
 ];
 
 function valoresTempoMedioZerados() {
@@ -552,7 +621,7 @@ function tempoMedioEtapasForQuery(query = {}) {
   const totais = { ...z };
 
   return {
-    titulo: 'Tempo médio por etapa (min)',
+    titulo: 'Tempo mÃ©dio por etapa (min)',
     etapas: TEMPO_MEDIO_ETAPAS_COLS,
     filtroUnidadeOpcoes: [{ value: '', label: 'Todas' }],
     linhas,
@@ -561,7 +630,7 @@ function tempoMedioEtapasForQuery(query = {}) {
   };
 }
 
-/** Labels fixos abr/25 … mar/26 (alinhado ao painel de referência). */
+/** Labels fixos abr/25 â€¦ mar/26 (alinhado ao painel de referÃªncia). */
 const METAS_ACOMP_MES_LABELS = (() => {
   const short = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
   const out = [];
@@ -578,7 +647,7 @@ const METAS_ACOMP_MES_LABELS = (() => {
   return out;
 })();
 
-/** Cor estável por índice da unidade (legenda = mesma cor da linha). */
+/** Cor estÃ¡vel por Ã­ndice da unidade (legenda = mesma cor da linha). */
 const METAS_ACOMP_CORES_UNIDADE = [
   '#92400e',
   '#2563eb',
@@ -593,8 +662,8 @@ const METAS_ACOMP_CORES_UNIDADE = [
 ];
 
 /**
- * Meta de referência por métrica (faixa de ribbon / gauge até a réplica preencher valores).
- * sense: derivado de isReverso — low_good = quanto menor melhor; high_good = quanto maior melhor.
+ * Meta de referÃªncia por mÃ©trica (faixa de ribbon / gauge atÃ© a rÃ©plica preencher valores).
+ * sense: derivado de isReverso â€” low_good = quanto menor melhor; high_good = quanto maior melhor.
  */
 const METAS_ACOMP_POR_KEY = {
   conversao: { meta: 6 },
@@ -640,13 +709,28 @@ function toMonthKey(d) {
 }
 
 function nKey(...parts) {
-  return parts.map((p) => String(p ?? '')).join('|');
+  return parts
+    .map((p) => String(p ?? '').trim())
+    .filter((s) => s !== '')
+    .join('|');
 }
 
 function distinctCountBy(rows, keyFn) {
   const s = new Set();
-  rows.forEach((r) => s.add(keyFn(r)));
+  rows.forEach((r) => {
+    const k = String(keyFn(r) ?? '').trim();
+    if (!k) return;
+    s.add(k);
+  });
   return s.size;
+}
+
+function firstNonEmpty(...vals) {
+  for (const v of vals) {
+    const s = String(v ?? '').trim();
+    if (s) return s;
+  }
+  return '';
 }
 
 function ratioPct(num, den) {
@@ -660,27 +744,29 @@ function isDestinoInternadoPbi(r) {
   return v.toLowerCase() === 'internado';
 }
 
-/** CD_MATERIAL excluídos em `Media medicacoes por pac` (Medidas.tmdl). */
+/** CD_MATERIAL excluÃ­dos em `Media medicacoes por pac` (Medidas.tmdl). */
 const PBI_VIAS_EXCLUDE_CD_MATERIAL = new Set([84278, 84288, 84153, 84271]);
 
 /**
- * Power BI: % desfecho — DISTINCTCOUNT onde DT_DESFECHO preenchido e MEDICO_DESFECHO = MEDICO_ATENDIMENTO.
+ * Power BI: % desfecho â€” DISTINCTCOUNT onde DT_DESFECHO preenchido e MEDICO_DESFECHO = MEDICO_ATENDIMENTO.
  */
 function desfechoMedicoAtendDistinctCountPbi(fluxRows) {
   const s = new Set();
   fluxRows.forEach((r) => {
     if (!pickDate(r, ['DT_DESFECHO'])) return;
-    const md = normUpper(String(r.MEDICO_DESFECHO ?? '').trim());
-    const ma = normUpper(String(r.MEDICO_ATENDIMENTO ?? '').trim());
+    const md = normUpper(firstNonEmpty(r.MEDICO_DESFECHO, r.MEDICO_ALTA, r.MEDICO_AUDITORIA));
+    const ma = normUpper(firstNonEmpty(r.MEDICO_ATENDIMENTO, r.MEDICO_ALTA, r.MEDICO_AUDITORIA));
     if (!md || !ma || md !== ma) return;
-    s.add(nKey(r.NR_ATENDIMENTO));
+    const atendimentoKey = nKey(r.NR_ATENDIMENTO, r.NR_ATENDIMENTO_URG, r.NR_ATENDIMENTO_INT);
+    if (!atendimentoKey) return;
+    s.add(atendimentoKey);
   });
   return s.size;
 }
 
 /**
- * Power BI: DATEDIFF(DT_SOLIC_REAVALIACAO, referência, MINUTE) em `% Atend > Tempo reavaliacao (0)`.
- * Referência = menor não-nula entre DT_EVO_PRESC e DT_FIM_REAVALIACAO (lógica SWITCH do DAX).
+ * Power BI: DATEDIFF(DT_SOLIC_REAVALIACAO, referÃªncia, MINUTE) em `% Atend > Tempo reavaliacao (0)`.
+ * ReferÃªncia = menor nÃ£o-nula entre DT_EVO_PRESC e DT_FIM_REAVALIACAO (lÃ³gica SWITCH do DAX).
  */
 function reavaliacaoMinutosPbi(r) {
   const dtIni = pickDate(r, ['DT_SOLIC_REAVALIACAO']);
@@ -710,9 +796,11 @@ function mediaMedicacoesPorPacientePbi(viasRows) {
   viasRows.forEach((r) => {
     const cd = asNumber(r.CD_MATERIAL);
     if (PBI_VIAS_EXCLUDE_CD_MATERIAL.has(cd)) return;
-    const nr = nKey(r.NR_ATENDIMENTO);
+    const nr = nKey(r.NR_ATENDIMENTO, r.NR_ATENDIMENTO_URG, r.NR_ATENDIMENTO_INT);
+    if (!nr) return;
     if (!byNr.has(nr)) byNr.set(nr, new Set());
-    byNr.get(nr).add(`${nKey(r.NR_PRESCRICAO)}|${cd}`);
+    const presc = firstNonEmpty(r.NR_PRESCRICAO, r.NR_SEQ_MAT_CPOE, r.CD_MATERIAL);
+    byNr.get(nr).add(`${presc}|${cd}`);
   });
   if (!byNr.size) return 0;
   let sum = 0;
@@ -826,7 +914,7 @@ function rowUnidadeNome(row) {
   return String(row?.UNIDADE ?? row?.unidade ?? '').trim();
 }
 
-/** Chaves equivalentes para cruzar fact (CD numérico) com cadastro (ex.: 1 vs 001). */
+/** Chaves equivalentes para cruzar fact (CD numÃ©rico) com cadastro (ex.: 1 vs 001). */
 function establishmentIdLookupKeys(id) {
   const s = String(id ?? '').trim();
   if (!s) return [];
@@ -842,7 +930,7 @@ function establishmentIdLookupKeys(id) {
   return [...keys];
 }
 
-/** Resolve linha factual → meta da unidade (id com zeros ou só nome). */
+/** Resolve linha factual â†’ meta da unidade (id com zeros ou sÃ³ nome). */
 function resolveUnitFromRow(row, unitMap) {
   const id = rowUnitId(row);
   if (id) {
@@ -866,8 +954,8 @@ function buildRowPredicate(query, unitMap) {
 }
 
 /**
- * Linhas por unidade e mês (eixo DATA no fluxo) + slice de internação no mês (PBI % conversão).
- * Usado nos gráficos de 12 meses (acompanhamento / % conformes).
+ * Linhas por unidade e mÃªs (eixo DATA no fluxo) + slice de internaÃ§Ã£o no mÃªs (PBI % conversÃ£o).
+ * Usado nos grÃ¡ficos de 12 meses (acompanhamento / % conformes).
  */
 function buildMonthlyGerenciaRowPack(ds, pred, unitMap, unidadeId, mk, query = {}) {
   const uid = String(unidadeId);
@@ -911,36 +999,66 @@ function metaLimitRowsByKey(rows, keyText, fallback) {
 function reduceMetrics(rows, ctx) {
   const fluxRows = rows.fluxRows || [];
   const fluxRowCount = fluxRows.length;
-  const atendimentos = distinctCountBy(fluxRows, (r) => nKey(r.NR_ATENDIMENTO));
+  const atendimentosDistinct = distinctCountBy(fluxRows, (r) =>
+    nKey(r.NR_ATENDIMENTO, r.NR_ATENDIMENTO_URG, r.NR_ATENDIMENTO_INT),
+  );
+  const atendimentos = atendimentosDistinct || fluxRowCount;
   const altas = rows.altasRows.length;
   const obitos = rows.altasRows.filter((r) => containsAny(r.TIPO_DESFECHO || r.DS_MOTIVO_ALTA, ['OBITO'])).length;
   const evasoes = rows.altasRows.filter((r) => containsAny(r.TIPO_DESFECHO || r.DS_MOTIVO_ALTA, ['EVADI', 'EVAS'])).length;
-  /** PBI: COUNT internados no contexto de mês de internação (série) ou fluxo com DESTINO no mesmo slice (período único). */
+  /** PBI: COUNT internados no contexto de mÃªs de internaÃ§Ã£o (sÃ©rie) ou fluxo com DESTINO no mesmo slice (perÃ­odo Ãºnico). */
   const internadosFluxCount =
     rows.fluxInternacaoMesRows != null
       ? rows.fluxInternacaoMesRows.length
       : fluxRows.filter(isDestinoInternadoPbi).length;
   const internacoes = internadosFluxCount;
-  const conversoes = distinctCountBy(rows.convRows, (r) => nKey(r.NR_ATENDIMENTO_URG));
+  const conversoesDistinct = distinctCountBy(rows.convRows, (r) =>
+    nKey(r.NR_ATENDIMENTO_URG, r.NR_ATENDIMENTO_INT, r.NR_ATEND_ALTA),
+  );
+  const conversoes = conversoesDistinct || rows.convRows.length;
   const saidas = altas + evasoes + obitos;
-  const reavaliacoes = distinctCountBy(rows.reavRows, (r) => nKey(r.NR_ATENDIMENTO));
+  const reavaliacoesDistinct = distinctCountBy(rows.reavRows, (r) =>
+    nKey(r.NR_ATENDIMENTO, r.NR_ATENDIMENTO_URG, r.NR_ATENDIMENTO_INT),
+  );
+  const reavaliacoes = reavaliacoesDistinct || rows.reavRows.length;
 
   const viasRows = rows.viasRows || [];
-  const pacientesMedicadosVias = distinctCountBy(viasRows, (r) => nKey(r.NR_ATENDIMENTO));
-  const pacientesMedicadosMed = distinctCountBy(rows.medRows, (r) => nKey(r.NR_ATENDIMENTO));
+  const pacientesMedicadosViasDistinct = distinctCountBy(viasRows, (r) =>
+    nKey(r.NR_ATENDIMENTO, r.NR_ATENDIMENTO_URG, r.NR_ATENDIMENTO_INT),
+  );
+  const pacientesMedicadosMedDistinct = distinctCountBy(rows.medRows, (r) =>
+    nKey(r.NR_ATENDIMENTO, r.NR_ATENDIMENTO_URG, r.NR_ATENDIMENTO_INT),
+  );
+  const pacientesMedicadosVias = pacientesMedicadosViasDistinct || viasRows.length;
+  const pacientesMedicadosMed = pacientesMedicadosMedDistinct || rows.medRows.length;
   const pacientesMedicados = viasRows.length ? pacientesMedicadosVias : pacientesMedicadosMed;
 
   const medicacoes = rows.medRows.length;
-  const pacientesLab = distinctCountBy(rows.labRows, (r) => nKey(r.NR_ATENDIMENTO));
+  const pacientesLabDistinct = distinctCountBy(rows.labRows, (r) =>
+    nKey(r.NR_ATENDIMENTO, r.NR_ATENDIMENTO_URG, r.NR_ATENDIMENTO_INT),
+  );
+  const pacientesLab = pacientesLabDistinct || rows.labRows.length;
   const examesLab = rows.labRows.length;
   const rxRows = rows.rxRows.filter((r) => containsAny(r.TIPO || r.EXAME, ['RX']));
   const ecgRows = rows.rxRows.filter((r) => containsAny(r.TIPO || r.EXAME, ['ECG']));
-  const pacientesRx = distinctCountBy(rxRows, (r) => nKey(r.NR_ATENDIMENTO));
-  const pacientesEcg = distinctCountBy(ecgRows, (r) => nKey(r.NR_ATENDIMENTO));
+  const pacientesRxDistinct = distinctCountBy(rxRows, (r) =>
+    nKey(r.NR_ATENDIMENTO, r.NR_ATENDIMENTO_URG, r.NR_ATENDIMENTO_INT),
+  );
+  const pacientesEcgDistinct = distinctCountBy(ecgRows, (r) =>
+    nKey(r.NR_ATENDIMENTO, r.NR_ATENDIMENTO_URG, r.NR_ATENDIMENTO_INT),
+  );
+  const pacientesRx = pacientesRxDistinct || rxRows.length;
+  const pacientesEcg = pacientesEcgDistinct || ecgRows.length;
   const tcRows = rows.tcusRows.filter((r) => containsAny(r.TIPO || r.EXAME, ['TC', 'TOMO']));
   const usRows = rows.tcusRows.filter((r) => containsAny(r.TIPO || r.EXAME, ['US', 'ULTRA']));
-  const pacientesTc = distinctCountBy(tcRows, (r) => nKey(r.NR_ATENDIMENTO));
-  const pacientesUs = distinctCountBy(usRows, (r) => nKey(r.NR_ATENDIMENTO));
+  const pacientesTcDistinct = distinctCountBy(tcRows, (r) =>
+    nKey(r.NR_ATENDIMENTO, r.NR_ATENDIMENTO_URG, r.NR_ATENDIMENTO_INT),
+  );
+  const pacientesUsDistinct = distinctCountBy(usRows, (r) =>
+    nKey(r.NR_ATENDIMENTO, r.NR_ATENDIMENTO_URG, r.NR_ATENDIMENTO_INT),
+  );
+  const pacientesTc = pacientesTcDistinct || tcRows.length;
+  const pacientesUs = pacientesUsDistinct || usRows.length;
   const tcs = tcRows.length;
 
   const triagemMeta = metaLimitRowsByKey(ctx.metasRows, 'TRIAGEM', 12);
@@ -977,10 +1095,10 @@ function reduceMetrics(rows, ctx) {
         ? medicacoes / pacientesMedicadosMed
         : 0;
 
-  /** Ref. “medicações/paciente”: linhas Vias (PBI) ou fallback prescrições. */
+  /** Ref. â€œmedicaÃ§Ãµes/pacienteâ€: linhas Vias (PBI) ou fallback prescriÃ§Ãµes. */
   const medicacoes_ref_linhas = viasRows.length ? viasRows.length : medicacoes;
 
-  /** Ref. matriz — alinhado aos denominadores PBI `(0)`. */
+  /** Ref. matriz â€” alinhado aos denominadores PBI `(0)`. */
   const metasPorVolumesRefs = {
     triagem_acima_meta: [triagemAcima, fluxRowCount],
     consulta_acima_meta: [consultaAcima, fluxRowCount],
@@ -1058,9 +1176,9 @@ function groupRowsByUnit(rows, unitMap, predicate, dateFields, query) {
 }
 
 /**
- * Agrupa por unidade restringindo ao mês yyyy-mm.
- * `applyPeriodClip`: meses da série principal — também exige isInPeriod (filtro do topo).
- * Chaves de apoio (mês anterior / jan) usam applyPeriodClip=false para VAR e YTD coerentes.
+ * Agrupa por unidade restringindo ao mÃªs yyyy-mm.
+ * `applyPeriodClip`: meses da sÃ©rie principal â€” tambÃ©m exige isInPeriod (filtro do topo).
+ * Chaves de apoio (mÃªs anterior / jan) usam applyPeriodClip=false para VAR e YTD coerentes.
  */
 function groupRowsByUnitInMonth(rows, unitMap, predicate, dateFields, monthKey, periodQuery, applyPeriodClip) {
   const buckets = new Map();
@@ -1115,14 +1233,14 @@ function metasPorVolumesMetricValue(m, key) {
 function fmtMetasPorVolumesRefPair(n, d) {
   const nn = Math.round(asNumber(n));
   const dd = Math.round(asNumber(d));
-  if (!dd && !nn) return '(—)';
+  if (!dd && !nn) return '(â€”)';
   if (!dd) return `(${nn})`;
   return `(${nn}/${dd})`;
 }
 
 /** Texto (ref.) por indicador, a partir de um `reduceMetrics` (ex.: janela 3 meses fundida). */
 function metasPorVolumesRefSec(m, key) {
-  if (!m) return '(—)';
+  if (!m) return '(â€”)';
   const r = m.metasPorVolumesRefs || {};
   switch (key) {
     case 'conversao':
@@ -1191,9 +1309,9 @@ function pairForMetasPorVolumesRefAgg(m, key) {
   }
 }
 
-/** (ref.) na linha pai = soma dos pares n/d de cada unidade (mesmo critério da coluna Valor sintética). */
+/** (ref.) na linha pai = soma dos pares n/d de cada unidade (mesmo critÃ©rio da coluna Valor sintÃ©tica). */
 function metasPorVolumesRefSecParent(unitSynthMs, key) {
-  if (!unitSynthMs?.length) return '(—)';
+  if (!unitSynthMs?.length) return '(â€”)';
   let n = 0;
   let d = 0;
   unitSynthMs.forEach((m) => {
@@ -1204,9 +1322,9 @@ function metasPorVolumesRefSecParent(unitSynthMs, key) {
   return fmtMetasPorVolumesRefPair(n, d);
 }
 
-/** (ref.) de um mês agregando todas as unidades — soma dos pares n/d de cada unidade naquele mês. */
+/** (ref.) de um mÃªs agregando todas as unidades â€” soma dos pares n/d de cada unidade naquele mÃªs. */
 function metasPorVolumesRefSecMonthAllUnits(rowsByMonthByUnit, monthKey, unitIds, ds, key) {
-  if (!unitIds?.length) return '(—)';
+  if (!unitIds?.length) return '(â€”)';
   let n = 0;
   let d = 0;
   unitIds.forEach((uid) => {
@@ -1231,15 +1349,15 @@ function metaRefDisplayMetasPorVolumes(ind) {
   const m = Number(cfg.meta) || 0;
   const v = fmtMetaBr(m);
   if (ind.isP) {
-    const cmp = ind.isReverso ? '≤' : '≥';
+    const cmp = ind.isReverso ? 'â‰¤' : 'â‰¥';
     const titulo = ind.isReverso
       ? `Meta: ${cmp} ${v}% (quanto menor, melhor)`
       : `Meta: ${cmp} ${v}% (quanto maior, melhor)`;
     return { texto: `${cmp} ${v}%`, titulo };
   }
   return {
-    texto: `≤ ${v}`,
-    titulo: `Meta: ≤ ${v} (quanto menor, melhor)`,
+    texto: `â‰¤ ${v}`,
+    titulo: `Meta: â‰¤ ${v} (quanto menor, melhor)`,
   };
 }
 
@@ -1270,7 +1388,7 @@ function metasAcompanhamentoGestaoForQuery(query = {}) {
   const gaugeMax = indResolved.isP ? 100 : Math.max(10, Number(meta) * 1.5 || 10);
 
   return {
-    titulo: 'Metas de acompanhamento da gestão',
+    titulo: 'Metas de acompanhamento da gestÃ£o',
     catalog: METAS_POR_VOLUMES_INDICADORES.map((x) => ({
       key: x.key,
       label: x.name,
@@ -1279,7 +1397,7 @@ function metasAcompanhamentoGestaoForQuery(query = {}) {
     })),
     selectedKey: metricKey,
     gauge: {
-      title: `${indResolved.name} global no período`,
+      title: `${indResolved.name} global no perÃ­odo`,
       value: globalVal,
       min: 0,
       max: gaugeMax,
@@ -1301,7 +1419,7 @@ function metasAcompanhamentoGestaoForQuery(query = {}) {
   };
 }
 
-/** Tendência global % metas conformes por unidade — conforme dados na réplica. */
+/** TendÃªncia global % metas conformes por unidade â€” conforme dados na rÃ©plica. */
 function metasConformesPorUnidadeForQuery(query = {}) {
   const units = filterUnidadesPsMatriz(query);
   const nMeses = METAS_ACOMP_MES_LABELS.length;
@@ -1354,7 +1472,7 @@ class LiveService {
   }
 
   /**
-   * Unidades que possuem PS — para o filtro do cabeçalho na visão Gerência.
+   * Unidades que possuem PS â€” para o filtro do cabeÃ§alho na visÃ£o GerÃªncia.
    * Mesmo shape de getKpiUnidades: { unidadeId, unidadeNome, regional }.
    */
   async getGerenciaUnidadesPs(query = {}) {
@@ -1363,7 +1481,7 @@ class LiveService {
   }
 
   /**
-   * Matriz consolidada “Metas por volumes” + drill por unidade (subItems).
+   * Matriz consolidada â€œMetas por volumesâ€ + drill por unidade (subItems).
    */
   async getGerenciaMetasPorVolumes(query = {}) {
     const allUnits = await loadUnidadesPsFromDb();
@@ -1478,7 +1596,7 @@ class LiveService {
   }
 
   /**
-   * Uma linha por unidade PS com volumes e percentuais (dados na réplica).
+   * Uma linha por unidade PS com volumes e percentuais (dados na rÃ©plica).
    * Query: ?period=&regional=&unidade=
    */
   async getGerenciaMetricasPorUnidade(query = {}) {
@@ -1606,7 +1724,7 @@ class LiveService {
     };
   }
 
-  /** Jornada PS: médias em minutos por etapa e por unidade. Query: period, regional, unidade, filtro */
+  /** Jornada PS: mÃ©dias em minutos por etapa e por unidade. Query: period, regional, unidade, filtro */
   async getGerenciaTempoMedioEtapas(query = {}) {
     const allUnits = await loadUnidadesPsFromDb();
     const units = filterUnitsByQuery(allUnits, query);
@@ -1688,9 +1806,9 @@ class LiveService {
   }
 
   /**
-   * Painel “Metas de acompanhamento”: catálogo de métricas + gauge global + série mensal por unidade.
+   * Painel â€œMetas de acompanhamentoâ€: catÃ¡logo de mÃ©tricas + gauge global + sÃ©rie mensal por unidade.
    * Query: period, regional, unidade, metric (key do indicador, ex. conversao).
-   * Valores conforme fetchView na réplica SQLite.
+   * Valores conforme fetchView na rÃ©plica SQLite.
    */
   async getGerenciaMetasAcompanhamentoGestao(query = {}) {
     const allUnits = await loadUnidadesPsFromDb();
@@ -1741,7 +1859,7 @@ class LiveService {
       };
     });
 
-    /** Gauge = média do indicador no período inteiro (volumes fundidos), por unidade. */
+    /** Gauge = mÃ©dia do indicador no perÃ­odo inteiro (volumes fundidos), por unidade. */
     const periodValByUnit = units.map((u) =>
       perMetric(reduceMetrics(mergeGerenciaMonthlyRowPacks(ds, pred, unitMap, u.unidadeId, monthKeys, query), ds)),
     );
@@ -1784,8 +1902,8 @@ class LiveService {
   }
 
   /**
-   * % metas conformes por unidade — meses alinhados ao filtro de período (30 / 90 / ano).
-   * Conforme tabelas/views existentes na réplica SQLite.
+   * % metas conformes por unidade â€” meses alinhados ao filtro de perÃ­odo (30 / 90 / ano).
+   * Conforme tabelas/views existentes na rÃ©plica SQLite.
    */
   async getGerenciaMetasConformesPorUnidade(query = {}) {
     const allUnits = await loadUnidadesPsFromDb();
@@ -1850,7 +1968,7 @@ class LiveService {
   }
 
   /**
-   * Drill explícito por indicador (opcional se a view principal não trouxer subItems).
+   * Drill explÃ­cito por indicador (opcional se a view principal nÃ£o trouxer subItems).
    * Query: ?period=&regional=&unidade=
    */
   async getGerenciaMetasPorVolumesPorIndicador(indicadorKey, filters) {
@@ -1914,11 +2032,10 @@ class LiveService {
   }
 
   /**
-   * Um único payload para a visão Gerência — uma ida ao Postgres (datasets partilhados)
-   * e agregação no Node; o React faz um só GET e pinta tudo de uma vez.
+   * Um Ãºnico payload para a visÃ£o GerÃªncia â€” uma ida ao Postgres (datasets partilhados)
+   * e agregaÃ§Ã£o no Node; o React faz um sÃ³ GET e pinta tudo de uma vez.
    */
-  async getGerenciaDashboardBundle(query = {}) {
-    const q = { ...query };
+  async buildGerenciaDashboardBundleCore(q = {}) {
     const metasAcompPromises = METAS_POR_VOLUMES_INDICADORES.map((ind) =>
       this.getGerenciaMetasAcompanhamentoGestao({ ...q, metric: ind.key }),
     );
@@ -1938,7 +2055,6 @@ class LiveService {
     const bundle = {
       schemaVersion: 1,
       generatedAt: new Date().toISOString(),
-      /** Eco do pedido para o React evitar mostrar dados “de outro período” após corridas. */
       queryEcho: {
         period: q.period != null && String(q.period).trim() !== '' ? String(q.period).trim() : '',
         regional: q.regional != null && String(q.regional).trim() !== '' ? String(q.regional).trim() : '',
@@ -1952,7 +2068,263 @@ class LiveService {
       unidadesPs: parts[5],
       metasAcompanhamentoByMetric,
     };
-    domainEventBus.emit(DomainEvents.GerenciaDashboardBundleBuilt, { query: q });
+    return bundle;
+  }
+
+  async buildGerenciaAperitivoLite(q = {}) {
+    const units = filterUnidadesPsMatriz(q);
+    const unitsOptions = listUnidadesPsParaFiltro(q);
+    const unitRows = await readRepository.safeView('ps_resumo_unidades_snapshot_prod', {
+      columns: 'cd_estabelecimento,hoje,ativos,internacao_qtd,triagem_acima_meta,consulta_acima_meta,permanencia_acima_meta,medicacao_acima_meta,reavaliacao_acima_meta',
+    });
+    const byCd = new Map();
+    for (const r of unitRows || []) {
+      const cd = String(readCell(r, 'cd_estabelecimento', 'CD_ESTABELECIMENTO') ?? '').padStart(3, '0');
+      if (!cd) continue;
+      byCd.set(cd, r);
+    }
+
+    let atendimentos = 0;
+    let internacoes = 0;
+    let emAtendimento = 0;
+    let triagemAcimaMeta = 0;
+    let consultaAcimaMeta = 0;
+    let permanenciaAcimaMeta = 0;
+    let medicacaoAcimaMeta = 0;
+    let reavaliacaoAcimaMeta = 0;
+    units.forEach((u) => {
+      const row = byCd.get(String(u.unidadeId).padStart(3, '0'));
+      if (!row) return;
+      atendimentos += numCell(row, 'hoje', 'HOJE');
+      emAtendimento += numCell(row, 'ativos', 'ATIVOS');
+      internacoes += numCell(row, 'internacao_qtd', 'INTERNACAO_QTD');
+      triagemAcimaMeta += numCell(row, 'triagem_acima_meta', 'TRIAGEM_ACIMA_META');
+      consultaAcimaMeta += numCell(row, 'consulta_acima_meta', 'CONSULTA_ACIMA_META');
+      permanenciaAcimaMeta += numCell(row, 'permanencia_acima_meta', 'PERMANENCIA_ACIMA_META');
+      medicacaoAcimaMeta += numCell(row, 'medicacao_acima_meta', 'MEDICACAO_ACIMA_META');
+      reavaliacaoAcimaMeta += numCell(row, 'reavaliacao_acima_meta', 'REAVALIACAO_ACIMA_META');
+    });
+
+    const values = {
+      atendimentos,
+      altas: 0,
+      obitos: 0,
+      evasoes: 0,
+      desfecho: 0,
+      desfecho_medico: 0,
+      saidas: 0,
+      internacoes,
+      conversoes: 0,
+      reavaliacoes: reavaliacaoAcimaMeta,
+      pacientes_medicados: 0,
+      medicacoes: 0,
+      medicacoes_rapidas: 0,
+      pacientes_lab: 0,
+      exames_lab: 0,
+      pacientes_rx: 0,
+      pacientes_ecg: 0,
+      pacientes_tc: 0,
+      tcs: 0,
+      pacientes_us: 0,
+    };
+
+    const tempoRows = units.map((u) => ({
+      unidadeId: u.unidadeId,
+      unidadeLabel: labelUnidadePs(u),
+      valores: {
+        totem_triagem: 0,
+        totem_consulta: 0,
+        presc_medicacao: 0,
+        presc_rx_ecg: 0,
+        presc_tc_us: 0,
+        pedido_reavaliacao: 0,
+        permanencia_total: 0,
+      },
+    }));
+
+    const months = defaultRollingMonths().mesKeys.slice(-2);
+    const monthLabels = monthsLabelsFromKeys(months);
+
+    const metasAcompanhamentoByMetric = {};
+    METAS_POR_VOLUMES_INDICADORES.forEach((ind) => {
+      const cfg = METAS_ACOMP_POR_KEY[ind.key] || { meta: 0 };
+      const sense = ind.isReverso ? 'low_good' : 'high_good';
+      metasAcompanhamentoByMetric[ind.key] = {
+        titulo: 'Metas de acompanhamento da gestao',
+        catalog: METAS_POR_VOLUMES_INDICADORES.map((x) => ({
+          key: x.key,
+          label: x.name,
+          isP: x.isP,
+          isReverso: x.isReverso,
+        })),
+        selectedKey: ind.key,
+        gauge: {
+          title: `${ind.name} global no periodo`,
+          value: 0,
+          min: 0,
+          max: ind.isP ? 100 : Math.max(10, Number(cfg.meta) * 1.5 || 10),
+          isPercent: ind.isP,
+          sense,
+        },
+        metaRibbon: {
+          target: cfg.meta,
+          sense,
+          text: `META ${fmtMetaBr(cfg.meta)} ${sense === 'low_good' ? '<' : '>'} melhor`,
+        },
+        months: monthLabels,
+        series: units.map((u, idx) => ({
+          unidadeId: u.unidadeId,
+          name: labelUnidadePs(u),
+          color: METAS_ACOMP_CORES_UNIDADE[idx % METAS_ACOMP_CORES_UNIDADE.length],
+          data: monthLabels.map(() => 0),
+        })),
+        meta: {
+          schemaVersion: 3,
+          filtroUnidades: 'regional_unidade_gerencia',
+          demo: false,
+          eixoMeses: 'periodo_topo',
+        },
+      };
+    });
+
+    return {
+      schemaVersion: 1,
+      generatedAt: new Date().toISOString(),
+      queryEcho: {
+        period: q.period != null && String(q.period).trim() !== '' ? String(q.period).trim() : '7',
+        regional: q.regional != null && String(q.regional).trim() !== '' ? String(q.regional).trim() : '',
+        unidade: q.unidade != null && String(q.unidade).trim() !== '' ? String(q.unidade).trim() : '',
+      },
+      totaisPs: {
+        cards: GERENCIA_TOTAIS_PS_DEF.map(({ key, label }) => ({
+          key,
+          label,
+          value: asNumber(values[key]),
+          format: 'int',
+        })),
+        meta: {
+          schemaVersion: 2,
+          titulo: 'Totais PS (aperitivo)',
+          source: 'ps_resumo_unidades_snapshot_prod',
+          em_atendimento: emAtendimento,
+        },
+      },
+      tempoMedioEtapas: {
+        titulo: 'Tempo medio por etapa (min)',
+        etapas: TEMPO_MEDIO_ETAPAS_COLS.map((e) => ({ ...e })),
+        filtroUnidadeOpcoes: [{ value: '', label: 'Todas' }, ...unitsOptions.map((u) => ({ value: u.unidadeId, label: labelUnidadePs(u) }))],
+        linhas: tempoRows,
+        totais: {
+          totem_triagem: 0,
+          totem_consulta: 0,
+          presc_medicacao: 0,
+          presc_rx_ecg: 0,
+          presc_tc_us: 0,
+          pedido_reavaliacao: 0,
+          permanencia_total: 0,
+        },
+        meta: { schemaVersion: 2, source: 'aperitivo_lite' },
+      },
+      metasPorVolumes: metasPorVolumesMatrixForQuery(q),
+      metasConformesPorUnidade: {
+        titulo: '% de metas conformes por unidade',
+        months: monthLabels,
+        isPercent: true,
+        series: units.map((u, idx) => ({
+          unidadeId: u.unidadeId,
+          name: labelUnidadePs(u),
+          color: METAS_ACOMP_CORES_UNIDADE[idx % METAS_ACOMP_CORES_UNIDADE.length],
+          data: monthLabels.map(() => 0),
+        })),
+        meta: { schemaVersion: 3, filtroUnidades: 'regional_unidade_gerencia', demo: false, eixoMeses: 'periodo_topo' },
+      },
+      metricasPorUnidade: metricasPorUnidadeForQuery(q),
+      unidadesPs: {
+        options: unitsOptions.map((u) => ({ value: u.unidadeId, label: labelUnidadePs(u) })),
+        meta: { schemaVersion: 1, source: 'aperitivo_lite' },
+      },
+      metasAcompanhamentoByMetric,
+    };
+  }
+
+  /**
+   * Um unico payload da Gerencia com orquestracao de cache:
+   * - aperitivo (7 dias) em JSON pronto para primeiro carregamento
+   * - aquecimento de 30 dias na primeira onda
+   * - segunda onda em 10 minutos para 60 dias
+   */
+  async getGerenciaDashboardBundle(query = {}) {
+    ensureGerenciaWarmPlan();
+    const { q, requestedPeriod, effectivePeriod, capped } = normalizeGerenciaQuery(query);
+    const hotCoverageDays = getGerenciaHotCoverageDays(q);
+    const warmStatus = getGerenciaWarmStatus();
+
+    if (effectivePeriod <= 7 && isDefaultGerenciaScope(q)) {
+      const cached = await loadAperitivoCache();
+      if (cached) {
+        return {
+          ...cached,
+          cacheOrchestration: {
+            source: 'aperitivo_json_cache',
+            requestedPeriod,
+            effectivePeriod,
+            cappedToMax60: capped,
+            hotCoverageDays,
+            warmStatus,
+          },
+        };
+      }
+    }
+
+    const bundle = await this.buildGerenciaDashboardBundleCore(q);
+    bundle.cacheOrchestration = {
+      source: hotCoverageDays > 0 ? `hot_window_${hotCoverageDays}d` : 'db_on_demand',
+      requestedPeriod,
+      effectivePeriod,
+      cappedToMax60: capped,
+      hotCoverageDays,
+      warmStatus,
+    };
+
+    if (effectivePeriod <= 7 && isDefaultGerenciaScope(q)) {
+      await saveAperitivoCache(bundle);
+    }
+
+    domainEventBus.emit(DomainEvents.GerenciaDashboardBundleBuilt, {
+      query: q,
+      cache_source: bundle.cacheOrchestration?.source,
+      hot_coverage_days: hotCoverageDays,
+    });
+    return bundle;
+  }
+
+  async getGerenciaAperitivo(query = {}) {
+    ensureGerenciaWarmPlan();
+    const q = { ...query, period: 7 };
+    const cached = await loadAperitivoCache();
+    if (cached) {
+      return {
+        ...cached,
+        cacheOrchestration: {
+          source: 'aperitivo_json_cache',
+          requestedPeriod: 7,
+          effectivePeriod: 7,
+          cappedToMax60: false,
+          hotCoverageDays: getGerenciaHotCoverageDays(q),
+          warmStatus: getGerenciaWarmStatus(),
+        },
+      };
+    }
+    const bundle = await this.buildGerenciaAperitivoLite(q);
+    bundle.cacheOrchestration = {
+      source: 'aperitivo_lite_snapshot',
+      requestedPeriod: 7,
+      effectivePeriod: 7,
+      cappedToMax60: false,
+      hotCoverageDays: getGerenciaHotCoverageDays(q),
+      warmStatus: getGerenciaWarmStatus(),
+    };
+    await saveAperitivoCache(bundle);
     return bundle;
   }
 
@@ -2147,3 +2519,4 @@ class LiveService {
 }
 
 export default new LiveService();
+

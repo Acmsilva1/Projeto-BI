@@ -74,10 +74,20 @@ if (forced === 'postgres' || (forced == null && wantsPostgres())) {
   const duckdbPath = resolveDuckdbPath();
   const duckLayer = createDuckdbDataLayer(duckdbPath, csvDir);
   const csvLayer = createCsvDataLayer(csvDir);
-  let duckAvailable = true;
+  let duckConsecutiveFails = 0;
+  let duckDisabledUntil = 0;
+  let loggedCooldown = false;
   const DUCKDB_FAILFAST_MS = (() => {
-    const n = Number(process.env.DUCKDB_FAILFAST_MS ?? '1500');
-    return Number.isFinite(n) && n >= 100 ? Math.min(Math.floor(n), 10_000) : 1500;
+    const n = Number(process.env.DUCKDB_FAILFAST_MS ?? '6000');
+    return Number.isFinite(n) && n >= 100 ? Math.min(Math.floor(n), 10_000) : 6000;
+  })();
+  const DUCKDB_DEGRADE_AFTER = (() => {
+    const n = Number(process.env.DUCKDB_DEGRADE_AFTER ?? '3');
+    return Number.isFinite(n) && n >= 1 ? Math.min(Math.floor(n), 20) : 3;
+  })();
+  const DUCKDB_COOLDOWN_MS = (() => {
+    const n = Number(process.env.DUCKDB_COOLDOWN_MS ?? '15000');
+    return Number.isFinite(n) && n >= 1000 ? Math.min(Math.floor(n), 120_000) : 15000;
   })();
 
   function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
@@ -97,15 +107,35 @@ if (forced === 'postgres' || (forced == null && wantsPostgres())) {
   }
 
   fetchView = async (viewName, filters = {}, options = {}) => {
-    if (duckAvailable) {
+    if (Date.now() >= duckDisabledUntil) {
       try {
-        return await withTimeout(duckLayer.fetchView(viewName, filters, options), DUCKDB_FAILFAST_MS);
+        const rows = await withTimeout(duckLayer.fetchView(viewName, filters, options), DUCKDB_FAILFAST_MS);
+        duckConsecutiveFails = 0;
+        duckDisabledUntil = 0;
+        if (loggedCooldown) {
+          console.log('[db] DuckDB recuperado — retomando caminho principal.');
+          loggedCooldown = false;
+        }
+        setDataSourceKind('duckdb');
+        return rows;
       } catch (e) {
-        duckAvailable = false;
-        setDataSourceKind('csv');
+        duckConsecutiveFails += 1;
         const msg = e instanceof Error ? e.message : String(e);
-        console.warn(`[db] DuckDB indisponivel, fallback para CSV: ${msg}`);
+        if (duckConsecutiveFails >= DUCKDB_DEGRADE_AFTER) {
+          duckDisabledUntil = Date.now() + DUCKDB_COOLDOWN_MS;
+          setDataSourceKind('csv');
+          console.warn(
+            `[db] DuckDB em cooldown (${DUCKDB_COOLDOWN_MS}ms) após ${duckConsecutiveFails} falhas. Fallback CSV temporário: ${msg}`,
+          );
+          loggedCooldown = true;
+        } else {
+          console.warn(
+            `[db] DuckDB lento/transitório (${duckConsecutiveFails}/${DUCKDB_DEGRADE_AFTER}) — fallback CSV nesta consulta: ${msg}`,
+          );
+        }
       }
+    } else {
+      setDataSourceKind('csv');
     }
     return csvLayer.fetchView(viewName, filters, options);
   };

@@ -22,9 +22,10 @@ const PERIODOS_DEFAULT = [
 ];
 
 const PERIODOS_GERENCIA = [
-  { value: 7, label: 'Ultimos 7 dias (aperitivo)' },
-  { value: 30, label: 'Ultimos 30 dias' },
-  { value: 60, label: 'Ultimos 60 dias (cache quente)' },
+  { value: 1, label: 'D-1 (ontem, quase realtime)' },
+  { value: 7, label: 'Ultimos 7 dias (aperitivo, ate d-1)' },
+  { value: 30, label: 'Ultimos 30 dias (1a onda cache)' },
+  { value: 60, label: 'Ultimos 60 dias (2a onda + Redis)' },
 ];
 
 const selectContrast =
@@ -34,7 +35,7 @@ const selectContrast =
   'focus:border-hospital-600 focus:ring-2 focus:ring-hospital-500/35 ' +
   'disabled:cursor-not-allowed disabled:opacity-60';
 
-const Topbar = ({ activeSection, filters, onFilterChange, onRefresh, sectionLabel }) => {
+const Topbar = ({ activeSection, filters, onFilterChange, sectionLabel }) => {
   const [clock, setClock] = useState('');
   const [unidades, setUnidades] = useState([]);
   const [unidadesReady, setUnidadesReady] = useState(false);
@@ -61,7 +62,8 @@ const Topbar = ({ activeSection, filters, onFilterChange, onRefresh, sectionLabe
         if (ac.signal.aborted) return;
         try {
           const j = raw ? JSON.parse(raw) : {};
-          if (j.ok && Array.isArray(j.data)) setUnidades(j.data);
+          const list = Array.isArray(j.data) ? j.data : j.data?.unidades ?? j.data?.items ?? [];
+          if (j.ok && Array.isArray(list)) setUnidades(list);
           else setUnidades([]);
         } catch {
           setUnidades([]);
@@ -99,7 +101,8 @@ const Topbar = ({ activeSection, filters, onFilterChange, onRefresh, sectionLabe
 
   useEffect(() => {
     if (!unidadesReady || !filters.unidade) return;
-    const ok = unidadesSorted.some((u) => u.unidadeId === filters.unidade);
+    const target = String(filters.unidade);
+    const ok = unidadesSorted.some((u) => String(u.unidadeId) === target);
     if (!ok) onFilterChange({ unidade: '' });
   }, [unidadesReady, unidadesSorted, filters.unidade, onFilterChange]);
 
@@ -107,7 +110,7 @@ const Topbar = ({ activeSection, filters, onFilterChange, onRefresh, sectionLabe
     if (activeSection !== 'gerencia') return;
     const p = Number(filters.period);
     if (!Number.isFinite(p) || p <= 0) {
-      onFilterChange({ period: 7 });
+      onFilterChange({ period: 1 });
       return;
     }
     if (p > 60) onFilterChange({ period: 60 });
@@ -151,7 +154,8 @@ const Topbar = ({ activeSection, filters, onFilterChange, onRefresh, sectionLabe
             onChange={(e) => onFilterChange({ unidade: e.target.value })}
             title={
               (() => {
-                const u = unidadesSorted.find((x) => x.unidadeId === filters.unidade);
+                const target = String(filters.unidade);
+                const u = unidadesSorted.find((x) => String(x.unidadeId) === target);
                 return u ? labelUnidadeOption(u) : '';
               })()
             }
@@ -160,7 +164,12 @@ const Topbar = ({ activeSection, filters, onFilterChange, onRefresh, sectionLabe
               Todas as unidades
             </option>
             {unidadesSorted.map((u) => (
-              <option key={u.unidadeId} value={u.unidadeId} className="bg-white text-slate-900" title={labelUnidadeOption(u)}>
+              <option
+                key={String(u.unidadeId)}
+                value={String(u.unidadeId)}
+                className="bg-white text-slate-900"
+                title={labelUnidadeOption(u)}
+              >
                 {labelUnidadeOption(u)}
               </option>
             ))}
@@ -181,20 +190,9 @@ const Topbar = ({ activeSection, filters, onFilterChange, onRefresh, sectionLabe
             ))}
           </select>
         </div>
-
-        <button
-          type="button"
-          onClick={onRefresh}
-          className="app-transition flex h-9 w-9 items-center justify-center rounded-lg bg-pipeline-live text-lg leading-none text-slate-900 hover:brightness-110 active:scale-[0.97] shadow-md [box-shadow:0_2px_14px_color-mix(in_srgb,var(--dash-live)_40%,transparent)]"
-          aria-label="Atualizar dados"
-          title="Atualizar dados"
-        >
-          <span aria-hidden>🔄</span>
-        </button>
       </div>
     </header>
   );
 };
 
 export default Topbar;
-

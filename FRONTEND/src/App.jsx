@@ -38,15 +38,20 @@ const SectionLoader = () => (
 export default function App() {
   const [section,   setSection]   = useState('gerencia');
   const [collapsed, setCollapsed] = useState(false);
-  const [refreshKey, setRefreshKey] = useState(0);
-  const [filters, setFilters] = useState({ period: 7, regional: '', unidade: '' });
+  const [filters, setFilters] = useState({ period: 1, regional: '', unidade: '' });
 
   const handleFilterChange = useCallback((patch) => {
-    setFilters(f => ({ ...f, ...patch }));
-  }, []);
-
-  const handleRefresh = useCallback(() => {
-    setRefreshKey(k => k + 1);
+    setFilters((f) => {
+      const next = { ...f, ...patch };
+      if (
+        String(next.period) === String(f.period) &&
+        String(next.regional ?? '') === String(f.regional ?? '') &&
+        String(next.unidade ?? '') === String(f.unidade ?? '')
+      ) {
+        return f;
+      }
+      return next;
+    });
   }, []);
 
   const ActiveSection = SECTIONS[section] || OverviewSection;
@@ -66,16 +71,12 @@ export default function App() {
           sectionLabel={SECTION_LABELS[section]}
           filters={filters}
           onFilterChange={handleFilterChange}
-          onRefresh={handleRefresh}
         />
 
         {/* Dashboard Scroll */}
         <main className="flex-1 overflow-y-auto p-6">
           <Suspense fallback={<SectionLoader />}>
-            <ActiveSection
-              key={`${section}-${refreshKey}`}
-              filters={filters}
-            />
+            <ActiveSection key={section} filters={filters} />
           </Suspense>
         </main>
       </div>

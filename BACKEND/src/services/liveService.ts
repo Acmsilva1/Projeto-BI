@@ -13,6 +13,8 @@ import {
   attachMetasPorVolumesUiTones,
 } from '../domain/gerencia/metasPorVolumesTones.js';
 import { parsePeriodStart, parsePeriodEnd, isInPeriod } from '../domain/shared/period.js';
+import path from 'node:path';
+import { existsSync, readFileSync } from 'node:fs';
 import { cacheGetStale, cacheSetStale } from '../cache/redisMemoryCache.js';
 import {
   getGerenciaHotCoverageDays,
@@ -24,15 +26,17 @@ import {
 import { readRepository } from '../repositories/readRepository.js';
 import { domainEventBus } from '../messaging/domainEventBus.js';
 import { DomainEvents } from '../domain/messages/events.js';
+import { incGerenciaPerf, markGerenciaBundleBuild } from '../observability/gerenciaPerf.js';
 
 const DIAS_SEMANA = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab', 'Dom'];
-const GERENCIA_APERITIVO_CACHE_KEY = 'hospital-bi:gerencia:aperitivo:v1:default';
+/** Chave antiga (só nacional) — ainda lida no miss da v2 para migração. */
+const GERENCIA_APERITIVO_LEGACY_KEY = 'hospital-bi:gerencia:aperitivo:v1:default';
 
 function normalizeGerenciaQuery(raw = {}) {
   const q = { ...raw };
   const maxPeriod = getGerenciaMaxPeriodDays();
   const pRaw = Number(q.period);
-  let requestedPeriod = Number.isFinite(pRaw) && pRaw > 0 ? Math.floor(pRaw) : 7;
+  let requestedPeriod = Number.isFinite(pRaw) && pRaw > 0 ? Math.floor(pRaw) : 1;
   if (requestedPeriod === 366) requestedPeriod = maxPeriod;
   const capped = requestedPeriod > maxPeriod;
   const effectivePeriod = Math.max(1, Math.min(requestedPeriod, maxPeriod));
@@ -49,9 +53,32 @@ function isDefaultGerenciaScope(q = {}) {
   return String(q.regional ?? '').trim() === '' && String(q.unidade ?? '').trim() === '';
 }
 
-async function loadAperitivoCache() {
+function normAperitivoSeg(v) {
+  const t = String(v ?? '').trim();
+  if (!t) return '_';
+  const s = t.replace(/[^a-zA-Z0-9_-]/g, '-').slice(0, 56);
+  return s || '_';
+}
+
+/** Chave stale do bundle aperitivo (v2) — inclui regional/unidade para hits instantâneos por filtro. */
+function aperitivoStaleCacheKey(q = {}) {
+  const p = Math.min(60, Math.max(1, Math.floor(Number(q.period) || 1)));
+  return `hospital-bi:gerencia:aperitivo:v2:p${p}:r:${normAperitivoSeg(q.regional)}:u:${normAperitivoSeg(q.unidade)}`;
+}
+
+/** Chave de cache Redis para bundle completo (>7d) por filtro. */
+function gerenciaBundleStaleCacheKey(q = {}) {
+  const p = Math.min(60, Math.max(1, Math.floor(Number(q.period) || 1)));
+  return `hospital-bi:gerencia:bundle:v1:p${p}:r:${normAperitivoSeg(q.regional)}:u:${normAperitivoSeg(q.unidade)}`;
+}
+
+function nationalSevenDayQuery() {
+  return { period: 7, regional: '', unidade: '' };
+}
+
+async function loadAperitivoCacheByKey(key) {
   try {
-    const raw = await cacheGetStale(GERENCIA_APERITIVO_CACHE_KEY);
+    const raw = await cacheGetStale(key);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== 'object' || !parsed.bundle) return null;
@@ -61,15 +88,20 @@ async function loadAperitivoCache() {
   }
 }
 
-async function saveAperitivoCache(bundle) {
+async function saveAperitivoCacheByKey(key, bundle) {
   try {
-    await cacheSetStale(
-      GERENCIA_APERITIVO_CACHE_KEY,
-      JSON.stringify({ at: new Date().toISOString(), bundle }),
-    );
+    await cacheSetStale(key, JSON.stringify({ at: new Date().toISOString(), bundle }));
   } catch {
     /* ignore */
   }
+}
+
+async function loadGerenciaBundleCacheByKey(key) {
+  return loadAperitivoCacheByKey(key);
+}
+
+async function saveGerenciaBundleCacheByKey(key, bundle) {
+  return saveAperitivoCacheByKey(key, bundle);
 }
 
 function readCell(row, ...keys) {
@@ -366,6 +398,34 @@ function labelUnidadePs(u) {
   return nome || reg || String(u.unidadeId || '');
 }
 
+function parseUnidadeFromOptionLabel(value, label) {
+  const unidadeId = String(value ?? '').trim();
+  const raw = String(label ?? '').trim();
+  let codigo = unidadeId;
+  let unidadeNome = raw;
+  let regional = '';
+
+  const m = raw.match(/^(\d+)\s*-\s*(.+?)(?:_([A-Za-z]{2}))?$/);
+  if (m) {
+    codigo = m[1] || unidadeId;
+    unidadeNome = String(m[2] || '').trim();
+    regional = String(m[3] || '').trim().toUpperCase();
+  } else {
+    const u = raw.match(/_(\w{2})$/);
+    if (u) {
+      regional = String(u[1] || '').trim().toUpperCase();
+      unidadeNome = raw.replace(/_(\w{2})$/, '').trim();
+    }
+  }
+
+  return {
+    codigo: codigo || unidadeId,
+    unidadeId,
+    unidadeNome: unidadeNome || unidadeId,
+    regional,
+  };
+}
+
 function sortUnidadesPorCodigo(list) {
   return [...list].sort((a, b) => {
     const ca = String(a.codigo ?? a.unidadeId ?? '');
@@ -377,17 +437,99 @@ function sortUnidadesPorCodigo(list) {
   });
 }
 
+/**
+ * Nome de estado (cadastro) ou UF → sigla de 2 letras, igual ao `value` do Topbar (ES, RJ, DF…).
+ * Evita lista de unidades vazia quando `tbl_unidades.uf` vem por extenso.
+ */
+/** Código IBGE da UF (2 dígitos) → sigla — quando o cadastro guarda "53" em vez de "DF". */
+const IBGE_CODIGO_PARA_UF = Object.freeze({
+  '11': 'RO',
+  '12': 'AC',
+  '13': 'AM',
+  '14': 'RR',
+  '15': 'PA',
+  '16': 'AP',
+  '17': 'TO',
+  '18': 'MA',
+  '19': 'PI',
+  '20': 'CE',
+  '21': 'RN',
+  '22': 'PB',
+  '23': 'PE',
+  '24': 'AL',
+  '25': 'SE',
+  '26': 'BA',
+  '31': 'MG',
+  '32': 'ES',
+  '33': 'RJ',
+  '35': 'SP',
+  '41': 'PR',
+  '42': 'SC',
+  '43': 'RS',
+  '50': 'MS',
+  '51': 'MT',
+  '52': 'GO',
+  '53': 'DF',
+});
+
+const NOME_ESTADO_PARA_UF = Object.freeze({
+  ACRE: 'AC',
+  ALAGOAS: 'AL',
+  AMAPA: 'AP',
+  AMAZONAS: 'AM',
+  BAHIA: 'BA',
+  CEARA: 'CE',
+  'DISTRITO FEDERAL': 'DF',
+  BRASILIA: 'DF',
+  'ESPIRITO SANTO': 'ES',
+  GOIAS: 'GO',
+  MARANHAO: 'MA',
+  'MATO GROSSO': 'MT',
+  'MATO GROSSO DO SUL': 'MS',
+  'MINAS GERAIS': 'MG',
+  PARA: 'PA',
+  PARAIBA: 'PB',
+  PARANA: 'PR',
+  PERNAMBUCO: 'PE',
+  PIAUI: 'PI',
+  'RIO DE JANEIRO': 'RJ',
+  'RIO GRANDE DO NORTE': 'RN',
+  'RIO GRANDE DO SUL': 'RS',
+  RONDONIA: 'RO',
+  RORAIMA: 'RR',
+  'SANTA CATARINA': 'SC',
+  'SAO PAULO': 'SP',
+  SERGIPE: 'SE',
+  TOCANTINS: 'TO',
+});
+
+function normalizeUfRegional(raw) {
+  if (raw == null || raw === '') return '';
+  let s = String(raw).trim().toUpperCase().normalize('NFD').replace(/\p{M}/gu, '');
+  s = s.replace(/\s+/g, ' ').trim();
+  if (!s) return '';
+  if (s.length === 2 && /^[A-Z]{2}$/.test(s)) return s;
+  if (/^\d{2}$/.test(s) && IBGE_CODIGO_PARA_UF[s]) return IBGE_CODIGO_PARA_UF[s];
+  if (NOME_ESTADO_PARA_UF[s]) return NOME_ESTADO_PARA_UF[s];
+  return s;
+}
+
+function regionalFilterMatches(unitRegional, queryRegional) {
+  if (!queryRegional) return true;
+  return normalizeUfRegional(unitRegional) === normalizeUfRegional(queryRegional);
+}
+
 /** Lista para filtro do cabeÃ§alho: respeita regional; nÃ£o filtra por unidade (o select precisa de todas da regional). */
 function listUnidadesPsParaFiltro(query = {}) {
   let list = [...DEMO_UNIDADES_PS];
-  if (query.regional) list = list.filter((u) => u.regional === query.regional);
+  if (query.regional) list = list.filter((u) => regionalFilterMatches(u.regional, query.regional));
   return sortUnidadesPorCodigo(list);
 }
 
 /** Unidades no contexto da matriz (regional + opcionalmente uma unidade sÃ³). */
 function filterUnidadesPsMatriz(query = {}) {
   let list = [...DEMO_UNIDADES_PS];
-  if (query.regional) list = list.filter((u) => u.regional === query.regional);
+  if (query.regional) list = list.filter((u) => regionalFilterMatches(u.regional, query.regional));
   if (query.unidade) list = list.filter((u) => String(u.unidadeId) === String(query.unidade));
   return sortUnidadesPorCodigo(list);
 }
@@ -400,9 +542,10 @@ function subItemsMetasPorVolumesFromUnidades(units) {
   }));
 }
 
-function metasPorVolumesMatrixForQuery(query = {}) {
+function metasPorVolumesMatrixForQuery(query = {}, unitsOverride?: Array<{ unidadeId?: unknown }>) {
   const { months, mesKeys } = defaultRollingMonths();
-  const units = filterUnidadesPsMatriz(query);
+  const units =
+    Array.isArray(unitsOverride) && unitsOverride.length > 0 ? unitsOverride : filterUnidadesPsMatriz(query);
   const subTemplate = subItemsMetasPorVolumesFromUnidades(units);
   const data = METAS_POR_VOLUMES_INDICADORES.map((ind) => {
     const metaRef = metaRefDisplayMetasPorVolumes(ind);
@@ -499,8 +642,9 @@ function emptyMetricasPorUnidadeValores() {
   return valores;
 }
 
-function metricasPorUnidadeForQuery(query = {}) {
-  const units = filterUnidadesPsMatriz(query);
+function metricasPorUnidadeForQuery(query = {}, unitsOverride?: Array<{ unidadeId?: unknown }>) {
+  const units =
+    Array.isArray(unitsOverride) && unitsOverride.length > 0 ? unitsOverride : filterUnidadesPsMatriz(query);
   return {
     colunas: METRICAS_POR_UNIDADE_COLUNAS,
     linhas: units.map((u) => ({
@@ -630,6 +774,168 @@ function tempoMedioEtapasForQuery(query = {}) {
   };
 }
 
+function cloneGerenciaBundleJson(bundle) {
+  try {
+    if (typeof structuredClone === 'function') return structuredClone(bundle);
+  } catch {
+    /* ignore */
+  }
+  return JSON.parse(JSON.stringify(bundle));
+}
+
+function unitIdNormForSlice(id) {
+  const s = String(id ?? '').trim();
+  if (!s) return '';
+  const n = parseInt(s, 10);
+  if (!Number.isNaN(n)) return String(n).padStart(3, '0');
+  return s.padStart(3, '0');
+}
+
+/** Eco dos filtros pedidos — deve coincidir com o URL; o wrap do resolver sobrescreve o JSON em cache para evitar desalinhamento com regional/unidade. */
+function queryEchoFromGerenciaQuery(q: Record<string, unknown> = {}) {
+  const pRaw = q.period;
+  const period = pRaw != null && String(pRaw).trim() !== '' ? String(pRaw).trim() : '7';
+  const regional = q.regional != null && String(q.regional).trim() !== '' ? String(q.regional).trim() : '';
+  const unidade = q.unidade != null && String(q.unidade).trim() !== '' ? String(q.unidade).trim() : '';
+  return { period, regional, unidade };
+}
+
+function rollupMetasPorVolumesRowAfterSubFilter(row) {
+  const subs = row.subItems || [];
+  if (!subs.length) {
+    row.m1 = { v: 0, d: 0 };
+    row.m2 = { v: 0, d: 0 };
+    row.m3 = { v: 0, d: 0 };
+    row.t = { v: 0, ytd: 0, sec: '(0)' };
+    return;
+  }
+  const sum = (fn) => subs.reduce((a, s) => a + asNumber(fn(s)), 0);
+  const v1 = sum((s) => s.m1?.v);
+  const v2 = sum((s) => s.m2?.v);
+  const v3 = sum((s) => s.m3?.v);
+  row.m1 = { v: v1, d: 0 };
+  row.m2 = { v: v2, d: v2 - v1 };
+  row.m3 = { v: v3, d: v3 - v2 };
+  row.t = { v: v3, ytd: v3, sec: `(${v3})` };
+}
+
+function recomputeTotaisPsFromMetricasLinhas(linhas, prevMeta) {
+  const keys = GERENCIA_TOTAIS_PS_DEF.map((d) => d.key);
+  const sums = {};
+  keys.forEach((k) => {
+    sums[k] = 0;
+  });
+  for (const line of linhas || []) {
+    const v = line.valores || {};
+    keys.forEach((k) => {
+      const n = Number(v[k]);
+      if (Number.isFinite(n)) sums[k] += n;
+    });
+  }
+  return {
+    cards: GERENCIA_TOTAIS_PS_DEF.map(({ key, label }) => ({
+      key,
+      label,
+      value: asNumber(sums[key]),
+      format: 'int',
+    })),
+    meta: prevMeta && typeof prevMeta === 'object' ? { ...prevMeta } : { schemaVersion: 2, titulo: 'Totais PS (filtro atual)' },
+  };
+}
+
+function recomputeTempoTotaisFromLinhas(linhas) {
+  const tot = valoresTempoMedioZerados();
+  const keys = TEMPO_MEDIO_ETAPAS_COLS.map((c) => c.key);
+  const list = linhas || [];
+  keys.forEach((k) => {
+    let s = 0;
+    let n = 0;
+    list.forEach((L) => {
+      const v = asNumber(L.valores?.[k]);
+      if (Number.isFinite(v)) {
+        s += v;
+        n += 1;
+      }
+    });
+    tot[k] = n ? Math.round(s / n) : 0;
+  });
+  return tot;
+}
+
+/**
+ * Recorta bundle nacional (todas as unidades no payload) para o filtro regional/unidade — só JS, sem DuckDB.
+ * @param unitsFromCadastro — resultado de `filterUnitsByQuery(loadUnidadesPsFromDb(), q)`; sem isto usa só DEMO e os IDs raramente batem com `metricasPorUnidade` real → slice falhava e o front ficava sem payload válido.
+ */
+function sliceGerenciaBundleForQuery(
+  baseBundle: Record<string, unknown>,
+  q: Record<string, unknown>,
+  unitsFromCadastro?: Array<{ unidadeId?: unknown }>,
+) {
+  if (!baseBundle || baseBundle.schemaVersion !== 1) return null;
+  const unitsInScope =
+    Array.isArray(unitsFromCadastro) && unitsFromCadastro.length > 0
+      ? sortUnidadesPorCodigo([...unitsFromCadastro])
+      : filterUnidadesPsMatriz(q);
+  if (!unitsInScope?.length) return null;
+  const idSet = new Set(unitsInScope.map((u) => unitIdNormForSlice(u.unidadeId)));
+  const keepLine = (row) => row && idSet.has(unitIdNormForSlice(row.unidadeId));
+
+  const b = cloneGerenciaBundleJson(baseBundle);
+
+  if (b.metricasPorUnidade?.linhas) {
+    b.metricasPorUnidade.linhas = b.metricasPorUnidade.linhas.filter(keepLine);
+  }
+  /** Linhas vazias após filtro: ainda devolve bundle (totais zerados) em vez de null — evita cair só em cache com eco errado no cliente. */
+  if (!b.metricasPorUnidade?.linhas) b.metricasPorUnidade = { ...(b.metricasPorUnidade as object), linhas: [] };
+
+  b.totaisPs = recomputeTotaisPsFromMetricasLinhas(b.metricasPorUnidade.linhas, b.totaisPs?.meta);
+
+  if (b.tempoMedioEtapas?.linhas) {
+    b.tempoMedioEtapas.linhas = b.tempoMedioEtapas.linhas.filter(keepLine);
+    b.tempoMedioEtapas.totais = recomputeTempoTotaisFromLinhas(b.tempoMedioEtapas.linhas);
+  }
+  const unitsOptions = listUnidadesPsParaFiltro(q);
+  if (b.tempoMedioEtapas) {
+    b.tempoMedioEtapas.filtroUnidadeOpcoes = [
+      { value: '', label: 'Todas' },
+      ...unitsOptions.map((u) => ({ value: u.unidadeId, label: labelUnidadePs(u) })),
+    ];
+  }
+
+  if (b.metasPorVolumes?.data) {
+    b.metasPorVolumes.data.forEach((row) => {
+      if (!row.subItems) return;
+      row.subItems = row.subItems.filter((s) => idSet.has(unitIdNormForSlice(s.unidadeId)));
+      rollupMetasPorVolumesRowAfterSubFilter(row);
+    });
+  }
+
+  if (b.metasConformesPorUnidade?.series) {
+    b.metasConformesPorUnidade.series = b.metasConformesPorUnidade.series.filter(keepLine);
+  }
+
+  if (b.metasAcompanhamentoByMetric && typeof b.metasAcompanhamentoByMetric === 'object') {
+    Object.keys(b.metasAcompanhamentoByMetric).forEach((mk) => {
+      const block = b.metasAcompanhamentoByMetric[mk];
+      if (!block?.series) return;
+      block.series = block.series.filter(keepLine);
+      const flat = block.series.flatMap((s) => s.data || []);
+      if (block.gauge && flat.length) {
+        block.gauge.value = flat.reduce((a, x) => a + asNumber(x), 0) / flat.length;
+      }
+    });
+  }
+
+  b.unidadesPs = {
+    options: unitsOptions.map((u) => ({ value: u.unidadeId, label: labelUnidadePs(u) })),
+    meta: b.unidadesPs?.meta || { schemaVersion: 1 },
+  };
+
+  b.queryEcho = queryEchoFromGerenciaQuery(q);
+
+  return b;
+}
+
 /** Labels fixos abr/25 â€¦ mar/26 (alinhado ao painel de referÃªncia). */
 const METAS_ACOMP_MES_LABELS = (() => {
   const short = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
@@ -738,9 +1044,9 @@ function ratioPct(num, den) {
   return (num / den) * 100;
 }
 
-/** Power BI: fluxo[DESTINO] = "Internado" (case-insensitive). */
+/** Power BI: fluxo[DESTINO] = "Internado" (case-insensitive). Export CSV pode usar DESFECHO no mesmo papel. */
 function isDestinoInternadoPbi(r) {
-  const v = String(r?.DESTINO ?? '').trim();
+  const v = String(firstNonEmpty(r?.DESTINO, r?.DESFECHO) ?? '').trim();
   return v.toLowerCase() === 'internado';
 }
 
@@ -846,9 +1152,39 @@ function buildRollingMonthKeys(n) {
   return out;
 }
 
+function getRowValIgnoreCase(row, name) {
+  if (!row || typeof row !== 'object') return undefined;
+  const t = String(name).toLowerCase();
+  for (const [k, v] of Object.entries(row)) {
+    if (String(k).toLowerCase() === t) return v;
+  }
+  return undefined;
+}
+
+/** Primeiro valor não vazio entre colunas alternativas (cadastro varia por origem CSV/PBI). */
+function pickFirstNonEmptyField(row, names) {
+  for (const n of names) {
+    const v = getRowValIgnoreCase(row, n);
+    if (v === undefined || v === null) continue;
+    const s = String(v).trim();
+    if (s !== '') return s;
+  }
+  return '';
+}
+
 /** Postgres / PBI: coluna ps pode ser boolean, 0/1, 't'/'f', 'S'/'N', etc. */
 function rowIsPsAtivo(r) {
-  const v = r?.ps;
+  if (!r || typeof r !== 'object') return true;
+  let v = getRowValIgnoreCase(r, 'ps');
+  if (v === undefined || v === null || (typeof v === 'string' && v.trim() === '')) {
+    for (const alt of ['tem_ps', 'fl_ps', 'ind_ps', 'ps_ativo']) {
+      const a = getRowValIgnoreCase(r, alt);
+      if (a !== undefined && a !== null && !(typeof a === 'string' && a.trim() === '')) {
+        v = a;
+        break;
+      }
+    }
+  }
   if (v == null) return true;
   if (v === true || v === 1) return true;
   const s = String(v).trim().toLowerCase();
@@ -856,31 +1192,109 @@ function rowIsPsAtivo(r) {
   return false;
 }
 
-async function loadUnidadesPsFromDb() {
+/** Sem cache em memória no Node: lista de unidades vem direto da fonte/camada de dados. */
+
+/** UF / estado: nomes de coluna comuns em exports PBI e cadastros legados. */
+function pickRawUfFromCadastroRow(r) {
+  return pickFirstNonEmptyField(r, [
+    'uf',
+    'sigla_uf',
+    'sg_uf',
+    'uf_sigla',
+    'estado',
+    'sg_estado',
+    'nome_uf',
+    'cd_uf',
+    'codigo_uf',
+    'cod_uf',
+    'cod_uf_ibge',
+    'ibge_uf',
+  ]);
+}
+
+function pickCdEstabelecimentoFromCadastroRow(r) {
+  const s = pickFirstNonEmptyField(r, [
+    'cd_estabelecimento',
+    'cd_estab_urg',
+    'cd_estab',
+    'cd_unidade',
+    'id',
+  ]);
+  return s;
+}
+
+function pickNomeUnidadeFromCadastroRow(r) {
+  const s = pickFirstNonEmptyField(r, ['nome', 'nome_fantasia', 'nm_estabelecimento', 'unidade', 'descricao']);
+  return s;
+}
+
+async function loadUnidadesPsFromDbUncached() {
   const candidates = ['tbl_unidades', 'tbl_unidades_teste', 'tbl_unidades_prod'];
   for (const table of candidates) {
-    const rows = await readRepository.safeView(table, {
-      columns: 'id,nome,uf,cd_estabelecimento,ps',
-      orderBy: 'cd_estabelecimento',
-    });
+    /** `SELECT *` evita falha quando o CSV não tem exatamente id/nome/uf/ps com esses nomes. */
+    const rows = await readRepository.safeView(table, { columns: '*' });
     if (!rows.length) continue;
     const mapped = rows
       .filter((r) => rowIsPsAtivo(r))
-      .map((r) => ({
-        codigo: String(r.cd_estabelecimento ?? r.id ?? ''),
-        unidadeId: String(r.cd_estabelecimento ?? r.id ?? ''),
-        unidadeNome: String(r.nome || '').trim() || String(r.id || ''),
-        regional: String(r.uf || '').trim().toUpperCase(),
-      }))
+      .map((r) => {
+        const rawUf = pickRawUfFromCadastroRow(r);
+        const cd = pickCdEstabelecimentoFromCadastroRow(r);
+        const nome = pickNomeUnidadeFromCadastroRow(r) || String(getRowValIgnoreCase(r, 'id') ?? '').trim();
+        const regNorm = normalizeUfRegional(rawUf);
+        const regional = regNorm || (rawUf ? String(rawUf).trim().toUpperCase() : '');
+        return {
+          codigo: cd,
+          unidadeId: cd,
+          unidadeNome: nome,
+          regional,
+        };
+      })
       .filter((u) => u.unidadeId);
     if (mapped.length) return sortUnidadesPorCodigo(mapped);
   }
   return sortUnidadesPorCodigo(DEMO_UNIDADES_PS);
 }
 
+/** Tempo máx. a aguardar `ps_resumo` no aperitivo lite (ms) — omissão curta para não bloquear a UX. */
+function gerenciaLiteSnapshotCapMs() {
+  const n = Number(process.env.GERENCIA_LITE_SNAPSHOT_MS ?? '450');
+  return Number.isFinite(n) && n >= 80 ? Math.min(Math.floor(n), 5000) : 450;
+}
+
+/** Resolve `promise` ou `[]` após `ms` (snapshot opcional não pode segurar o primeiro paint). */
+function snapshotRowsOrEmpty(promise, ms) {
+  return Promise.race([
+    promise,
+    new Promise((resolve) => {
+      setTimeout(() => resolve([]), ms);
+    }),
+  ]);
+}
+
+async function loadUnidadesPsFromDb() {
+  return loadUnidadesPsFromDbUncached();
+}
+
+async function loadUnidadesPsFromAperitivoCache(query = {}) {
+  try {
+    const natKey = aperitivoStaleCacheKey(nationalSevenDayQuery());
+    let nat = await loadAperitivoCacheByKey(natKey);
+    if (!nat) nat = await loadAperitivoCacheByKey(GERENCIA_APERITIVO_LEGACY_KEY);
+    const opts = Array.isArray(nat?.unidadesPs?.options) ? nat.unidadesPs.options : [];
+    if (!opts.length) return [];
+    const mapped = opts
+      .map((o) => parseUnidadeFromOptionLabel(o?.value, o?.label))
+      .filter((u) => String(u.unidadeId || '').trim() !== '');
+    if (!mapped.length) return [];
+    return filterUnitsByQuery(mapped, query);
+  } catch {
+    return [];
+  }
+}
+
 function filterUnitsByQuery(units, query = {}) {
   let out = [...units];
-  if (query.regional) out = out.filter((u) => u.regional === query.regional);
+  if (query.regional) out = out.filter((u) => regionalFilterMatches(u.regional, query.regional));
   if (query.unidade) out = out.filter((u) => String(u.unidadeId) === String(query.unidade));
   return sortUnidadesPorCodigo(out);
 }
@@ -1420,8 +1834,9 @@ function metasAcompanhamentoGestaoForQuery(query = {}) {
 }
 
 /** TendÃªncia global % metas conformes por unidade â€” conforme dados na rÃ©plica. */
-function metasConformesPorUnidadeForQuery(query = {}) {
-  const units = filterUnidadesPsMatriz(query);
+function metasConformesPorUnidadeForQuery(query = {}, unitsOverride?: Array<{ unidadeId?: unknown }>) {
+  const units =
+    Array.isArray(unitsOverride) && unitsOverride.length > 0 ? unitsOverride : filterUnidadesPsMatriz(query);
   const nMeses = METAS_ACOMP_MES_LABELS.length;
   const zeros = () => Array(nMeses).fill(0);
 
@@ -1445,7 +1860,670 @@ function metasConformesPorUnidadeForQuery(query = {}) {
   };
 }
 
+/** Valor numérico de uma métrica a partir do objeto agregado `reduceMetrics` (Metas acompanhamento). */
+function metasAcompPickMetric(m: Record<string, unknown>, metricKey: string): number {
+  switch (metricKey) {
+    case 'conversao':
+      return asNumber(m.pct_conversao);
+    case 'pacs_medicados':
+      return asNumber(m.pct_pacientes_medicados);
+    case 'medicacoes_por_paciente':
+      return asNumber(m.media_medicacoes_por_pac);
+    case 'pacs_exames_lab':
+      return asNumber(m.pct_pacientes_lab);
+    case 'lab_por_paciente':
+      return asNumber(m.media_lab_por_pac);
+    case 'pacs_exames_tc':
+      return asNumber(m.pct_pacientes_tc);
+    case 'tcs_por_paciente':
+      return asNumber(m.media_tcs_por_pac);
+    case 'triagem_acima_meta':
+      return asNumber(m.triagem_acima_meta_pct);
+    case 'consulta_acima_meta':
+      return asNumber(m.consulta_acima_meta_pct);
+    case 'medicacao_acima_meta':
+      return asNumber(m.medicacao_acima_meta_pct);
+    case 'reavaliacao_acima_meta':
+      return asNumber(m.reavaliacao_acima_meta_pct);
+    case 'permanencia_acima_meta':
+      return asNumber(m.permanencia_acima_meta_pct);
+    case 'desfecho_medico':
+      return asNumber(m.pct_desfecho_medico);
+    default:
+      return 0;
+  }
+}
+
+/**
+ * Todas as séries "Metas de acompanhamento" num único passe sobre o dataset —
+ * evita N× reduceMetrics/buildMonthlyGerenciaRowPack no bundle (ganho vs. Power BI em tempo de resposta).
+ */
+async function buildMetasAcompanhamentoByMetricAll(query: Record<string, unknown> = {}) {
+  const allUnits = await loadUnidadesPsFromDb();
+  const units = filterUnitsByQuery(allUnits, query);
+  const unitMap = unitMetaMap(allUnits);
+  const pred = buildRowPredicate(query, unitMap);
+  const ds = await loadGerenciaDatasets(query);
+  const monthKeys = monthKeysOverlappingQueryPeriod(query);
+  const months = monthsLabelsFromKeys(monthKeys);
+
+  const cellM = units.map((u) =>
+    monthKeys.map((mk) => reduceMetrics(buildMonthlyGerenciaRowPack(ds, pred, unitMap, u.unidadeId, mk, query), ds)),
+  );
+  const periodM = units.map((u) =>
+    reduceMetrics(mergeGerenciaMonthlyRowPacks(ds, pred, unitMap, u.unidadeId, monthKeys, query), ds),
+  );
+
+  const catalog = METAS_POR_VOLUMES_INDICADORES.map((x) => ({
+    key: x.key,
+    label: x.name,
+    isP: x.isP,
+    isReverso: x.isReverso,
+  }));
+
+  const out: Record<string, unknown> = {};
+  for (let i = 0; i < METAS_POR_VOLUMES_INDICADORES.length; i += 1) {
+    const indResolved = METAS_POR_VOLUMES_INDICADORES[i];
+    const metricKey = indResolved.key;
+    const cfg = METAS_ACOMP_POR_KEY[metricKey as keyof typeof METAS_ACOMP_POR_KEY] || { meta: 0 };
+    const sense = indResolved.isReverso ? 'low_good' : 'high_good';
+    const ribbonCmp = sense === 'low_good' ? '<' : '>';
+    const series = units.map((u, ui) => ({
+      unidadeId: u.unidadeId,
+      name: labelUnidadePs(u),
+      color: METAS_ACOMP_CORES_UNIDADE[ui % METAS_ACOMP_CORES_UNIDADE.length],
+      data: monthKeys.map((_, mj) => metasAcompPickMetric(cellM[ui][mj] as Record<string, unknown>, metricKey)),
+    }));
+    const periodValByUnit = units.map((_, ui) => metasAcompPickMetric(periodM[ui] as Record<string, unknown>, metricKey));
+    const globalVal = periodValByUnit.length
+      ? periodValByUnit.reduce((a, b) => a + b, 0) / periodValByUnit.length
+      : 0;
+    const gaugeMax = indResolved.isP ? 100 : Math.max(10, Number(cfg.meta) * 1.5 || 10);
+
+    out[metricKey] = {
+      titulo: 'Metas de acompanhamento da gestao',
+      catalog,
+      selectedKey: metricKey,
+      gauge: {
+        title: `${indResolved.name} global no periodo`,
+        value: globalVal,
+        min: 0,
+        max: gaugeMax,
+        isPercent: indResolved.isP,
+        sense,
+      },
+      metaRibbon: {
+        target: cfg.meta,
+        sense,
+        text: `META ${fmtMetaBr(cfg.meta)} ${ribbonCmp} melhor`,
+      },
+      months,
+      series,
+      meta: {
+        schemaVersion: 3,
+        filtroUnidades: 'regional_unidade_gerencia',
+        demo: false,
+        eixoMeses: 'periodo_topo',
+      },
+    };
+  }
+  return out;
+}
+
+const APERITIVO_SEED_FILE = path.join(process.cwd(), 'data', 'gerencia-aperitivo-7d.seed.json');
+
+/**
+ * Bundle 7d sem base — números plausíveis para simular aperitivo “sempre em cache” (cold start / dev).
+ * Mesma forma que buildGerenciaDashboardBundleCore (sem cacheOrchestration).
+ * `units` / `unitsOptions` permitem alimentar o seed com todas as unidades do cadastro (CSV/DuckDB).
+ */
+function buildGerenciaAperitivoDemoBundleWithUnits(
+  q: Record<string, unknown>,
+  units: Array<{ unidadeId?: unknown; unidadeNome?: unknown; regional?: unknown; codigo?: unknown }>,
+  unitsOptions: Array<{ unidadeId?: unknown; unidadeNome?: unknown; regional?: unknown; codigo?: unknown }>,
+) {
+  const monthKeysA = monthKeysOverlappingQueryPeriod(q);
+  const monthsA = monthsLabelsFromKeys(monthKeysA);
+
+  const demoTotals: Record<string, number> = {
+    atendimentos: 18240,
+    altas: 15882,
+    obitos: 41,
+    evasoes: 912,
+    desfecho: 14520,
+    desfecho_medico: 14520,
+    saidas: 15435,
+    internacoes: 612,
+    conversoes: 556,
+    reavaliacoes: 3421,
+    pacientes_medicados: 16404,
+    medicacoes: 28910,
+    medicacoes_rapidas: 17420,
+    pacientes_lab: 6200,
+    exames_lab: 8810,
+    pacientes_rx: 4100,
+    pacientes_ecg: 2200,
+    pacientes_tc: 890,
+    tcs: 1024,
+    pacientes_us: 760,
+  };
+
+  const totaisPs = {
+    cards: GERENCIA_TOTAIS_PS_DEF.map(({ key, label }) => ({
+      key,
+      label,
+      value: asNumber(demoTotals[key]),
+      format: 'int',
+    })),
+    meta: {
+      schemaVersion: 2,
+      titulo: 'Totais PS (seed 7d)',
+      source: 'gerencia_aperitivo_seed_file',
+      em_atendimento: 214,
+    },
+  };
+
+  const tempo = tempoMedioEtapasForQuery(q);
+  const baseZ = valoresTempoMedioZerados();
+  const etapaKeys = TEMPO_MEDIO_ETAPAS_COLS.map((c) => c.key);
+  const tens = (ui: number, ki: number) => 8 + ((ui * 7 + ki * 5) % 38);
+  tempo.linhas = units.map((u, ui) => {
+    const valores = { ...baseZ };
+    etapaKeys.forEach((k, ki) => {
+      valores[k] = tens(ui, ki);
+    });
+    return { unidadeId: u.unidadeId, unidadeLabel: labelUnidadePs(u), valores };
+  });
+  const totaisT = { ...baseZ };
+  etapaKeys.forEach((k) => {
+    let s = 0;
+    tempo.linhas.forEach((L) => {
+      s += asNumber(L.valores[k]);
+    });
+    totaisT[k] = units.length ? Math.round(s / units.length) : 0;
+  });
+  tempo.totais = totaisT;
+  tempo.filtroUnidadeOpcoes = [
+    { value: '', label: 'Todas' },
+    ...unitsOptions.map((u) => ({ value: u.unidadeId, label: labelUnidadePs(u) })),
+  ];
+  tempo.meta = { schemaVersion: 2, source: 'gerencia_aperitivo_seed_file' };
+
+  const metasPorVolumes = metasPorVolumesMatrixForQuery(q, units);
+  const fillM = (v1: number, v2: number, v3: number) => ({
+    m1: { v: v1, d: 0 },
+    m2: { v: v2, d: v2 - v1 },
+    m3: { v: v3, d: v3 - v2 },
+    t: { v: v3, ytd: v3, sec: `(${v3})` },
+  });
+  metasPorVolumes.data.forEach((row, ri) => {
+    row.subItems.forEach((sub, si) => {
+      const seed = ri * 17 + si * 13;
+      const v1 = 5 + (seed % 20);
+      const v2 = v1 + 2 + (seed % 8);
+      const v3 = v2 + 1 + (seed % 6);
+      Object.assign(sub, fillM(v1, v2, v3));
+    });
+    const agg1 = row.subItems.reduce((a, s) => a + asNumber(s.m1?.v), 0);
+    const agg2 = row.subItems.reduce((a, s) => a + asNumber(s.m2?.v), 0);
+    const agg3 = row.subItems.reduce((a, s) => a + asNumber(s.m3?.v), 0);
+    Object.assign(row, fillM(agg1, agg2, agg3));
+  });
+
+  const metasConformesPorUnidade = metasConformesPorUnidadeForQuery(q, units);
+  metasConformesPorUnidade.series.forEach((s, si) => {
+    s.data = s.data.map((_, mi) => 70 + ((si * 3 + mi * 2) % 25));
+  });
+  metasConformesPorUnidade.meta = {
+    schemaVersion: 3,
+    filtroUnidades: 'regional_unidade_gerencia',
+    demo: true,
+    eixoMeses: 'periodo_topo',
+  };
+
+  const metricasPorUnidade = metricasPorUnidadeForQuery(q, units);
+  metricasPorUnidade.linhas.forEach((lin, li) => {
+    const coef = 1 + li * 0.07;
+    METRICAS_POR_UNIDADE_COLUNAS.forEach((c, ci) => {
+      if (c.kind === 'int') lin.valores[c.key] = Math.round((120 + ci * 11 + li * 17) * coef);
+      else if (c.kind === 'decimal') lin.valores[c.key] = +(1.1 + ci * 0.08 + li * 0.03).toFixed(2);
+      else if (c.kind === 'pct') lin.valores[c.key] = Math.min(99, 18 + (ci * 5 + li * 3) % 72);
+      else lin.valores[c.key] = '';
+    });
+  });
+  metricasPorUnidade.meta = {
+    schemaVersion: 2,
+    titulo: 'Indicadores por unidade (PS)',
+    filtroUnidades: 'regional_unidade_gerencia',
+  };
+
+  const unidadesPs = {
+    options: unitsOptions.map((u) => ({ value: u.unidadeId, label: labelUnidadePs(u) })),
+    meta: { schemaVersion: 1, source: 'gerencia_aperitivo_seed_file' },
+  };
+
+  const metasAcompanhamentoByMetric: Record<string, unknown> = {};
+  METAS_POR_VOLUMES_INDICADORES.forEach((ind, idx) => {
+    const cfg = METAS_ACOMP_POR_KEY[ind.key as keyof typeof METAS_ACOMP_POR_KEY] || { meta: 0 };
+    const sense = ind.isReverso ? 'low_good' : 'high_good';
+    const ribbonCmp = sense === 'low_good' ? '<' : '>';
+    const catalog = METAS_POR_VOLUMES_INDICADORES.map((x) => ({
+      key: x.key,
+      label: x.name,
+      isP: x.isP,
+      isReverso: x.isReverso,
+    }));
+    const series = units.map((u, ui) => ({
+      unidadeId: u.unidadeId,
+      name: labelUnidadePs(u),
+      color: METAS_ACOMP_CORES_UNIDADE[ui % METAS_ACOMP_CORES_UNIDADE.length],
+      data: monthKeysA.map((_, mj) => {
+        const bas = 8 + ((idx * 5 + ui * 3 + mj * 2) % 35);
+        if (ind.isP) return Math.min(99, bas + (ind.isReverso ? 8 : 42));
+        return +(0.75 + (bas % 18) * 0.065).toFixed(2);
+      }),
+    }));
+    const flat = series.flatMap((s) => s.data);
+    const globalVal = flat.length ? flat.reduce((a, b) => a + b, 0) / flat.length : 0;
+    const gaugeMax = ind.isP ? 100 : Math.max(10, Number(cfg.meta) * 1.5 || 10);
+    metasAcompanhamentoByMetric[ind.key] = {
+      titulo: 'Metas de acompanhamento da gestao',
+      catalog,
+      selectedKey: ind.key,
+      gauge: {
+        title: `${ind.name} global no periodo`,
+        value: globalVal,
+        min: 0,
+        max: gaugeMax,
+        isPercent: ind.isP,
+        sense,
+      },
+      metaRibbon: {
+        target: cfg.meta,
+        sense,
+        text: `META ${fmtMetaBr(cfg.meta)} ${ribbonCmp} melhor`,
+      },
+      months: monthsA,
+      series,
+      meta: {
+        schemaVersion: 3,
+        filtroUnidades: 'regional_unidade_gerencia',
+        demo: true,
+        eixoMeses: 'periodo_topo',
+      },
+    };
+  });
+
+  return {
+    schemaVersion: 1,
+    generatedAt: new Date().toISOString(),
+    queryEcho: {
+      period: String(q.period),
+      regional: q.regional != null && String(q.regional).trim() !== '' ? String(q.regional).trim() : '',
+      unidade: q.unidade != null && String(q.unidade).trim() !== '' ? String(q.unidade).trim() : '',
+    },
+    totaisPs,
+    tempoMedioEtapas: tempo,
+    metasPorVolumes,
+    metasConformesPorUnidade,
+    metricasPorUnidade,
+    unidadesPs,
+    metasAcompanhamentoByMetric,
+  };
+}
+
+/** Nacional 7d: mesma forma sintética do demo, mas uma linha por unidade vinda do cadastro (`tbl_unidades*` via `loadUnidadesPsFromDb`). */
+export async function buildGerenciaAperitivoNationalSeedFromCadastro(query: Record<string, unknown> = {}) {
+  const q = { ...query, period: query.period != null && String(query.period).trim() !== '' ? query.period : 7 };
+  const allU = await loadUnidadesPsFromDb();
+  let units = filterUnitsByQuery(allU, q);
+  if (!units.length) units = filterUnidadesPsMatriz(q);
+  let unitsOptions = filterUnitsByQuery(allU, { ...q, regional: '', unidade: '' });
+  if (!unitsOptions.length) unitsOptions = listUnidadesPsParaFiltro(q);
+  return buildGerenciaAperitivoDemoBundleWithUnits(q, units, unitsOptions);
+}
+
+export function buildGerenciaAperitivoDemoBundle(query: Record<string, unknown> = {}) {
+  const q = { ...query, period: query.period != null && String(query.period).trim() !== '' ? query.period : 7 };
+  const units = filterUnidadesPsMatriz(q);
+  const unitsOptions = listUnidadesPsParaFiltro(q);
+  return buildGerenciaAperitivoDemoBundleWithUnits(q, units, unitsOptions);
+}
+
+/**
+ * Se o cache aperitivo estiver vazio, preenche a partir de data/gerencia-aperitivo-7d.seed.json
+ * ou do bundle demo (cold start). Desligar: GERENCIA_APERITIVO_SEED=0
+ */
+export async function ensureGerenciaAperitivoSeedLoaded() {
+  if (String(process.env.GERENCIA_APERITIVO_SEED || '').trim() === '0') return;
+  try {
+    const natKey = aperitivoStaleCacheKey(nationalSevenDayQuery());
+    const existing = await loadAperitivoCacheByKey(natKey);
+    if (existing) {
+      primeGerenciaNationalSevenDayCaches(existing);
+      return;
+    }
+
+    if (existsSync(APERITIVO_SEED_FILE)) {
+      const txt = readFileSync(APERITIVO_SEED_FILE, 'utf8');
+      const parsed = JSON.parse(txt);
+      const bundle =
+        parsed && typeof parsed === 'object' && parsed.bundle && typeof parsed.bundle === 'object'
+          ? parsed.bundle
+          : parsed;
+      if (!bundle || bundle.schemaVersion !== 1 || !bundle.totaisPs) {
+        console.warn('[gerencia] aperitivo: seed JSON invalido, usando bundle demo');
+        const demo = buildGerenciaAperitivoDemoBundle({ period: 7 });
+        await saveAperitivoCacheByKey(natKey, demo);
+        await saveAperitivoCacheByKey(GERENCIA_APERITIVO_LEGACY_KEY, demo);
+        primeGerenciaNationalSevenDayCaches(demo);
+        console.log('[gerencia] aperitivo: cache preenchido (bundle demo sintético).');
+        return;
+      }
+      if (!bundle.queryEcho) bundle.queryEcho = {};
+      if (!bundle.queryEcho.period) bundle.queryEcho.period = '7';
+      await saveAperitivoCacheByKey(natKey, bundle);
+      await saveAperitivoCacheByKey(GERENCIA_APERITIVO_LEGACY_KEY, bundle);
+      primeGerenciaNationalSevenDayCaches(bundle);
+      console.log('[gerencia] aperitivo: seed JSON 7d carregado em cache <-', APERITIVO_SEED_FILE);
+      return;
+    }
+
+    const demo = buildGerenciaAperitivoDemoBundle({ period: 7 });
+    await saveAperitivoCacheByKey(natKey, demo);
+    await saveAperitivoCacheByKey(GERENCIA_APERITIVO_LEGACY_KEY, demo);
+    primeGerenciaNationalSevenDayCaches(demo);
+    console.log('[gerencia] aperitivo: cache preenchido (bundle demo; crie data/gerencia-aperitivo-7d.seed.json com npm run gerencia:aperitivo-seed-write).');
+  } catch (e) {
+    console.warn('[gerencia] aperitivo seed:', (e as Error)?.message || e);
+  }
+}
+
+/**
+ * Prewarm real do aperitivo 7d no boot (DuckDB/Postgres), substituindo seed/demo quando disponível.
+ * Desligar: GERENCIA_APERITIVO_PREWARM_ON_BOOT=0
+ */
+export async function ensureGerenciaAperitivoHotBootLoaded() {
+  if (String(process.env.GERENCIA_APERITIVO_PREWARM_ON_BOOT || '1').trim() === '0') return;
+  const t0 = Date.now();
+  try {
+    const prewarmPeriod = (() => {
+      const n = Number(process.env.GERENCIA_APERITIVO_PREWARM_PERIOD ?? '1');
+      return Number.isFinite(n) && n >= 1 && n <= 60 ? Math.floor(n) : 1;
+    })();
+    const qNat = { period: prewarmPeriod, regional: '', unidade: '' };
+    ensureGerenciaWarmPlan();
+    const full = await liveService.buildGerenciaDashboardBundleCore(qNat);
+    await saveAperitivoCacheByKey(aperitivoStaleCacheKey(qNat), full);
+    await saveAperitivoCacheByKey(GERENCIA_APERITIVO_LEGACY_KEY, full);
+    primeGerenciaNationalSevenDayCaches(full);
+
+    const prewarmRegionals = String(process.env.GERENCIA_APERITIVO_PREWARM_REGIONALS_ON_BOOT || '1').trim() !== '0';
+    const prewarmUnits = String(process.env.GERENCIA_APERITIVO_PREWARM_UNITS_ON_BOOT || '1').trim() !== '0';
+    const maxUnits = (() => {
+      const n = Number(process.env.GERENCIA_APERITIVO_PREWARM_MAX_UNITS ?? '5000');
+      return Number.isFinite(n) && n > 0 ? Math.min(Math.floor(n), 5000) : 5000;
+    })();
+
+    let regionalCount = 0;
+    if (prewarmRegionals || prewarmUnits) {
+      const allUnits = await loadUnidadesPsFromDb();
+      const regionals = Array.from(
+        new Set(
+          (allUnits || [])
+            .map((u) => normalizeUfRegional(u?.regional))
+            .filter((r) => String(r || '').trim() !== ''),
+        ),
+      ).sort((a, b) => String(a).localeCompare(String(b), 'pt-BR'));
+
+      for (const regional of regionals) {
+        const qRegional = { period: prewarmPeriod, regional, unidade: '' };
+        const unitsInRegional = filterUnitsByQuery(allUnits, qRegional);
+        if (prewarmRegionals) {
+          const slicedRegional = sliceGerenciaBundleForQuery(full, qRegional, unitsInRegional);
+          if (slicedRegional) {
+            await saveAperitivoCacheByKey(aperitivoStaleCacheKey(qRegional), slicedRegional);
+            regionalCount += 1;
+          }
+        }
+      }
+
+      // 2º plano: filtros por unidade (não bloqueia o boot da API).
+      if (prewarmUnits) {
+        void (async () => {
+          const tUnits = Date.now();
+          let unitCount = 0;
+          for (const regional of regionals) {
+            const qRegional = { period: prewarmPeriod, regional, unidade: '' };
+            const unitsInRegional = filterUnitsByQuery(allUnits, qRegional);
+            for (const u of unitsInRegional) {
+              if (unitCount >= maxUnits) break;
+              const unidadeId = String(u?.unidadeId ?? '').trim();
+              if (!unidadeId) continue;
+              const qUnit = { period: prewarmPeriod, regional, unidade: unidadeId };
+              const slicedUnit = sliceGerenciaBundleForQuery(full, qUnit, [u]);
+              if (!slicedUnit) continue;
+              await saveAperitivoCacheByKey(aperitivoStaleCacheKey(qUnit), slicedUnit);
+              unitCount += 1;
+            }
+            if (unitCount >= maxUnits) break;
+          }
+          console.log(
+            `[gerencia] aperitivo: prewarm d-${prewarmPeriod} unidades em 2º plano pronto em ${Date.now() - tUnits}ms (unidades=${unitCount}).`,
+          );
+        })();
+      }
+    }
+
+    console.log(
+      `[gerencia] aperitivo: prewarm d-${prewarmPeriod} base pronto em ${Date.now() - t0}ms (regionais=${regionalCount}).`,
+    );
+  } catch (e) {
+    console.warn('[gerencia] aperitivo prewarm boot:', (e as Error)?.message || e);
+  }
+}
+
+/**
+ * Prewarm do bundle 30d:
+ * - base imediata (nacional + regionais)
+ * - unidades em 2º plano
+ */
+export async function ensureGerenciaPeriod30HotBootLoaded() {
+  if (String(process.env.GERENCIA_30D_PREWARM_ON_BOOT || '1').trim() === '0') return;
+  const t0 = Date.now();
+  try {
+    const period30 = (() => {
+      const n = Number(process.env.GERENCIA_30D_PREWARM_PERIOD ?? '30');
+      return Number.isFinite(n) && n >= 8 && n <= 60 ? Math.floor(n) : 30;
+    })();
+    const prewarmRegionals = String(process.env.GERENCIA_30D_PREWARM_REGIONALS_ON_BOOT || '1').trim() !== '0';
+    const prewarmUnits = String(process.env.GERENCIA_30D_PREWARM_UNITS_ON_BOOT || '1').trim() !== '0';
+    const maxUnits = (() => {
+      const n = Number(process.env.GERENCIA_30D_PREWARM_MAX_UNITS ?? '5000');
+      return Number.isFinite(n) && n > 0 ? Math.min(Math.floor(n), 5000) : 5000;
+    })();
+
+    const qNat = { period: period30, regional: '', unidade: '' };
+    ensureGerenciaWarmPlan();
+    const full = await liveService.buildGerenciaDashboardBundleCore(qNat);
+    await saveGerenciaBundleCacheByKey(gerenciaBundleStaleCacheKey(qNat), full);
+
+    let regionalCount = 0;
+    const allUnits = await loadUnidadesPsFromDb();
+    const regionals = Array.from(
+      new Set(
+        (allUnits || [])
+          .map((u) => normalizeUfRegional(u?.regional))
+          .filter((r) => String(r || '').trim() !== ''),
+      ),
+    ).sort((a, b) => String(a).localeCompare(String(b), 'pt-BR'));
+
+    if (prewarmRegionals) {
+      for (const regional of regionals) {
+        const qRegional = { period: period30, regional, unidade: '' };
+        const unitsInRegional = filterUnitsByQuery(allUnits, qRegional);
+        const slicedRegional = sliceGerenciaBundleForQuery(full, qRegional, unitsInRegional);
+        if (!slicedRegional) continue;
+        await saveGerenciaBundleCacheByKey(gerenciaBundleStaleCacheKey(qRegional), slicedRegional);
+        regionalCount += 1;
+      }
+    }
+
+    if (prewarmUnits) {
+      void (async () => {
+        const tu = Date.now();
+        let unitCount = 0;
+        for (const regional of regionals) {
+          const qRegional = { period: period30, regional, unidade: '' };
+          const unitsInRegional = filterUnitsByQuery(allUnits, qRegional);
+          for (const u of unitsInRegional) {
+            if (unitCount >= maxUnits) break;
+            const unidadeId = String(u?.unidadeId ?? '').trim();
+            if (!unidadeId) continue;
+            const qUnit = { period: period30, regional, unidade: unidadeId };
+            const slicedUnit = sliceGerenciaBundleForQuery(full, qUnit, [u]);
+            if (!slicedUnit) continue;
+            await saveGerenciaBundleCacheByKey(gerenciaBundleStaleCacheKey(qUnit), slicedUnit);
+            unitCount += 1;
+          }
+          if (unitCount >= maxUnits) break;
+        }
+        console.log(
+          `[gerencia] 30d: prewarm unidades em 2º plano pronto em ${Date.now() - tu}ms (unidades=${unitCount}).`,
+        );
+      })();
+    }
+
+    console.log(
+      `[gerencia] 30d: prewarm base pronto em ${Date.now() - t0}ms (regionais=${regionalCount}).`,
+    );
+  } catch (e) {
+    console.warn('[gerencia] 30d prewarm boot:', (e as Error)?.message || e);
+  }
+}
+
 class LiveService {
+  /** Uma construção 7d em voo por chave de filtro (evita martelar DuckDB). */
+  static _gerenciaSevenDayBgInflight = new Set<string>();
+  /** Deduplicação de builds completos (>7d) por chave de filtro. */
+  static _gerenciaFullBundleInflight = new Map<string, Promise<Record<string, unknown>>>();
+
+  /**
+   * Bundle completo 7d + gravação no cache aperitivo — corre em background após resposta instantânea.
+   */
+  _scheduleSevenDayFullBundleBackground(
+    q: Record<string, unknown>,
+    meta: { requestedPeriod: number; effectivePeriod: number; cappedToMax60: boolean },
+  ) {
+    const cacheKey = aperitivoStaleCacheKey(q);
+    if (LiveService._gerenciaSevenDayBgInflight.has(cacheKey)) return;
+    LiveService._gerenciaSevenDayBgInflight.add(cacheKey);
+    void (async () => {
+      try {
+        ensureGerenciaWarmPlan();
+        const full = await this.buildGerenciaDashboardBundleCore(q);
+        const hotCoverageDays = getGerenciaHotCoverageDays(q);
+        const warmStatus = getGerenciaWarmStatus();
+        full.cacheOrchestration = {
+          source: hotCoverageDays > 0 ? `hot_window_${hotCoverageDays}d` : 'db_on_demand',
+          requestedPeriod: meta.requestedPeriod,
+          effectivePeriod: meta.effectivePeriod,
+          cappedToMax60: meta.cappedToMax60,
+          hotCoverageDays,
+          warmStatus,
+          fullBundlePending: false,
+        };
+        await saveAperitivoCacheByKey(cacheKey, full);
+        if (isDefaultGerenciaScope(q)) {
+          await saveAperitivoCacheByKey(aperitivoStaleCacheKey(nationalSevenDayQuery()), full);
+          await saveAperitivoCacheByKey(GERENCIA_APERITIVO_LEGACY_KEY, full);
+        }
+        domainEventBus.emit(DomainEvents.GerenciaDashboardBundleBuilt, {
+          query: q,
+          cache_source: full.cacheOrchestration?.source,
+          hot_coverage_days: hotCoverageDays,
+        });
+      } catch (err) {
+        console.warn('[gerencia] background full bundle (7d):', err instanceof Error ? err.message : err);
+      } finally {
+        LiveService._gerenciaSevenDayBgInflight.delete(cacheKey);
+      }
+    })();
+  }
+
+  /** 7 dias: cache por filtro, slice em memória a partir do nacional, ou demo instantâneo. */
+  async resolveGerenciaSevenDayBundle(
+    q: Record<string, unknown>,
+    meta: {
+      requestedPeriod: number;
+      effectivePeriod: number;
+      cappedToMax60: boolean;
+      hotCoverageDays: number;
+      warmStatus: unknown;
+    },
+  ) {
+    const echoN = queryEchoFromGerenciaQuery(q);
+    const wrap = (bundle: Record<string, unknown>, source: string, pending = false) => ({
+      ...bundle,
+      queryEcho: echoN,
+      cacheOrchestration: {
+        source,
+        requestedPeriod: meta.requestedPeriod,
+        effectivePeriod: meta.effectivePeriod,
+        cappedToMax60: meta.cappedToMax60,
+        hotCoverageDays: meta.hotCoverageDays,
+        warmStatus: meta.warmStatus,
+        fullBundlePending: pending,
+      },
+    });
+
+    const key = aperitivoStaleCacheKey(q);
+    const cached = await loadAperitivoCacheByKey(key);
+    if (cached) {
+      incGerenciaPerf('aperitivo_cache_hit');
+      return wrap(cached, 'aperitivo_json_cache', false);
+    }
+
+    const natKey = aperitivoStaleCacheKey(nationalSevenDayQuery());
+    const national = await (async () => {
+      let n = await loadAperitivoCacheByKey(natKey);
+      if (!n) n = await loadAperitivoCacheByKey(GERENCIA_APERITIVO_LEGACY_KEY);
+      return n;
+    })();
+
+    if (national) {
+      // Caminho rápido: evita I/O no cadastro na primeira troca de filtro.
+      const quickSlice = sliceGerenciaBundleForQuery(national, q);
+      if (quickSlice) {
+        incGerenciaPerf('aperitivo_scope_slice_hit');
+        // Com unidade concreta o slice do nacional já basta — não disparar DuckDB em background a cada troca.
+        const scopedUnidade = String(q.unidade ?? '').trim();
+        if (!scopedUnidade) this._scheduleSevenDayFullBundleBackground(q, meta);
+        return wrap(quickSlice, 'aperitivo_scope_slice', false);
+      }
+
+      // Fallback de precisão: usa cadastro quando o slice rápido não conseguiu casar IDs/escopo.
+      const allUnitsRaw = await loadUnidadesPsFromDb();
+      const unitsFromCadastro = filterUnitsByQuery(allUnitsRaw, q);
+      const slicedWithCadastro = sliceGerenciaBundleForQuery(
+        national,
+        q,
+        unitsFromCadastro.length > 0 ? unitsFromCadastro : undefined,
+      );
+      if (slicedWithCadastro) {
+        incGerenciaPerf('aperitivo_scope_slice_hit');
+        const scopedUnidade = String(q.unidade ?? '').trim();
+        if (!scopedUnidade) this._scheduleSevenDayFullBundleBackground(q, meta);
+        return wrap(slicedWithCadastro, 'aperitivo_scope_slice', false);
+      }
+    }
+
+    const demo = buildGerenciaAperitivoDemoBundle(q);
+    incGerenciaPerf('aperitivo_demo_fallback');
+    if (!String(q.unidade ?? '').trim()) this._scheduleSevenDayFullBundleBackground(q, meta);
+    return wrap(demo, 'aperitivo_instant_demo', false);
+  }
+
   async getKPIs() {
     return {
       taxaOcupacao: { ...emptyKpiField(), unidade: '%' },
@@ -1476,8 +2554,25 @@ class LiveService {
    * Mesmo shape de getKpiUnidades: { unidadeId, unidadeNome, regional }.
    */
   async getGerenciaUnidadesPs(query = {}) {
+    const rawRg = query.regional;
+    const regional =
+      Array.isArray(rawRg) && rawRg.length ? String(rawRg[0] ?? '').trim() : String(rawRg ?? '').trim();
+    const qf = regional ? { regional } : {};
+
+    const fromCache = await loadUnidadesPsFromAperitivoCache(qf);
+    if (fromCache.length) return fromCache;
+
     const units = await loadUnidadesPsFromDb();
-    return filterUnitsByQuery(units, { regional: query.regional });
+    let out = filterUnitsByQuery(units, qf);
+    /**
+     * Cadastro real pode ter `uf`/`ps` incompatíveis com o filtro do topo — a lista ficava vazia.
+     * Nesse caso usa as unidades DEMO da mesma regional (matriz alinhada ao BI).
+     */
+    if (regional && !out.length) {
+      const dem = filterUnitsByQuery(DEMO_UNIDADES_PS, qf);
+      if (dem.length) return dem;
+    }
+    return out;
   }
 
   /**
@@ -2032,26 +3127,22 @@ class LiveService {
   }
 
   /**
-   * Um Ãºnico payload para a visÃ£o GerÃªncia â€” uma ida ao Postgres (datasets partilhados)
-   * e agregaÃ§Ã£o no Node; o React faz um sÃ³ GET e pinta tudo de uma vez.
+   * Payload unico da Gerencia: datasets partilhados (DuckDB/Postgres/CSV) + agregacao no Node;
+   * o React faz um GET (dashboard-bundle) e pinta tudo.
    */
   async buildGerenciaDashboardBundleCore(q = {}) {
-    const metasAcompPromises = METAS_POR_VOLUMES_INDICADORES.map((ind) =>
-      this.getGerenciaMetasAcompanhamentoGestao({ ...q, metric: ind.key }),
-    );
-    const parts = await Promise.all([
-      this.getGerenciaTotaisPs(q),
-      this.getGerenciaTempoMedioEtapas(q),
-      this.getGerenciaMetasPorVolumes(q),
-      this.getGerenciaMetasConformesPorUnidade(q),
-      this.getGerenciaMetricasPorUnidade(q),
-      this.getGerenciaUnidadesPs(q),
-      ...metasAcompPromises,
+    await loadGerenciaDatasets(q);
+    const [metasAcompanhamentoByMetric, parts] = await Promise.all([
+      buildMetasAcompanhamentoByMetricAll(q),
+      Promise.all([
+        this.getGerenciaTotaisPs(q),
+        this.getGerenciaTempoMedioEtapas(q),
+        this.getGerenciaMetasPorVolumes(q),
+        this.getGerenciaMetasConformesPorUnidade(q),
+        this.getGerenciaMetricasPorUnidade(q),
+        this.getGerenciaUnidadesPs(q),
+      ]),
     ]);
-    const metasAcompanhamentoByMetric = {};
-    METAS_POR_VOLUMES_INDICADORES.forEach((ind, i) => {
-      metasAcompanhamentoByMetric[ind.key] = parts[6 + i];
-    });
     const bundle = {
       schemaVersion: 1,
       generatedAt: new Date().toISOString(),
@@ -2066,17 +3157,26 @@ class LiveService {
       metasConformesPorUnidade: parts[3],
       metricasPorUnidade: parts[4],
       unidadesPs: parts[5],
-      metasAcompanhamentoByMetric,
+      metasAcompanhamentoByMetric: metasAcompanhamentoByMetric as Record<string, unknown>,
     };
     return bundle;
   }
 
   async buildGerenciaAperitivoLite(q = {}) {
-    const units = filterUnidadesPsMatriz(q);
-    const unitsOptions = listUnidadesPsParaFiltro(q);
-    const unitRows = await readRepository.safeView('ps_resumo_unidades_snapshot_prod', {
-      columns: 'cd_estabelecimento,hoje,ativos,internacao_qtd,triagem_acima_meta,consulta_acima_meta,permanencia_acima_meta,medicacao_acima_meta,reavaliacao_acima_meta',
-    });
+    const cap = gerenciaLiteSnapshotCapMs();
+    const [allU, unitRows] = await Promise.all([
+      loadUnidadesPsFromDb(),
+      snapshotRowsOrEmpty(
+        readRepository.safeView('ps_resumo_unidades_snapshot_prod', {
+          columns:
+            'cd_estabelecimento,hoje,ativos,internacao_qtd,triagem_acima_meta,consulta_acima_meta,permanencia_acima_meta,medicacao_acima_meta,reavaliacao_acima_meta',
+        }),
+        cap,
+      ),
+    ]);
+    const unitsFromDb = Array.isArray(allU) && allU.length > 0;
+    const unitsOptions = unitsFromDb ? filterUnitsByQuery(allU, { regional: q.regional }) : listUnidadesPsParaFiltro(q);
+    const units = unitsFromDb ? filterUnitsByQuery(allU, q) : filterUnidadesPsMatriz(q);
     const byCd = new Map();
     for (const r of unitRows || []) {
       const cd = String(readCell(r, 'cd_estabelecimento', 'CD_ESTABELECIMENTO') ?? '').padStart(3, '0');
@@ -2259,73 +3359,99 @@ class LiveService {
     const hotCoverageDays = getGerenciaHotCoverageDays(q);
     const warmStatus = getGerenciaWarmStatus();
 
-    if (effectivePeriod <= 7 && isDefaultGerenciaScope(q)) {
-      const cached = await loadAperitivoCache();
-      if (cached) {
-        return {
-          ...cached,
-          cacheOrchestration: {
-            source: 'aperitivo_json_cache',
-            requestedPeriod,
-            effectivePeriod,
-            cappedToMax60: capped,
-            hotCoverageDays,
-            warmStatus,
-          },
+    if (effectivePeriod <= 7) {
+      return this.resolveGerenciaSevenDayBundle(q, {
+        requestedPeriod,
+        effectivePeriod,
+        cappedToMax60: capped,
+        hotCoverageDays,
+        warmStatus,
+      });
+    }
+
+    const fullKey = gerenciaBundleStaleCacheKey(q);
+    const cachedFull = await loadGerenciaBundleCacheByKey(fullKey);
+    if (cachedFull) {
+      incGerenciaPerf('bundle_redis_hit');
+      markGerenciaBundleBuild(0, 'redis_bundle_cache');
+      cachedFull.queryEcho = queryEchoFromGerenciaQuery(q);
+      cachedFull.cacheOrchestration = {
+        source: 'redis_bundle_cache',
+        requestedPeriod,
+        effectivePeriod,
+        cappedToMax60: capped,
+        hotCoverageDays,
+        warmStatus,
+        fullBundlePending: false,
+      };
+      return cachedFull;
+    }
+    incGerenciaPerf('bundle_redis_miss');
+
+    const existingInflight = LiveService._gerenciaFullBundleInflight.get(fullKey);
+    if (existingInflight) {
+      incGerenciaPerf('bundle_inflight_dedup_hit');
+      const dedup = await existingInflight;
+      dedup.queryEcho = queryEchoFromGerenciaQuery(q);
+      dedup.cacheOrchestration = {
+        source: 'inflight_dedup_cache',
+        requestedPeriod,
+        effectivePeriod,
+        cappedToMax60: capped,
+        hotCoverageDays,
+        warmStatus,
+        fullBundlePending: false,
+      };
+      return dedup;
+    }
+
+    const buildPromise = (async () => {
+      const t0 = Date.now();
+      try {
+        const bundle = await this.buildGerenciaDashboardBundleCore(q);
+        bundle.cacheOrchestration = {
+          source: hotCoverageDays > 0 ? `hot_window_${hotCoverageDays}d` : 'db_on_demand',
+          requestedPeriod,
+          effectivePeriod,
+          cappedToMax60: capped,
+          hotCoverageDays,
+          warmStatus,
+          fullBundlePending: false,
         };
+        await saveGerenciaBundleCacheByKey(fullKey, bundle);
+        domainEventBus.emit(DomainEvents.GerenciaDashboardBundleBuilt, {
+          query: q,
+          cache_source: bundle.cacheOrchestration?.source,
+          hot_coverage_days: hotCoverageDays,
+        });
+        incGerenciaPerf('bundle_build_ok');
+        markGerenciaBundleBuild(Date.now() - t0, String(bundle.cacheOrchestration?.source || 'db_on_demand'));
+        return bundle;
+      } catch (e) {
+        incGerenciaPerf('bundle_build_err');
+        throw e;
       }
+    })();
+
+    LiveService._gerenciaFullBundleInflight.set(fullKey, buildPromise);
+    try {
+      const bundle = await buildPromise;
+      return bundle;
+    } finally {
+      LiveService._gerenciaFullBundleInflight.delete(fullKey);
     }
-
-    const bundle = await this.buildGerenciaDashboardBundleCore(q);
-    bundle.cacheOrchestration = {
-      source: hotCoverageDays > 0 ? `hot_window_${hotCoverageDays}d` : 'db_on_demand',
-      requestedPeriod,
-      effectivePeriod,
-      cappedToMax60: capped,
-      hotCoverageDays,
-      warmStatus,
-    };
-
-    if (effectivePeriod <= 7 && isDefaultGerenciaScope(q)) {
-      await saveAperitivoCache(bundle);
-    }
-
-    domainEventBus.emit(DomainEvents.GerenciaDashboardBundleBuilt, {
-      query: q,
-      cache_source: bundle.cacheOrchestration?.source,
-      hot_coverage_days: hotCoverageDays,
-    });
-    return bundle;
   }
 
   async getGerenciaAperitivo(query = {}) {
     ensureGerenciaWarmPlan();
     const q = { ...query, period: 7 };
-    const cached = await loadAperitivoCache();
-    if (cached) {
-      return {
-        ...cached,
-        cacheOrchestration: {
-          source: 'aperitivo_json_cache',
-          requestedPeriod: 7,
-          effectivePeriod: 7,
-          cappedToMax60: false,
-          hotCoverageDays: getGerenciaHotCoverageDays(q),
-          warmStatus: getGerenciaWarmStatus(),
-        },
-      };
-    }
-    const bundle = await this.buildGerenciaAperitivoLite(q);
-    bundle.cacheOrchestration = {
-      source: 'aperitivo_lite_snapshot',
+    return this.resolveGerenciaSevenDayBundle(q, {
       requestedPeriod: 7,
       effectivePeriod: 7,
       cappedToMax60: false,
       hotCoverageDays: getGerenciaHotCoverageDays(q),
       warmStatus: getGerenciaWarmStatus(),
-    };
-    await saveAperitivoCache(bundle);
-    return bundle;
+    });
   }
 
   async getPSVolumes() {
@@ -2518,5 +3644,10 @@ class LiveService {
   }
 }
 
-export default new LiveService();
+/** Modo estrito sem cache em memória no Node: função mantida por compatibilidade de chamadas. */
+function primeGerenciaNationalSevenDayCaches(innerBundle: Record<string, unknown>): void {
+  void innerBundle;
+}
 
+const liveService = new LiveService();
+export default liveService;

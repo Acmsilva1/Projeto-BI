@@ -1,21 +1,20 @@
 /**
- * Repositorio Gerencia:
+ * Repositório Gerência:
  * - leitura das fact tables
- * - cache curto por chave de periodo
- * - "hot windows" 30/60 dias (memoria + Redis)
- * - orquestracao de aquecimento progressivo para aliviar DuckDB
+ * - hot windows 30/60 dias (exclusivamente Redis)
+ * - orquestração de aquecimento progressivo para aliviar DuckDB
  */
 import { cacheGetStale, cacheSetStale } from '../cache/redisMemoryCache.js';
-import { gerenciaDatasetCacheKey, gerenciaFetchOpts } from '../domain/gerencia/sqlContext.js';
+import { gerenciaFetchOpts } from '../domain/gerencia/sqlContext.js';
 import { DomainEvents } from '../domain/messages/events.js';
-import { parsePeriodEnd, parsePeriodStart } from '../domain/shared/period.js';
+import {
+  endOfYesterdayLocal,
+  gerenciaAnchorEndD1Enabled,
+  parsePeriodEnd,
+  parsePeriodStart,
+} from '../domain/shared/period.js';
 import { domainEventBus } from '../messaging/domainEventBus.js';
 import { readRepository } from './readRepository.js';
-
-const GERENCIA_DS_TTL_MS = (() => {
-  const n = Number(process.env.GERENCIA_DATASET_TTL_MS ?? '120000');
-  return Number.isFinite(n) && n >= 5000 ? Math.min(Math.floor(n), 600_000) : 120_000;
-})();
 
 const GERENCIA_HOT_WINDOW_TTL_MS = (() => {
   const n = Number(process.env.GERENCIA_HOT_WINDOW_TTL_MS ?? String(6 * 60 * 60 * 1000));
@@ -28,7 +27,6 @@ const GERENCIA_WARM_SECOND_WAVE_DELAY_MS = (() => {
 })();
 
 const GERENCIA_MAX_PERIOD_DAYS = 60;
-const HOT_WINDOWS = [30, 60] as const;
 
 export type GerenciaDataset = {
   fluxRows: Record<string, unknown>[];
@@ -67,15 +65,14 @@ const FACT_LOGICALS = [
   'meta_tempos',
 ] as const;
 
-const gerenciaDsCache = new Map<string, { data: GerenciaDataset; at: number }>();
-const gerenciaDsInflightByKey = new Map<string, Promise<GerenciaDataset>>();
-const hotWindowMem = new Map<number, { data: GerenciaDataset; at: number }>();
 const hotWindowInflight = new Map<number, Promise<GerenciaDataset>>();
 let dateAnchorCache: { at: number; iso: string } | null = null;
 const DATE_ANCHOR_TTL_MS = 5 * 60 * 1000;
 
 const warmStatus: {
   started: boolean;
+  wave30Ready: boolean;
+  wave60Ready: boolean;
   startedAt: number | null;
   wave30At: number | null;
   wave60At: number | null;
@@ -83,6 +80,8 @@ const warmStatus: {
   lastError: string | null;
 } = {
   started: false,
+  wave30Ready: false,
+  wave60Ready: false,
   startedAt: null,
   wave30At: null,
   wave60At: null,
@@ -100,7 +99,7 @@ function hotWindowRedisKey(days: number): string {
 
 function normalizePeriodDays(query: Record<string, unknown> = {}): number {
   const p = Number(query.period);
-  if (!Number.isFinite(p) || p <= 0) return 7;
+  if (!Number.isFinite(p) || p <= 0) return 1;
   if (p === 366) return GERENCIA_MAX_PERIOD_DAYS;
   return Math.max(1, Math.min(Math.floor(p), GERENCIA_MAX_PERIOD_DAYS));
 }
@@ -152,7 +151,12 @@ function ensureQueryDateAnchorFromDataset(query: Record<string, unknown>, ds: Ge
   if (hasExplicitDateTo(query)) return;
   const anchor = datasetLatestAnchorIso(ds);
   if (!anchor) return;
-  query.date_to = anchor;
+  let d = new Date(anchor);
+  if (gerenciaAnchorEndD1Enabled()) {
+    const cap = endOfYesterdayLocal();
+    if (d > cap) d = cap;
+  }
+  query.date_to = d.toISOString();
 }
 
 async function resolveLatestDataAnchor(): Promise<string | null> {
@@ -183,6 +187,10 @@ async function resolveLatestDataAnchor(): Promise<string | null> {
     }
   }
   if (!best) return null;
+  if (gerenciaAnchorEndD1Enabled()) {
+    const cap = endOfYesterdayLocal();
+    if (best > cap) best = cap;
+  }
   const iso = best.toISOString();
   dateAnchorCache = { at: Date.now(), iso };
   return iso;
@@ -193,7 +201,10 @@ async function attachAnchorToQuery(query: Record<string, unknown>): Promise<void
   if (query.date_to != null && String(query.date_to).trim() !== '') return;
   if (query.dateTo != null && String(query.dateTo).trim() !== '') return;
   const anchor = await resolveLatestDataAnchor();
-  if (!anchor) return;
+  if (!anchor) {
+    if (gerenciaAnchorEndD1Enabled()) query.date_to = endOfYesterdayLocal().toISOString();
+    return;
+  }
   query.date_to = anchor;
 }
 
@@ -217,25 +228,11 @@ async function loadHotWindowFromRedis(days: number): Promise<{ data: GerenciaDat
 
 async function saveHotWindow(days: number, data: GerenciaDataset): Promise<void> {
   const payload = { at: Date.now(), data };
-  hotWindowMem.set(days, payload);
   try {
     await cacheSetStale(hotWindowRedisKey(days), JSON.stringify(payload));
   } catch {
     /* ignore cache persistence failure */
   }
-}
-
-function pickHotCoverage(periodDays: number): 0 | 30 | 60 {
-  if (periodDays <= 30 && hotWindowFresh(hotWindowMem.get(30))) return 30;
-  if (periodDays <= 60 && hotWindowFresh(hotWindowMem.get(60))) return 60;
-  return 0;
-}
-
-async function ensureHotWindowFromStorage(days: 30 | 60): Promise<void> {
-  const mem = hotWindowMem.get(days);
-  if (hotWindowFresh(mem)) return;
-  const redisHit = await loadHotWindowFromRedis(days);
-  if (redisHit) hotWindowMem.set(days, redisHit);
 }
 
 async function loadGerenciaDatasetRaw(query: Record<string, unknown> = {}): Promise<GerenciaDataset> {
@@ -245,87 +242,53 @@ async function loadGerenciaDatasetRaw(query: Record<string, unknown> = {}): Prom
     if (anchor) q.date_to = anchor;
   }
 
-  const cacheKey = gerenciaDatasetCacheKey(q);
-  const now = Date.now();
-  const hit = gerenciaDsCache.get(cacheKey);
-  if (hit && now - hit.at < GERENCIA_DS_TTL_MS) return hit.data;
-
-  const existing = gerenciaDsInflightByKey.get(cacheKey);
-  if (existing) return existing;
-
-  let resolveLoad!: (value: GerenciaDataset) => void;
-  let rejectLoad!: (reason?: unknown) => void;
-  const inflight = new Promise<GerenciaDataset>((resolve, reject) => {
-    resolveLoad = resolve;
-    rejectLoad = reject;
+  const fo = (logical: string) => gerenciaFetchOpts(logical, q);
+  const specs = FACT_LOGICALS.map((logical) => ({ logical, options: fo(logical) }));
+  const dateFrom = parsePeriodStart(q);
+  const dateTo = parsePeriodEnd(q);
+  domainEventBus.emit(DomainEvents.GerenciaDataSliceRequested, {
+    period: q.period,
+    dateFrom: dateFrom.toISOString(),
+    dateTo: dateTo.toISOString(),
+    tables: [...FACT_LOGICALS],
   });
-  gerenciaDsInflightByKey.set(cacheKey, inflight);
-
-  void (async () => {
-    try {
-      const fo = (logical: string) => gerenciaFetchOpts(logical, q);
-      const specs = FACT_LOGICALS.map((logical) => ({ logical, options: fo(logical) }));
-      const dateFrom = parsePeriodStart(q);
-      const dateTo = parsePeriodEnd(q);
-      domainEventBus.emit(DomainEvents.GerenciaDataSliceRequested, {
-        period: q.period,
-        dateFrom: dateFrom.toISOString(),
-        dateTo: dateTo.toISOString(),
-        tables: [...FACT_LOGICALS],
-      });
-      const rows = await readRepository.safeViewParallel(specs);
-      const [fluxRows, medRows, labRows, rxRows, tcusRows, reavRows, altasRows, convRows, viasRows, metasRows] =
-        rows;
-      const out: GerenciaDataset = {
-        fluxRows,
-        medRows,
-        labRows,
-        rxRows,
-        tcusRows,
-        reavRows,
-        altasRows,
-        convRows,
-        viasRows: viasRows || [],
-        metasRows,
-      };
-      domainEventBus.emit(DomainEvents.GerenciaDataSliceLoaded, {
-        period: q.period,
-        dateFrom: dateFrom.toISOString(),
-        dateTo: dateTo.toISOString(),
-        rowCounts: {
-          tbl_tempos_entrada_consulta_saida: fluxRows.length,
-          tbl_tempos_medicacao: medRows.length,
-          tbl_tempos_laboratorio: labRows.length,
-          tbl_tempos_rx_e_ecg: rxRows.length,
-          tbl_tempos_tc_e_us: tcusRows.length,
-          tbl_tempos_reavaliacao: reavRows.length,
-          tbl_altas_ps: altasRows.length,
-          tbl_intern_conversoes: convRows.length,
-          tbl_vias_medicamentos: (viasRows || []).length,
-          meta_tempos: metasRows.length,
-        },
-      });
-      gerenciaDsCache.set(cacheKey, { data: out, at: Date.now() });
-      resolveLoad(out);
-    } catch (err) {
-      rejectLoad(err);
-    } finally {
-      gerenciaDsInflightByKey.delete(cacheKey);
-    }
-  })();
-
-  return inflight;
+  const rows = await readRepository.safeViewParallel(specs);
+  const [fluxRows, medRows, labRows, rxRows, tcusRows, reavRows, altasRows, convRows, viasRows, metasRows] = rows;
+  const out: GerenciaDataset = {
+    fluxRows,
+    medRows,
+    labRows,
+    rxRows,
+    tcusRows,
+    reavRows,
+    altasRows,
+    convRows,
+    viasRows: viasRows || [],
+    metasRows,
+  };
+  domainEventBus.emit(DomainEvents.GerenciaDataSliceLoaded, {
+    period: q.period,
+    dateFrom: dateFrom.toISOString(),
+    dateTo: dateTo.toISOString(),
+    rowCounts: {
+      tbl_tempos_entrada_consulta_saida: fluxRows.length,
+      tbl_tempos_medicacao: medRows.length,
+      tbl_tempos_laboratorio: labRows.length,
+      tbl_tempos_rx_e_ecg: rxRows.length,
+      tbl_tempos_tc_e_us: tcusRows.length,
+      tbl_tempos_reavaliacao: reavRows.length,
+      tbl_altas_ps: altasRows.length,
+      tbl_intern_conversoes: convRows.length,
+      tbl_vias_medicamentos: (viasRows || []).length,
+      meta_tempos: metasRows.length,
+    },
+  });
+  return out;
 }
 
 async function warmWindow(days: 30 | 60): Promise<GerenciaDataset> {
-  const mem = hotWindowMem.get(days);
-  if (hotWindowFresh(mem)) return mem.data;
-
   const redisHit = await loadHotWindowFromRedis(days);
-  if (redisHit) {
-    hotWindowMem.set(days, redisHit);
-    return redisHit.data;
-  }
+  if (redisHit) return redisHit.data;
 
   const existing = hotWindowInflight.get(days);
   if (existing) return existing;
@@ -334,8 +297,14 @@ async function warmWindow(days: 30 | 60): Promise<GerenciaDataset> {
     try {
       const data = await loadGerenciaDatasetRaw({ period: days });
       await saveHotWindow(days, data);
-      if (days === 30) warmStatus.wave30At = Date.now();
-      if (days === 60) warmStatus.wave60At = Date.now();
+      if (days === 30) {
+        warmStatus.wave30At = Date.now();
+        warmStatus.wave30Ready = true;
+      }
+      if (days === 60) {
+        warmStatus.wave60At = Date.now();
+        warmStatus.wave60Ready = true;
+      }
       return data;
     } catch (e) {
       warmStatus.lastError = e instanceof Error ? e.message : String(e);
@@ -364,8 +333,8 @@ export function ensureGerenciaWarmPlan(): void {
 export function getGerenciaWarmStatus(): GerenciaWarmStatus {
   return {
     started: warmStatus.started,
-    wave30Ready: hotWindowFresh(hotWindowMem.get(30)),
-    wave60Ready: hotWindowFresh(hotWindowMem.get(60)),
+    wave30Ready: warmStatus.wave30Ready,
+    wave60Ready: warmStatus.wave60Ready,
     startedAt: toIso(warmStatus.startedAt),
     wave30At: toIso(warmStatus.wave30At),
     wave60At: toIso(warmStatus.wave60At),
@@ -379,34 +348,32 @@ export function getGerenciaMaxPeriodDays(): number {
 }
 
 export function getGerenciaHotCoverageDays(query: Record<string, unknown> = {}): 0 | 30 | 60 {
-  return pickHotCoverage(normalizePeriodDays(query));
+  void query;
+  return 0;
 }
 
 export async function loadGerenciaDatasets(query: Record<string, unknown> = {}): Promise<GerenciaDataset> {
   ensureGerenciaWarmPlan();
   await attachAnchorToQuery(query);
 
-  await ensureHotWindowFromStorage(30);
-  await ensureHotWindowFromStorage(60);
-
   const periodDays = normalizePeriodDays(query);
-  const coverage = pickHotCoverage(periodDays);
-  if (coverage === 30) {
-    const ds = hotWindowMem.get(30)!.data;
-    ensureQueryDateAnchorFromDataset(query, ds);
-    return ds;
+  if (periodDays <= 30) {
+    const win30 = await loadHotWindowFromRedis(30);
+    if (win30) {
+      ensureQueryDateAnchorFromDataset(query, win30.data);
+      return win30.data;
+    }
   }
-  if (coverage === 60) {
-    const ds = hotWindowMem.get(60)!.data;
-    ensureQueryDateAnchorFromDataset(query, ds);
-    return ds;
+  if (periodDays <= 60) {
+    const win60 = await loadHotWindowFromRedis(60);
+    if (win60) {
+      ensureQueryDateAnchorFromDataset(query, win60.data);
+      return win60.data;
+    }
   }
 
   if (periodDays <= 30 && !hotWindowInflight.get(30)) void warmWindow(30);
-  if (periodDays <= 60 && !hotWindowInflight.get(60) && hotWindowFresh(hotWindowMem.get(30))) {
-    // segunda onda ainda não pronta: dispara sob demanda para acelerar filtro 60.
-    void warmWindow(60);
-  }
+  if (periodDays <= 60 && !hotWindowInflight.get(60)) void warmWindow(60);
 
   const ds = await loadGerenciaDatasetRaw({ ...query, period: periodDays });
   ensureQueryDateAnchorFromDataset(query, ds);

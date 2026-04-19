@@ -92,9 +92,20 @@ function sqlPathLiteral(p: string): string {
   return `'${String(p || '').replace(/'/g, "''")}'`;
 }
 
+function sqlTextLiteral(v: string): string {
+  return `'${String(v || '').replace(/'/g, "''")}'`;
+}
+
 function runAsync(db: DuckDbDb, sql: string, params: unknown[] = []): Promise<void> {
   return new Promise((resolve, reject) => {
-    db.run(sql, params, (err) => {
+    if (Array.isArray(params) && params.length > 0) {
+      db.run(sql, params, (err) => {
+        if (err) reject(err);
+        else resolve();
+      });
+      return;
+    }
+    db.run(sql, (err) => {
       if (err) reject(err);
       else resolve();
     });
@@ -103,7 +114,14 @@ function runAsync(db: DuckDbDb, sql: string, params: unknown[] = []): Promise<vo
 
 function allAsync(db: DuckDbDb, sql: string, params: unknown[] = []): Promise<Record<string, unknown>[]> {
   return new Promise((resolve, reject) => {
-    db.all(sql, params, (err, rows) => {
+    if (Array.isArray(params) && params.length > 0) {
+      db.all(sql, params, (err, rows) => {
+        if (err) reject(err);
+        else resolve(Array.isArray(rows) ? rows : []);
+      });
+      return;
+    }
+    db.all(sql, (err, rows) => {
       if (err) reject(err);
       else resolve(Array.isArray(rows) ? rows : []);
     });
@@ -204,22 +222,18 @@ export function createDuckdbDataLayer(duckdbPath: string, csvDir: string) {
         const orExpr = dateColumns
           .map((c) => {
             const qi = quoteDuckIdent(String(c).trim());
-            return `(TRY_CAST(${qi} AS TIMESTAMP) >= ? AND TRY_CAST(${qi} AS TIMESTAMP) <= ?)`;
+            return `(TRY_CAST(${qi} AS TIMESTAMP) >= TRY_CAST(${sqlTextLiteral(isoFrom)} AS TIMESTAMP) AND TRY_CAST(${qi} AS TIMESTAMP) <= TRY_CAST(${sqlTextLiteral(isoTo)} AS TIMESTAMP))`;
           })
           .join(' OR ');
         sql += ` WHERE (${orExpr})`;
-        dateColumns.forEach(() => {
-          params.push(isoFrom, isoTo);
-        });
       } else {
         const orExpr = dateColumns
           .map((c) => {
             const qi = quoteDuckIdent(String(c).trim());
-            return `TRY_CAST(${qi} AS TIMESTAMP) >= ?`;
+            return `TRY_CAST(${qi} AS TIMESTAMP) >= TRY_CAST(${sqlTextLiteral(isoFrom)} AS TIMESTAMP)`;
           })
           .join(' OR ');
         sql += ` WHERE (${orExpr})`;
-        dateColumns.forEach(() => params.push(isoFrom));
       }
     }
 

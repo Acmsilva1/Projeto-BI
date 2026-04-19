@@ -1,81 +1,44 @@
 /**
- * useApi.js  — Hook centralizado de acesso à API
- * -------------------------------------------------
- * Faz fetch para o backend Node.js e retorna
- * { data, loading, error }. Usa AbortController
- * para cancelar chamadas quando o componente desmonta.
+ * useApi.js — Hook centralizado de acesso à API (modo estrito sem cache local).
+ * - Sem cache em memória no React.
+ * - Sem localStorage.
+ * - Somente fetch + abort + estado de loading/erro.
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { getApiV1Base, buildApiQuery } from '../utils/apiBase';
 import { emitGerenciaUx, GerenciaUxEvents } from '../messaging/gerenciaUxBus.js';
-
-// Cache simples em memória (chave = url)
-const _cache = new Map();
-const LS_PREFIX = 'hospital-bi:api-cache:v1:';
-const LOCAL_MAX_BYTES = 1_500_000;
-
-function localKey(url) {
-  return `${LS_PREFIX}${url}`;
-}
-
-function getLocalCache(url, ttlMs) {
-  try {
-    const raw = localStorage.getItem(localKey(url));
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object') return null;
-    if (!Number.isFinite(parsed.ts)) return null;
-    if (Date.now() - parsed.ts > ttlMs) return null;
-    return { data: parsed.data ?? null, ts: parsed.ts };
-  } catch {
-    return null;
-  }
-}
-
-function setLocalCache(url, data) {
-  try {
-    const payload = JSON.stringify({ ts: Date.now(), data });
-    if (payload.length > LOCAL_MAX_BYTES) return;
-    localStorage.setItem(localKey(url), payload);
-  } catch {
-    /* quota/serialization issues: ignore */
-  }
-}
 
 export function useApi(
   endpoint,
   params = {},
   {
-    ttl = 30_000,
     timeoutMs = 240_000,
     enabled = true,
     uxGerencia = false,
-    persistLocal,
-    localTtlMs = 15 * 60_000,
-    revalidateLocal = false,
   } = {},
 ) {
-  const [data, setData]       = useState(null);
+  const [data, setData] = useState(null);
   const [loading, setLoading] = useState(() => Boolean(enabled));
-  const [error, setError]     = useState(null);
+  const [error, setError] = useState(null);
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSyncAt, setLastSyncAt] = useState(null);
   const [lastSyncSource, setLastSyncSource] = useState(null);
-  const abortRef              = useRef(null);
-  const abortMetaRef          = useRef(null);
-  const seqRef                = useRef(0);
-  const mountedRef            = useRef(true);
+  const [lastRequestMs, setLastRequestMs] = useState(null);
+  const abortRef = useRef(null);
+  const abortMetaRef = useRef(null);
+  const seqRef = useRef(0);
+  const mountedRef = useRef(true);
+
+  const pathNorm = String(endpoint || '').replace(/^\/+/, '');
+  const url = useMemo(() => {
+    const base = getApiV1Base().replace(/\/+$/, '');
+    return `${base}/${pathNorm}${buildApiQuery(params)}`;
+  }, [endpoint, pathNorm, JSON.stringify(params)]);
 
   const fetchData = useCallback(async () => {
     if (!enabled) return;
 
-    const base = getApiV1Base().replace(/\/+$/, '');
-    const path = String(endpoint || '').replace(/^\/+/, '');
-    const url = `${base}/${path}${buildApiQuery(params)}`;
-    const shouldPersistLocal = persistLocal ?? path.startsWith('gerencia/');
-
-    // Cancelar pedido anterior antes de sequência/cache — evita resposta lenta (ex. 30 d) sobrescrever 7 d.
     abortRef.current?.abort();
     const mySeq = ++seqRef.current;
     abortRef.current = new AbortController();
@@ -87,49 +50,8 @@ export function useApi(
       emitGerenciaUx(GerenciaUxEvents.RequestStart, { url, params: { ...params } });
     }
 
-    // Cache hit (validado com a mesma sequência)
-    const cached = _cache.get(url);
-    if (cached && Date.now() - cached.ts < ttl) {
-      if (mySeq !== seqRef.current || !mountedRef.current) return;
-      setData(cached.data);
-      setLoading(false);
-      setIsSyncing(false);
-      setError(null);
-      setLastSyncAt(cached.ts);
-      setLastSyncSource('memory');
-      if (uxGerencia) emitGerenciaUx(GerenciaUxEvents.RequestSettled, { url, params: { ...params }, fromCache: true });
-      return;
-    }
-
-    // Cache persistido no navegador: reduz carga no backend/DuckDB entre sessões.
-    let localSeed = null;
-    if (shouldPersistLocal) {
-      const localHit = getLocalCache(url, localTtlMs);
-      if (localHit?.data != null) {
-        if (mySeq !== seqRef.current || !mountedRef.current) return;
-        localSeed = localHit.data;
-        setData(localHit.data);
-        setLoading(false);
-        setIsSyncing(false);
-        setError(null);
-        _cache.set(url, { data: localHit.data, ts: Date.now() });
-        setLastSyncAt(localHit.ts || Date.now());
-        setLastSyncSource('localStorage');
-        if (uxGerencia) {
-          emitGerenciaUx(GerenciaUxEvents.RequestSettled, {
-            url,
-            params: { ...params },
-            fromCache: true,
-            cacheLayer: 'localStorage',
-          });
-        }
-        if (!revalidateLocal) return;
-      }
-    }
-
-    const silentRevalidate = localSeed != null && revalidateLocal;
-    if (silentRevalidate) setIsSyncing(true);
-    if (!silentRevalidate) setLoading(true);
+    setIsSyncing(true);
+    setLoading(true);
     setError(null);
 
     const tid =
@@ -141,6 +63,7 @@ export function useApi(
         : null;
 
     try {
+      const t0 = performance.now();
       const res = await fetch(url, { signal: ac.signal });
       const raw = await res.text();
       let json;
@@ -151,24 +74,16 @@ export function useApi(
           raw.trimStart().startsWith('<!DOCTYPE') || raw.trimStart().startsWith('<html')
             ? 'Recebeu página HTML em vez da API (proxy/backend). Em dev use npm run dev no front e deixe o Node na mesma porta do proxy (ex.: 3020), ou defina VITE_API_BASE.'
             : 'Resposta não é JSON.';
-        throw new Error(
-          `${hint} (${res.status}) ${raw.slice(0, 120).replace(/\s+/g, ' ')}`,
-        );
+        throw new Error(`${hint} (${res.status}) ${raw.slice(0, 120).replace(/\s+/g, ' ')}`);
       }
 
       if (!json.ok) throw new Error(json.error || 'Erro na API');
+      if (mySeq !== seqRef.current || !mountedRef.current) return;
 
-      if (mySeq !== seqRef.current) return;
-
-      // Gravar cache antes do mountedRef: no React Strict Mode a resposta pode chegar no “meio” do remount.
-      const changed =
-        localSeed == null || JSON.stringify(localSeed) !== JSON.stringify(json.data);
-      _cache.set(url, { data: json.data, ts: Date.now() });
-      if (shouldPersistLocal) setLocalCache(url, json.data);
-      if (!mountedRef.current) return;
-      if (changed) setData(json.data);
+      setData(json.data);
       setLastSyncAt(Date.now());
       setLastSyncSource('network');
+      setLastRequestMs(Math.max(0, Math.round(performance.now() - t0)));
       if (uxGerencia) emitGerenciaUx(GerenciaUxEvents.RequestSettled, { url, params: { ...params } });
     } catch (err) {
       if (err.name === 'AbortError' && uxGerencia) {
@@ -184,7 +99,7 @@ export function useApi(
         if (meta.reason === 'timeout') {
           const min = Math.max(1, Math.round(timeoutMs / 60_000));
           setError(
-            `Tempo limite (${min} min) ao buscar dados. A API ou o Postgres pode estar lento; confira o terminal da API e a aba Rede do browser.`,
+            `Tempo limite (${min} min) ao buscar dados. A API ou o banco pode estar lento; confira o terminal da API e a aba Rede do browser.`,
           );
         }
         return;
@@ -192,10 +107,12 @@ export function useApi(
       setError(err.message);
     } finally {
       if (tid) clearTimeout(tid);
-      if (mySeq === seqRef.current && mountedRef.current) setIsSyncing(false);
-      if (mySeq === seqRef.current && mountedRef.current) setLoading(false);
+      if (mySeq === seqRef.current && mountedRef.current) {
+        setIsSyncing(false);
+        setLoading(false);
+      }
     }
-  }, [endpoint, JSON.stringify(params), ttl, timeoutMs, enabled, uxGerencia, persistLocal, localTtlMs, revalidateLocal]); // eslint-disable-line
+  }, [url, timeoutMs, enabled, uxGerencia]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -217,5 +134,5 @@ export function useApi(
     };
   }, [fetchData, enabled]);
 
-  return { data, loading, error, refetch: fetchData, isSyncing, lastSyncAt, lastSyncSource };
+  return { data, loading, error, refetch: fetchData, isSyncing, lastSyncAt, lastSyncSource, lastRequestMs };
 }

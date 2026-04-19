@@ -3,7 +3,9 @@
  */
 import type { Express, Request, Response } from 'express';
 import { getStaleCacheBackend, isRedisConnected } from '../../cache/redisMemoryCache.js';
+import { gerenciaAnchorEndD1Enabled } from '../../domain/shared/period.js';
 import { getDataSourceKind } from '../../models/dataSource.js';
+import { getGerenciaPerfSnapshot } from '../../observability/gerenciaPerf.js';
 import { getGerenciaMaxPeriodDays, getGerenciaWarmStatus } from '../../repositories/gerenciaRepository.js';
 import liveService from '../../services/liveService.js';
 import { asyncJsonRoute } from '../../views/apiResponse.js';
@@ -30,6 +32,7 @@ export function mountStackMetaAndHealth(app: Express): void {
   app.get('/api/v1/_meta/stack', (_req: Request, res: Response) => {
     const src = getDataSourceKind();
     const cacheBackend = getStaleCacheBackend();
+    const warmDelay = Number(process.env.GERENCIA_WARM_SECOND_WAVE_DELAY_MS ?? '600000');
     res.json({
       ok: true,
       data: {
@@ -41,7 +44,10 @@ export function mountStackMetaAndHealth(app: Express): void {
         csv_direct: src === 'csv',
         duckdb_local: src === 'duckdb',
         gerencia_max_period_days: getGerenciaMaxPeriodDays(),
+        gerencia_anchor_end_d1: gerenciaAnchorEndD1Enabled(),
+        gerencia_warm_second_wave_delay_ms: Number.isFinite(warmDelay) ? warmDelay : 600_000,
         gerencia_warm_status: getGerenciaWarmStatus(),
+        gerencia_perf: getGerenciaPerfSnapshot(),
         live_service_engine: 'nodejs_typescript',
       },
     });

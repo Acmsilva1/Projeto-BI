@@ -1,0 +1,17 @@
+node_modules/
+dist/
+coverage/
+.DS_Store
+*.log
+.env
+.env.*
+*.tsbuildinfo
+db local/*.duckdb
+db local/*.duckdb.wal
+db local/*.duckdb.tmp
+backend/*.duckdb
+backend/*.duckdb.wal
+backend/*.duckdb.tmp
+backend/.duckdb/
+dados/tbl_tempos_entrada_consulta_saida.csv
+dados/tbl_vias_medicamentos.csv

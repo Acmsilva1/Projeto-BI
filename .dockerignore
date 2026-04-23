@@ -1,9 +1,0 @@
-**/node_modules
-**/dist
-.git
-**/.git
-*.md
-!FRONTEND/docker/nginx.conf
-.env
-.env.*
-db local/*.sqlite3

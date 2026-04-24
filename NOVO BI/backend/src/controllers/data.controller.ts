@@ -41,7 +41,7 @@ export async function dataViewRowsController(request: Request, response: Respons
 
     response.status(200).json(payload);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Falha ao consultar dados CSV.";
+    const message = error instanceof Error ? error.message : "Falha ao consultar dados.";
     response.status(400).json({ ok: false, error: message });
   }
 }

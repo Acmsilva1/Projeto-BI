@@ -1,6 +1,11 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { env } from "../config/env.js";
+import {
+  queryLimitedRowsConn,
+  resolveExistingNamedFile,
+  withMemoryDatasetDb
+} from "../utils/datasetTableLoader.js";
 import { getDuckDbViewRows, listDuckDbViews } from "./duckdb.service.js";
 
 type RowsPayload = {
@@ -17,32 +22,6 @@ type ViewsPayload = {
   views: string[];
 };
 
-function parseCsvLine(line: string): string[] {
-  const out: string[] = [];
-  let current = "";
-  let quoted = false;
-  for (let i = 0; i < line.length; i += 1) {
-    const ch = line[i];
-    if (ch === "\"") {
-      if (quoted && line[i + 1] === "\"") {
-        current += "\"";
-        i += 1;
-      } else {
-        quoted = !quoted;
-      }
-      continue;
-    }
-    if (ch === "," && !quoted) {
-      out.push(current);
-      current = "";
-      continue;
-    }
-    current += ch;
-  }
-  out.push(current);
-  return out;
-}
-
 function normalizeViewName(raw: string): string {
   return raw
     .toLowerCase()
@@ -52,32 +31,22 @@ function normalizeViewName(raw: string): string {
     .replaceAll(/^_+|_+$/g, "");
 }
 
-async function readCsvRows(fileName: string, limit: number): Promise<Record<string, unknown>[]> {
-  const raw = await fs.readFile(path.resolve(env.csvDataDir, fileName), "utf8");
-  const lines = raw.split(/\r?\n/).filter((line) => line.trim().length > 0);
-  if (lines.length === 0) return [];
-
-  const headers = parseCsvLine(lines[0] ?? "").map((h) => h.trim().replace(/^"|"$/g, ""));
-  const rows: Record<string, unknown>[] = [];
-  const safeLimit = Math.max(1, Math.min(limit, 1000));
-  for (let i = 1; i < lines.length && rows.length < safeLimit; i += 1) {
-    const values = parseCsvLine(lines[i] ?? "");
-    const row: Record<string, unknown> = {};
-    for (let j = 0; j < headers.length; j += 1) {
-      const key = headers[j];
-      if (!key) continue;
-      row[key] = (values[j] ?? "").trim();
-    }
-    rows.push(row);
-  }
-  return rows;
-}
-
-async function listCsvViews(): Promise<Array<{ view: string; file: string }>> {
+/** Lista bases com ficheiro Parquet ou CSV (Parquet ganha se ambos existirem). */
+async function listDatasetViews(): Promise<Array<{ view: string; file: string }>> {
   const files = await fs.readdir(env.csvDataDir);
-  return files
-    .filter((file) => file.toLowerCase().endsWith(".csv"))
-    .map((file) => ({ file, view: normalizeViewName(file.replace(/\.csv$/i, "")) }))
+  const byBase = new Map<string, string>();
+  for (const file of files) {
+    const lower = file.toLowerCase();
+    if (!lower.endsWith(".csv") && !lower.endsWith(".parquet")) continue;
+    const base = lower.endsWith(".parquet") ? file.replace(/\.parquet$/i, "") : file.replace(/\.csv$/i, "");
+    if (lower.endsWith(".parquet")) {
+      byBase.set(base, file);
+    } else if (!byBase.has(base)) {
+      byBase.set(base, file);
+    }
+  }
+  return [...byBase.entries()]
+    .map(([base, file]) => ({ file, view: normalizeViewName(base) }))
     .sort((a, b) => a.view.localeCompare(b.view));
 }
 
@@ -91,11 +60,11 @@ export async function getViewsPayload(): Promise<ViewsPayload> {
         views
       };
     } catch {
-      // fallback para CSV-memory
+      // fallback para leitura direta
     }
   }
 
-  const views = await listCsvViews();
+  const views = await listDatasetViews();
   return {
     ok: true,
     count: views.length,
@@ -117,17 +86,25 @@ export async function getViewRowsPayload(viewName: string, limit: number): Promi
         limit: safeLimit
       };
     } catch {
-      // fallback para CSV-memory
+      // fallback
     }
   }
 
-  const views = await listCsvViews();
+  const views = await listDatasetViews();
   const match = views.find((v) => v.view === normalizeViewName(viewName));
   if (!match) {
     throw new Error(`View nao encontrada: ${viewName}`);
   }
 
-  const rows = await readCsvRows(match.file, safeLimit);
+  const resolved = resolveExistingNamedFile(env.csvDataDir, match.file);
+  if (!resolved) {
+    throw new Error(`Ficheiro nao encontrado: ${match.file}`);
+  }
+
+  const rows = await withMemoryDatasetDb(async (_db, conn) =>
+    queryLimitedRowsConn(conn, resolved, safeLimit)
+  );
+
   return {
     ok: true,
     view: match.view,

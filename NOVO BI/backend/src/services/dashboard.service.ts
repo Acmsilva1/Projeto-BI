@@ -1,6 +1,9 @@
-import fs from "node:fs/promises";
-import path from "node:path";
 import { env } from "../config/env.js";
+import {
+  loadFullTableAsStringRowsConn,
+  resolveDatasetTableByBase,
+  withMemoryDatasetDb
+} from "../utils/datasetTableLoader.js";
 import { listDashboardQueryCatalog } from "../domain/dashboard/dashboardQueryCatalog.js";
 import { queryDuckDb } from "./duckdb.service.js";
 import {
@@ -231,32 +234,6 @@ let storeCache: DataStore | null = null;
 let storeLoadPromise: Promise<DataStore> | null = null;
 const queryCache = new Map<string, ComputedContext>();
 
-function parseCsvLine(line: string): string[] {
-  const out: string[] = [];
-  let current = "";
-  let quoted = false;
-  for (let i = 0; i < line.length; i += 1) {
-    const ch = line[i];
-    if (ch === "\"") {
-      if (quoted && line[i + 1] === "\"") {
-        current += "\"";
-        i += 1;
-      } else {
-        quoted = !quoted;
-      }
-      continue;
-    }
-    if (ch === "," && !quoted) {
-      out.push(current);
-      current = "";
-      continue;
-    }
-    current += ch;
-  }
-  out.push(current);
-  return out;
-}
-
 function pick(row: Record<string, string>, ...keys: string[]): string | undefined {
   for (const key of keys) {
     const v = row[key];
@@ -331,38 +308,6 @@ function accumulateMetaCounter(
   counter.ok += 1;
 }
 
-async function loadCsvRowsIfExists(fileName: string): Promise<Record<string, string>[]> {
-  const filePath = path.resolve(env.csvDataDir, fileName);
-  try {
-    await fs.access(filePath);
-  } catch {
-    return [];
-  }
-  return loadCsvRows(fileName);
-}
-
-async function loadCsvRows(fileName: string): Promise<Record<string, string>[]> {
-  const filePath = path.resolve(env.csvDataDir, fileName);
-  const raw = await fs.readFile(filePath, "utf8");
-  const lines = raw.split(/\r?\n/).filter((line) => line.trim().length > 0);
-  if (lines.length === 0) return [];
-
-  const headers = parseCsvLine((lines[0] ?? "").replace(/^\uFEFF/, ""))
-    .map((h) => h.trim().replace(/^"|"$/g, ""));
-  const rows: Record<string, string>[] = [];
-  for (let i = 1; i < lines.length; i += 1) {
-    const values = parseCsvLine(lines[i] ?? "");
-    const row: Record<string, string> = {};
-    for (let j = 0; j < headers.length; j += 1) {
-      const key = headers[j];
-      if (!key) continue;
-      row[key] = (values[j] ?? "").trim();
-    }
-    rows.push(row);
-  }
-  return rows;
-}
-
 async function ensureStore(): Promise<DataStore> {
   if (storeCache) return storeCache;
   if (!storeLoadPromise) {
@@ -374,33 +319,25 @@ async function ensureStore(): Promise<DataStore> {
 }
 
 async function loadDataStoreIntoCache(): Promise<DataStore> {
-  const [
-    unidadesRows,
-    snapshotRows,
-    temposRows,
-    internRows,
-    examesRxRows,
-    examesTcRows,
-    altasRows,
-    metasRows,
-    medicacaoRows,
-    laboratorioRows,
-    reavaliacaoRows,
-    viasRows
-  ] = await Promise.all([
-    loadCsvRows("tbl_unidades.csv"),
-    loadCsvRows("ps_resumo_unidades_snapshot_prod.csv"),
-    loadCsvRows("tbl_tempos_entrada_consulta_saida.csv"),
-    loadCsvRows("tbl_intern_conversoes.csv"),
-    loadCsvRows("tbl_tempos_rx_e_ecg.csv"),
-    loadCsvRows("tbl_tempos_tc_e_us.csv"),
-    loadCsvRows("tbl_altas_ps.csv"),
-    loadCsvRows("meta_tempos.csv"),
-    loadCsvRows("tbl_tempos_medicacao.csv"),
-    loadCsvRows("tbl_tempos_laboratorio.csv"),
-    loadCsvRows("tbl_tempos_reavaliacao.csv"),
-    loadCsvRowsIfExists("tbl_vias_medicamentos.csv")
-  ]);
+  return withMemoryDatasetDb(async (_db, conn) => {
+    const load = async (base: string): Promise<Record<string, string>[]> => {
+      const r = resolveDatasetTableByBase(env.csvDataDir, base);
+      if (!r) return [];
+      return loadFullTableAsStringRowsConn(conn, r);
+    };
+
+    const unidadesRows = await load("tbl_unidades");
+    const snapshotRows = await load("ps_resumo_unidades_snapshot_prod");
+    const temposRows = await load("tbl_tempos_entrada_consulta_saida");
+    const internRows = await load("tbl_intern_conversoes");
+    const examesRxRows = await load("tbl_tempos_rx_e_ecg");
+    const examesTcRows = await load("tbl_tempos_tc_e_us");
+    const altasRows = await load("tbl_altas_ps");
+    const metasRows = await load("meta_tempos");
+    const medicacaoRows = await load("tbl_tempos_medicacao");
+    const laboratorioRows = await load("tbl_tempos_laboratorio");
+    const reavaliacaoRows = await load("tbl_tempos_reavaliacao");
+    const viasRows = await load("tbl_vias_medicamentos");
 
   const unidades = unidadesRows
     .filter((row) => ["true", "1", "t"].includes((pick(row, "ps") ?? "").toLowerCase()))
@@ -675,6 +612,7 @@ async function loadDataStoreIntoCache(): Promise<DataStore> {
   };
   queryCache.clear();
   return storeCache;
+  });
 }
 
 function queryKey(options: { periodDays: 7 | 15 | 30 | 60 | 90 | 180; regional?: string; unidade?: string }): string {
@@ -1618,7 +1556,7 @@ export async function getDashboardQueryPayload(
   let sourceView = "csv_memory";
 
   if (slug === "gerencial-filtros") {
-    sourceView = "tbl_unidades.csv";
+    sourceView = "dataset:tbl_unidades";
     rows = context.unidadesSelecionadas
       .map((u) => ({ regional: u.regional, unidade: u.unidade }))
       .sort((a, b) => `${a.regional}${a.unidade}`.localeCompare(`${b.regional}${b.unidade}`))
@@ -1629,7 +1567,7 @@ export async function getDashboardQueryPayload(
     rows = [buildGerencialKpisTopoRow(store, context, options.periodDays)];
   } else if (slug === "gerencial-unidades-ranking") {
     sourceView =
-      "tbl_tempos_entrada_consulta_saida.csv + tbl_intern_conversoes.csv + tbl_altas_ps.csv + tbl_tempos_rx_e_ecg.csv + tbl_tempos_tc_e_us.csv + meta_tempos.csv";
+      "dataset: fluxo + internacoes + altas + rx_ecg + tc_us + metas";
     const metaConsulta = store.metasByKey.get("CONSULTA_MIN");
     const metaPermanencia = store.metasByKey.get("PERMANENCIA_MIN");
     const metaExames = store.metasByKey.get("TC_US_MIN") ?? store.metasByKey.get("RX_ECG_MIN");
@@ -1889,6 +1827,7 @@ export async function getPsChegadasHeatmapPayload(options: {
 }
 
 export function clearDashboardCsvCache(): void {
+  /* nome histórico: cache do store em memória (Parquet/CSV via DuckDB read) */
   storeCache = null;
   storeLoadPromise = null;
   queryCache.clear();

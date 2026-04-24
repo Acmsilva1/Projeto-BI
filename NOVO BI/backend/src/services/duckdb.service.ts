@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import duckdb from "duckdb";
 import { env } from "../config/env.js";
+import { normalizeRowValues } from "../utils/datasetTableLoader.js";
 
 type DuckDbStatus = {
   status: "disabled" | "ready" | "error";
@@ -78,17 +79,25 @@ function allQuery(database: duckdb.Database, sql: string): Promise<Record<string
   return new Promise((resolve, reject) => {
     database.all(sql, (error: Error | null, rows: Record<string, unknown>[]) => {
       if (error) reject(error);
-      else resolve(rows ?? []);
+      else resolve((rows ?? []).map((r) => normalizeRowValues(r)));
     });
   });
 }
 
 async function buildViews(database: duckdb.Database): Promise<{ viewsByName: Map<string, string>; errors: string[] }> {
   const files = await fs.readdir(env.csvDataDir);
-  const typedFiles = files
-    .map((file) => ({ file, fileType: getSupportedFileType(file) }))
-    .filter((entry): entry is { file: string; fileType: SupportedFileType } => entry.fileType !== null)
-    .sort((a, b) => a.file.localeCompare(b.file));
+  /** Por nome base: Parquet prevalece sobre CSV. */
+  const chosen = new Map<string, { file: string; fileType: SupportedFileType }>();
+  for (const file of files) {
+    const fileType = getSupportedFileType(file);
+    if (!fileType) continue;
+    const baseName = fileType === "parquet" ? file.replace(/\.parquet$/i, "") : file.replace(/\.csv$/i, "");
+    const prev = chosen.get(baseName);
+    if (!prev || (prev.fileType === "csv" && fileType === "parquet")) {
+      chosen.set(baseName, { file, fileType });
+    }
+  }
+  const typedFiles = [...chosen.values()].sort((a, b) => a.file.localeCompare(b.file));
 
   const viewsByName = new Map<string, string>();
   const errors: string[] = [];

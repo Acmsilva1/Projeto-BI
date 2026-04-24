@@ -22,7 +22,7 @@ async function bootstrap(): Promise<void> {
   void prewarmDashboardStore()
     .then(() => {
       console.log(
-        `[data] prewarm fase 1 (store + contexto 7d) em ${Date.now() - prewarmStarted}ms; demais periodos em background.`
+        `[data] prewarm fase 1 (store + contexto Ontem/1d) em ${Date.now() - prewarmStarted}ms; demais periodos em background.`
       );
     })
     .catch((error) => {

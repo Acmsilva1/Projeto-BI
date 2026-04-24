@@ -275,15 +275,27 @@ export function toneForRatio(actual: number | null, target: number, direction: "
 
 export type MonthAgg = { startMs: number; endMs: number; yearMonth: number; label: string };
 
+/** Inicio/fim (ms) do dia civil anterior ao `new Date()` no fuso local do processo (alinhado a DuckDB `CURRENT_DATE` no mesmo host). */
+export function yesterdayLocalBoundsMs(): { startMs: number; endMs: number } {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 0, 0, 0, 0);
+  const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59, 999);
+  return { startMs: start.getTime(), endMs: end.getTime() };
+}
+
 /** Janela rolante alinhada ao max(data) entre as unidades do recorte (mesma ideia do computeContext). */
 export function rollingWindowForGerencial(
   unitMaxByCd: Map<number, number>,
   globalMaxMs: number,
   cds: Set<number>,
-  periodDays: 7 | 15 | 30 | 60 | 90 | 180,
+  periodDays: 1 | 7 | 15 | 30 | 60 | 90 | 180,
   /** Se tempos/intern/altas nao povoam max (ex.: CSV com DATA so em fluxo/med), usa esta ancora em ms */
   anchorFallbackMs?: number
 ): MonthAgg | null {
+  if (periodDays === 1) {
+    const y = yesterdayLocalBoundsMs();
+    return { startMs: y.startMs, endMs: y.endMs, yearMonth: 0, label: "yesterday" };
+  }
   if (cds.size === 0) return null;
   let anchor = 0;
   for (const cd of cds) {

@@ -42,6 +42,7 @@ npm run build
 - `GET /api/v1/dashboard/gerencial-filtros?period=7|15|30|60|90&regional=...&unidade=...`
 - `GET /api/v1/dashboard/gerencial-kpis-topo?period=7|15|30|60|90&regional=...&unidade=...`
 - `GET /api/v1/dashboard/gerencial-unidades-ranking?period=7|15|30|60|90&regional=...&unidade=...&limit=...`
+- `GET /api/v1/ps-heatmap/chegadas?mes=YYYY-MM&unidade=...&regional=...&limit=...` — agregado dia × hora para o mapa de calor (JSON por padrao; Arrow com `Accept` ou `?format=arrow`)
 
 ## Variaveis De Ambiente
 

@@ -15,15 +15,17 @@ function readLimit(value: string | string[] | undefined): number {
   return parsed;
 }
 
-function readPeriod(value: string | string[] | undefined): 7 | 15 | 30 | 60 | 90 | 180 {
+function readPeriod(value: string | string[] | undefined): 1 | 7 | 15 | 30 | 60 | 90 | 180 {
   const rawValue = Array.isArray(value) ? value[0] : value;
-  const parsed = Number.parseInt(rawValue ?? "7", 10);
+  const parsed = Number.parseInt(rawValue ?? "1", 10);
+  if (parsed === 1) return 1;
+  if (parsed === 7) return 7;
   if (parsed === 15) return 15;
   if (parsed === 30) return 30;
   if (parsed === 60) return 60;
   if (parsed === 90) return 90;
   if (parsed === 180) return 180;
-  return 7;
+  return 1;
 }
 
 function readText(value: string | string[] | undefined): string | undefined {
@@ -43,9 +45,23 @@ export async function dashboardCatalogController(_: Request, response: Response)
 export function gerencialContextPrewarmController(request: Request, response: Response): void {
   const activeRaw = request.query.activePeriod as string | string[] | undefined;
   const first = Array.isArray(activeRaw) ? activeRaw[0] : activeRaw;
-  const parsed = Number.parseInt(first ?? "7", 10);
-  const activePeriodDays: 7 | 15 | 30 | 60 | 90 | 180 =
-    parsed === 15 ? 15 : parsed === 30 ? 30 : parsed === 60 ? 60 : parsed === 90 ? 90 : parsed === 180 ? 180 : 7;
+  const parsed = Number.parseInt(first ?? "1", 10);
+  const activePeriodDays: 1 | 7 | 15 | 30 | 60 | 90 | 180 =
+    parsed === 1
+      ? 1
+      : parsed === 7
+        ? 7
+        : parsed === 15
+          ? 15
+          : parsed === 30
+            ? 30
+            : parsed === 60
+              ? 60
+              : parsed === 90
+                ? 90
+                : parsed === 180
+                  ? 180
+                  : 1;
   const regional = readText(request.query.regional as string | string[] | undefined);
   const unidade = readText(request.query.unidade as string | string[] | undefined);
   scheduleGerencialContextPrewarm({ activePeriodDays, regional, unidade });

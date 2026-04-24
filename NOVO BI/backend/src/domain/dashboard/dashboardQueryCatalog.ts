@@ -1,6 +1,6 @@
 export type DashboardQueryContext = {
   limit: number;
-  periodDays: 7 | 15 | 30;
+  periodDays: 1 | 7 | 15 | 30;
   regional?: string;
   unidade?: string;
 };
@@ -37,6 +37,9 @@ function buildGerencialBaseClauses(context: DashboardQueryContext): string[] {
 }
 
 function buildGerencialPeriodClause(context: DashboardQueryContext): string {
+  if (context.periodDays === 1) {
+    return `DATE(t.DT_ENTRADA) = CAST(CURRENT_DATE AS DATE) - INTERVAL 1 DAY`;
+  }
   const periodWindow = context.periodDays - 1;
   return `
     DATE(t.DT_ENTRADA) >= (
@@ -44,6 +47,17 @@ function buildGerencialPeriodClause(context: DashboardQueryContext): string {
       FROM "tbl_tempos_entrada_consulta_saida" x
     ) - INTERVAL '${periodWindow} days'
   `;
+}
+
+function buildGerencialInternPeriodClause(context: DashboardQueryContext): string {
+  if (context.periodDays === 1) {
+    return `DATE(c.DT_ENTRADA) = CAST(CURRENT_DATE AS DATE) - INTERVAL 1 DAY`;
+  }
+  const periodWindow = context.periodDays - 1;
+  return `DATE(c.DT_ENTRADA) >= (
+          SELECT MAX(DATE(x.DT_ENTRADA))
+          FROM "tbl_intern_conversoes" x
+        ) - INTERVAL '${periodWindow} days'`;
 }
 
 function buildGerencialWhere(context: DashboardQueryContext): string {
@@ -109,10 +123,7 @@ const dashboardQueries: DashboardQueryDefinition[] = [
           COUNT(*) AS internacoes_periodo
         FROM "tbl_intern_conversoes" c
         INNER JOIN unidades u ON u.cd_estabelecimento = TRY_CAST(c.cd_estab_urg AS INTEGER)
-        WHERE DATE(c.DT_ENTRADA) >= (
-          SELECT MAX(DATE(x.DT_ENTRADA))
-          FROM "tbl_intern_conversoes" x
-        ) - INTERVAL '${context.periodDays - 1} days'
+        WHERE ${buildGerencialInternPeriodClause(context)}
         GROUP BY TRY_CAST(c.cd_estab_urg AS INTEGER)
       ),
       snapshot_operacao AS (
@@ -251,10 +262,7 @@ const dashboardQueries: DashboardQueryDefinition[] = [
           COUNT(*) AS internacoes
         FROM "tbl_intern_conversoes" c
         INNER JOIN unidades u ON u.cd_estabelecimento = TRY_CAST(c.cd_estab_urg AS INTEGER)
-        WHERE DATE(c.DT_ENTRADA) >= (
-          SELECT MAX(DATE(x.DT_ENTRADA))
-          FROM "tbl_intern_conversoes" x
-        ) - INTERVAL '${context.periodDays - 1} days'
+        WHERE ${buildGerencialInternPeriodClause(context)}
         GROUP BY TRY_CAST(c.cd_estab_urg AS INTEGER)
       ),
       snapshot_operacao AS (

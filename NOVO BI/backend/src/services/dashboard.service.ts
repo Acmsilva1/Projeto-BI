@@ -12,9 +12,11 @@ import {
   computeIndicator,
   type MetasWeekSlice,
   rollingWindowForGerencial,
+  yesterdayLocalBoundsMs,
   type FluxoVolumeRow,
   type LabVolumeRow,
   type MedicacaoVolumeRow,
+  type MonthAgg,
   type ReavVolumeRow,
   type TcUsVolumeRow,
   type ViasVolumeRow,
@@ -38,7 +40,7 @@ type DashboardQueryPayload = {
   slug: string;
   sourceView: string;
   appliedFilters: {
-    periodDays: 7 | 15 | 30 | 60 | 90 | 180;
+    periodDays: 1 | 7 | 15 | 30 | 60 | 90 | 180;
     regional: string | null;
     unidade: string | null;
     indicadorKey?: string | null;
@@ -615,11 +617,27 @@ async function loadDataStoreIntoCache(): Promise<DataStore> {
   });
 }
 
-function queryKey(options: { periodDays: 7 | 15 | 30 | 60 | 90 | 180; regional?: string; unidade?: string }): string {
+function queryKey(options: { periodDays: 1 | 7 | 15 | 30 | 60 | 90 | 180; regional?: string; unidade?: string }): string {
   return `${options.periodDays}|${options.regional ?? ""}|${options.unidade ?? ""}`;
 }
 
-function computeContext(store: DataStore, options: { periodDays: 7 | 15 | 30 | 60 | 90 | 180; regional?: string; unidade?: string }): ComputedContext {
+function eventInGerencialPeriod(
+  dtMs: number,
+  periodDays: 1 | 7 | 15 | 30 | 60 | 90 | 180,
+  windowEndForCd: (cd: number) => number,
+  cd: number,
+  periodMs: number
+): boolean {
+  if (periodDays === 1) {
+    const { startMs, endMs } = yesterdayLocalBoundsMs();
+    return dtMs >= startMs && dtMs <= endMs;
+  }
+  const unitMax = windowEndForCd(cd);
+  const minMs = unitMax - periodMs;
+  return dtMs >= minMs && dtMs <= unitMax;
+}
+
+function computeContext(store: DataStore, options: { periodDays: 1 | 7 | 15 | 30 | 60 | 90 | 180; regional?: string; unidade?: string }): ComputedContext {
   const key = queryKey(options);
   const cached = queryCache.get(key);
   if (cached) return cached;
@@ -630,7 +648,8 @@ function computeContext(store: DataStore, options: { periodDays: 7 | 15 | 30 | 6
     return true;
   });
   const selectedCd = new Set(unidadesSelecionadas.map((u) => u.cd));
-  const periodMs = (options.periodDays - 1) * 24 * 60 * 60 * 1000;
+  const periodMs =
+    options.periodDays === 1 ? 0 : (options.periodDays - 1) * 24 * 60 * 60 * 1000;
   /**
    * Sem unidade especifica ("Todas"): uma unica ancora de fim = max entre as unidades do recorte e volumes,
    * alinhado ao `rollingWindowForGerencial` (evita totais num periodo e % em outro).
@@ -681,9 +700,7 @@ function computeContext(store: DataStore, options: { periodDays: 7 | 15 | 30 | 6
 
   for (const event of store.tempos) {
     if (!selectedCd.has(event.cd)) continue;
-    const unitMax = windowEndForCd(event.cd);
-    const minMs = unitMax - periodMs;
-    if (event.dtMs < minMs || event.dtMs > unitMax) continue;
+    if (!eventInGerencialPeriod(event.dtMs, options.periodDays, windowEndForCd, event.cd, periodMs)) continue;
 
     const agg = ensureAgg(event.cd);
     agg.somaEsperaMin += event.minConsulta;
@@ -701,17 +718,13 @@ function computeContext(store: DataStore, options: { periodDays: 7 | 15 | 30 | 6
 
   for (const event of store.internacoes) {
     if (!selectedCd.has(event.cd)) continue;
-    const unitMax = windowEndForCd(event.cd);
-    const minMs = unitMax - periodMs;
-    if (event.dtMs < minMs || event.dtMs > unitMax) continue;
+    if (!eventInGerencialPeriod(event.dtMs, options.periodDays, windowEndForCd, event.cd, periodMs)) continue;
     ensureAgg(event.cd).internacoes += 1;
   }
 
   for (const event of store.exames) {
     if (!selectedCd.has(event.cd)) continue;
-    const unitMax = windowEndForCd(event.cd);
-    const minMs = unitMax - periodMs;
-    if (event.dtMs < minMs || event.dtMs > unitMax) continue;
+    if (!eventInGerencialPeriod(event.dtMs, options.periodDays, windowEndForCd, event.cd, periodMs)) continue;
     const agg = ensureAgg(event.cd);
     agg.somaExamesMin += event.minutos;
     agg.countExames += 1;
@@ -719,9 +732,7 @@ function computeContext(store: DataStore, options: { periodDays: 7 | 15 | 30 | 6
 
   for (const event of store.altas) {
     if (!selectedCd.has(event.cd)) continue;
-    const unitMax = windowEndForCd(event.cd);
-    const minMs = unitMax - periodMs;
-    if (event.dtMs < minMs || event.dtMs > unitMax) continue;
+    if (!eventInGerencialPeriod(event.dtMs, options.periodDays, windowEndForCd, event.cd, periodMs)) continue;
     const agg = ensureAgg(event.cd);
     agg.altas += event.alta;
     agg.obitos += event.obito;
@@ -759,20 +770,23 @@ type GerencialKpiPanelEntry = {
   chipLabel: string;
 };
 
-/** Linhas no CSV para as unidades do filtro (sem recorte de N dias — alinhado a totais tipo painel institucional). */
-function countRowsForCds(rows: Array<{ cd: number }>, cds: Set<number>): number {
+function countRowsForCdsInWindow(rows: Array<{ cd: number; dtMs: number }>, cds: Set<number>, m: MonthAgg | null): number {
+  if (!m || cds.size === 0) return 0;
   let n = 0;
   for (const r of rows) {
-    if (cds.has(r.cd)) n += 1;
+    if (!cds.has(r.cd)) continue;
+    if (r.dtMs >= m.startMs && r.dtMs <= m.endMs) n += 1;
   }
   return n;
 }
 
-function countTcUsOriginForCds(rows: TcUsVolumeRow[], cds: Set<number>, origin: "rx_ecg" | "tc_us"): number {
+function countTcUsOriginInWindow(rows: TcUsVolumeRow[], cds: Set<number>, origin: "rx_ecg" | "tc_us", m: MonthAgg | null): number {
+  if (!m || cds.size === 0) return 0;
   let n = 0;
   for (const r of rows) {
     if (r.origin !== origin) continue;
-    if (cds.has(r.cd)) n += 1;
+    if (!cds.has(r.cd)) continue;
+    if (r.dtMs >= m.startMs && r.dtMs <= m.endMs) n += 1;
   }
   return n;
 }
@@ -877,7 +891,7 @@ function maxMsVolumeDataForCds(store: DataStore, cds: Set<number>): number {
 function buildGerencialKpisTopoRow(
   store: DataStore,
   context: ComputedContext,
-  periodDays: 7 | 15 | 30 | 60 | 90 | 180
+  periodDays: 1 | 7 | 15 | 30 | 60 | 90 | 180
 ): Record<string, unknown> {
   const cds = new Set(context.unidadesSelecionadas.map((u) => u.cd));
   const anchorFallback = maxMsVolumeDataForCds(store, cds);
@@ -991,11 +1005,11 @@ function buildGerencialKpisTopoRow(
     conversao = computeIndicator("conversao", ctxInd);
   }
   if (cds.size > 0) {
-    totalExamesLab = countRowsForCds(store.laboratorioVolume, cds);
-    totalRxEcg = countTcUsOriginForCds(store.tcUsVolume, cds, "rx_ecg");
-    totalTcUsExames = countTcUsOriginForCds(store.tcUsVolume, cds, "tc_us");
-    totalPrescricoesMed = countRowsForCds(store.medicacaoVolume, cds);
-    totalReavaliacoes = countRowsForCds(store.reavaliacaoVolume, cds);
+    totalExamesLab = countRowsForCdsInWindow(store.laboratorioVolume, cds, m);
+    totalRxEcg = countTcUsOriginInWindow(store.tcUsVolume, cds, "rx_ecg", m);
+    totalTcUsExames = countTcUsOriginInWindow(store.tcUsVolume, cds, "tc_us", m);
+    totalPrescricoesMed = countRowsForCdsInWindow(store.medicacaoVolume, cds, m);
+    totalReavaliacoes = countRowsForCdsInWindow(store.reavaliacaoVolume, cds, m);
   }
 
   const semUnidades = context.unidadesSelecionadas.length === 0;
@@ -1003,7 +1017,7 @@ function buildGerencialKpisTopoRow(
     ? "Nenhuma unidade no filtro — ajuste regional ou unidade."
     : "Atendimentos unicos no periodo (NR_ATENDIMENTO distinto)";
   const metaLineVol =
-    "Linhas nos CSV carregados (tbl_tempos_*), unidades do filtro — sem recorte de dias (o periodo em dias aplica-se ao total de atendimentos).";
+    "Volumes (tbl_tempos_*) no mesmo recorte temporal dos atendimentos — contagem de linhas no periodo selecionado.";
 
   /** Seis cards principais alinhados ao painel institucional (volumes por CSV). */
   const kpi_panel: GerencialKpiPanelEntry[] = [
@@ -1179,6 +1193,14 @@ function patchGerencialTopoVolumeFields(
   setVal("total_reavaliacoes", vol.reav);
 }
 
+/** Alinha contagens DuckDB ao rollingWindow / ontem usados em computeContext (timestamps Unix em segundos). */
+function duckVolumeTimeWhere(dateExpr: string, m: MonthAgg | null): string {
+  if (!m) return "1=0";
+  const s = m.startMs / 1000;
+  const e = m.endMs / 1000;
+  return `(${dateExpr}) IS NOT NULL AND (${dateExpr}) >= to_timestamp(${s}) AND (${dateExpr}) <= to_timestamp(${e})`;
+}
+
 /**
  * Com DATA_GATEWAY=duckdb: contagens dos CSV grandes via SQL (read_csv_auto nas views),
  * pois o parser linha-a-linha em memoria pode falhar ou esvaziar colunas em arquivos muito grandes.
@@ -1186,7 +1208,7 @@ function patchGerencialTopoVolumeFields(
  */
 async function buildGerencialKpisTopoDuckDbPayload(options: {
   limit: number;
-  periodDays: 7 | 15 | 30 | 60 | 90 | 180;
+  periodDays: 1 | 7 | 15 | 30 | 60 | 90 | 180;
   regional?: string;
   unidade?: string;
 }): Promise<DashboardQueryPayload> {
@@ -1194,6 +1216,45 @@ async function buildGerencialKpisTopoDuckDbPayload(options: {
   const context = computeContext(store, options);
   const row = buildGerencialKpisTopoRow(store, context, options.periodDays) as Record<string, unknown>;
   const unitsFilterSql = buildUnitsFilterSql(options);
+  const cds = new Set(context.unidadesSelecionadas.map((u) => u.cd));
+  const anchorFb = maxMsVolumeDataForCds(store, cds);
+  const mVol =
+    cds.size === 0
+      ? null
+      : rollingWindowForGerencial(
+          store.unitMaxEventMs,
+          store.maxEventMs,
+          cds,
+          options.periodDays,
+          anchorFb > 0 ? anchorFb : undefined
+        );
+
+  const labDt = `coalesce(
+    try_cast(replace(l.dt_exame, ' ', 'T') AS TIMESTAMP),
+    try_cast(replace(l.dt_solicitacao, ' ', 'T') AS TIMESTAMP),
+    try_cast(replace(l.data, ' ', 'T') AS TIMESTAMP)
+  )`;
+  const rxDt = `coalesce(
+    try_cast(replace(r.dt_exame, ' ', 'T') AS TIMESTAMP),
+    try_cast(replace(r.dt_solicitacao, ' ', 'T') AS TIMESTAMP)
+  )`;
+  const tcDt = `coalesce(
+    try_cast(replace(t.dt_exame, ' ', 'T') AS TIMESTAMP),
+    try_cast(replace(t.dt_realizado, ' ', 'T') AS TIMESTAMP)
+  )`;
+  const medDt = `coalesce(
+    try_cast(replace(m.dt_administracao, ' ', 'T') AS TIMESTAMP),
+    try_cast(replace(m.dt_prescricao, ' ', 'T') AS TIMESTAMP),
+    try_cast(replace(m.data, ' ', 'T') AS TIMESTAMP)
+  )`;
+  const reavDt = `try_cast(replace(v.data, ' ', 'T') AS TIMESTAMP)`;
+
+  const wLab = duckVolumeTimeWhere(labDt, mVol);
+  const wRx = duckVolumeTimeWhere(rxDt, mVol);
+  const wTc = duckVolumeTimeWhere(tcDt, mVol);
+  const wMed = duckVolumeTimeWhere(medDt, mVol);
+  const wReav = duckVolumeTimeWhere(reavDt, mVol);
+
   const sql = `
 WITH unidades AS (
   SELECT try_cast(cd_estabelecimento AS BIGINT) AS cd
@@ -1205,26 +1266,31 @@ SELECT
     SELECT count(*)::BIGINT
     FROM tbl_tempos_laboratorio AS l
     WHERE try_cast(l.cd_estabelecimento AS BIGINT) IN (SELECT u.cd FROM unidades AS u)
+      AND ${wLab}
   ), 0) AS total_exames_laboratorio,
   coalesce((
     SELECT count(*)::BIGINT
     FROM tbl_tempos_rx_e_ecg AS r
     WHERE try_cast(r.cd_estabelecimento AS BIGINT) IN (SELECT u.cd FROM unidades AS u)
+      AND ${wRx}
   ), 0) AS total_rx_ecg,
   coalesce((
     SELECT count(*)::BIGINT
     FROM tbl_tempos_tc_e_us AS t
     WHERE try_cast(t.cd_estabelecimento AS BIGINT) IN (SELECT u.cd FROM unidades AS u)
+      AND ${wTc}
   ), 0) AS total_tc_us,
   coalesce((
     SELECT count(*)::BIGINT
     FROM tbl_tempos_medicacao AS m
     WHERE try_cast(m.cd_estabelecimento AS BIGINT) IN (SELECT u.cd FROM unidades AS u)
+      AND ${wMed}
   ), 0) AS total_prescricoes_medicacao,
   coalesce((
     SELECT count(*)::BIGINT
     FROM tbl_tempos_reavaliacao AS v
     WHERE try_cast(v.cd_estabelecimento AS BIGINT) IN (SELECT u.cd FROM unidades AS u)
+      AND ${wReav}
   ), 0) AS total_reavaliacoes
 `;
   try {
@@ -1259,7 +1325,7 @@ SELECT
 
 async function getDashboardPayloadFromDuckDb(
   slug: string,
-  options: { limit: number; periodDays: 7 | 15 | 30 | 60 | 90 | 180; regional?: string; unidade?: string }
+  options: { limit: number; periodDays: 1 | 7 | 15 | 30 | 60 | 90 | 180; regional?: string; unidade?: string }
 ): Promise<DashboardQueryPayload | null> {
   if (!["gerencial-filtros", "gerencial-kpis-topo", "gerencial-unidades-ranking"].includes(slug)) {
     return null;
@@ -1268,6 +1334,11 @@ async function getDashboardPayloadFromDuckDb(
   const safeLimit = Math.max(1, Math.min(options.limit || 200, 5000));
   const unitsFilterSql = buildUnitsFilterSql(options);
   const days = Math.max(1, options.periodDays);
+  const isYesterday = options.periodDays === 1;
+  const duckDtInPeriod = (col: string): string =>
+    isYesterday
+      ? `${col} IS NOT NULL AND cast(${col} AS DATE) = cast(CURRENT_DATE AS DATE) - INTERVAL 1 DAY`
+      : `${col} IS NOT NULL AND (max_dt IS NULL OR ${col} BETWEEN (max_dt - INTERVAL '${days - 1} DAY') AND max_dt)`;
 
   if (slug === "gerencial-filtros") {
     const rows = await queryDuckDb(`
@@ -1337,8 +1408,7 @@ async function getDashboardPayloadFromDuckDb(
       tempos AS (
         SELECT *
         FROM tempos_base, tempos_window
-        WHERE dt_ref IS NOT NULL
-          AND (max_dt IS NULL OR dt_ref BETWEEN (max_dt - INTERVAL '${days - 1} DAY') AND max_dt)
+        WHERE ${duckDtInPeriod("dt_ref")}
       ),
       tempos_agg AS (
         SELECT
@@ -1360,8 +1430,7 @@ async function getDashboardPayloadFromDuckDb(
       intern_agg AS (
         SELECT cd, count(*) AS internacoes
         FROM intern_base, intern_window
-        WHERE dt_ref IS NOT NULL
-          AND (max_dt IS NULL OR dt_ref BETWEEN (max_dt - INTERVAL '${days - 1} DAY') AND max_dt)
+        WHERE ${duckDtInPeriod("dt_ref")}
         GROUP BY cd
       ),
       exames_base AS (
@@ -1386,8 +1455,7 @@ async function getDashboardPayloadFromDuckDb(
       exames_agg AS (
         SELECT cd, avg(minutos) AS tempo_medio_exames_min
         FROM exames_base, exames_window
-        WHERE dt_ref IS NOT NULL
-          AND (max_dt IS NULL OR dt_ref BETWEEN (max_dt - INTERVAL '${days - 1} DAY') AND max_dt)
+        WHERE ${duckDtInPeriod("dt_ref")}
         GROUP BY cd
       ),
       altas_base AS (
@@ -1420,8 +1488,7 @@ async function getDashboardPayloadFromDuckDb(
           ) AS obitos_total,
           sum(CASE WHEN tipo LIKE '%evas%' OR tipo LIKE '%evad%' OR motivo LIKE '%evas%' OR motivo LIKE '%evad%' THEN 1 ELSE 0 END) AS evasoes_total
         FROM altas_base, altas_window
-        WHERE dt_ref IS NOT NULL
-          AND (max_dt IS NULL OR dt_ref BETWEEN (max_dt - INTERVAL '${days - 1} DAY') AND max_dt)
+        WHERE ${duckDtInPeriod("dt_ref")}
         GROUP BY cd
       )
       SELECT
@@ -1530,7 +1597,7 @@ export async function getDashboardQueryPayload(
   slug: string,
   options: {
     limit: number;
-    periodDays: 7 | 15 | 30 | 60 | 90 | 180;
+    periodDays: 1 | 7 | 15 | 30 | 60 | 90 | 180;
     regional?: string;
     unidade?: string;
     indicadorKey?: string;
@@ -1833,18 +1900,18 @@ export function clearDashboardCsvCache(): void {
   queryCache.clear();
 }
 
-const GERENCIAL_PERIOD_DAYS: Array<7 | 15 | 30 | 60 | 90 | 180> = [7, 15, 30, 60, 90, 180];
+const GERENCIAL_PERIOD_DAYS: Array<1 | 7 | 15 | 30 | 60 | 90 | 180> = [1, 7, 15, 30, 60, 90, 180];
 
 /**
- * Arranque: carrega o store e materializa só o contexto de 7d (padrao).
- * Os demais periodos rodam em background para nao segurar o log de "servidor pronto".
+ * Arranque: carrega o store e materializa o contexto de **Ontem** (padrao da UI).
+ * Os demais periodos rodam em background para troca rapida de pill sem bloquear "servidor pronto".
  */
 export async function prewarmDashboardStore(): Promise<void> {
   const store = await ensureStore();
-  computeContext(store, { periodDays: 7 });
+  computeContext(store, { periodDays: 1 });
   setImmediate(() => {
     for (const periodDays of GERENCIAL_PERIOD_DAYS) {
-      if (periodDays === 7) continue;
+      if (periodDays === 1) continue;
       computeContext(store, { periodDays });
     }
   });
@@ -1855,7 +1922,7 @@ export async function prewarmDashboardStore(): Promise<void> {
  * com os mesmos filtros regional/unidade para troca instantanea de pill.
  */
 export function scheduleGerencialContextPrewarm(options: {
-  activePeriodDays: 7 | 15 | 30 | 60 | 90 | 180;
+  activePeriodDays: 1 | 7 | 15 | 30 | 60 | 90 | 180;
   regional?: string;
   unidade?: string;
 }): void {

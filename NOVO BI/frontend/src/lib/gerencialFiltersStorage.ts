@@ -2,7 +2,9 @@ const GERENCIAL_FILTERS_STORAGE_KEY = "novo-bi:gerencial:filters";
 /** Unidade só na sessão do separador: nova aba abre sempre visão global (Todas). */
 const SESSION_UNIDADE_KEY = "novo-bi:gerencial:unidade-session";
 
-export type PeriodDays = 7 | 15 | 30 | 60 | 90 | 180;
+export type PeriodDays = 1 | 7 | 15 | 30 | 60 | 90 | 180;
+
+const ALLOWED_PERIODS: readonly PeriodDays[] = [1, 7, 15, 30, 60, 90, 180];
 
 type PersistedFilters = {
   period?: number;
@@ -10,6 +12,11 @@ type PersistedFilters = {
   /** Legado: antes da unidade ir para sessionStorage; ignorado na leitura. */
   unidade?: string;
 };
+
+function normalizeStoredPeriod(raw: unknown): PeriodDays {
+  const n = Number(raw);
+  return ALLOWED_PERIODS.includes(n as PeriodDays) ? (n as PeriodDays) : 1;
+}
 
 const listeners = new Set<() => void>();
 
@@ -22,16 +29,6 @@ function notify(): void {
   for (const listener of listeners) {
     listener();
   }
-}
-
-function parsePeriod(raw: unknown): PeriodDays {
-  const n = Number(raw);
-  if (n === 15) return 15;
-  if (n === 30) return 30;
-  if (n === 60) return 60;
-  if (n === 90) return 90;
-  if (n === 180) return 180;
-  return 7;
 }
 
 /** Ao abrir o modulo gerencial: visao global (deixa de herdar unidade de sessao anterior). */
@@ -55,16 +52,19 @@ function readUnidadeFromSession(): string {
   }
 }
 
+/**
+ * Abertura: **Ontem** (periodo 1) se nada persistido; senao restaura `period` e `regional` do localStorage.
+ * Unidade ve da sessao do separador (`SESSION_UNIDADE_KEY`).
+ */
 export function readGerencialFilters(): { period: PeriodDays; regional: string; unidade: string } {
   try {
     const raw = window.localStorage.getItem(GERENCIAL_FILTERS_STORAGE_KEY);
-    if (!raw) return { period: 7, regional: "ALL", unidade: readUnidadeFromSession() };
+    if (!raw) return { period: 1, regional: "ALL", unidade: readUnidadeFromSession() };
     const parsed = JSON.parse(raw) as PersistedFilters;
     const regional = parsed.regional && parsed.regional.trim().length > 0 ? parsed.regional : "ALL";
-    const period = parsePeriod(parsed.period);
-    return { period, regional, unidade: readUnidadeFromSession() };
+    return { period: normalizeStoredPeriod(parsed.period), regional, unidade: readUnidadeFromSession() };
   } catch {
-    return { period: 7, regional: "ALL", unidade: readUnidadeFromSession() };
+    return { period: 1, regional: "ALL", unidade: readUnidadeFromSession() };
   }
 }
 

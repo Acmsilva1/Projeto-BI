@@ -30,7 +30,7 @@ export type DashboardRowsPayload = {
   slug: string;
   sourceView: string;
   appliedFilters?: {
-    periodDays: 7 | 15 | 30 | 60 | 90 | 180;
+    periodDays: 1 | 7 | 15 | 30 | 60 | 90 | 180;
     regional: string | null;
     unidade: string | null;
     indicadorKey?: string | null;
@@ -83,7 +83,7 @@ export async function fetchDashboardRows(
   slug: string,
   options?: {
     limit?: number;
-    period?: 7 | 15 | 30 | 60 | 90 | 180;
+    period?: 1 | 7 | 15 | 30 | 60 | 90 | 180;
     regional?: string;
     unidade?: string;
     signal?: AbortSignal;
@@ -111,19 +111,23 @@ export async function fetchDashboardRows(
   if (contentType.includes(ARROW_STREAM_CONTENT_TYPE)) {
     const rows = parseArrowRows(await response.arrayBuffer());
     const rowCount = Number(response.headers.get("x-row-count") ?? rows.length);
-    const headerPeriod = Number(response.headers.get("x-period-days") ?? options?.period ?? 7);
-    const periodDays: 7 | 15 | 30 | 60 | 90 | 180 =
-      headerPeriod === 15
-        ? 15
-        : headerPeriod === 30
-          ? 30
-          : headerPeriod === 60
-            ? 60
-            : headerPeriod === 90
-              ? 90
-              : headerPeriod === 180
-                ? 180
-                : 7;
+    const headerPeriod = Number(response.headers.get("x-period-days") ?? options?.period ?? 1);
+    const periodDays: 1 | 7 | 15 | 30 | 60 | 90 | 180 =
+      headerPeriod === 1
+        ? 1
+        : headerPeriod === 7
+          ? 7
+          : headerPeriod === 15
+            ? 15
+            : headerPeriod === 30
+              ? 30
+              : headerPeriod === 60
+                ? 60
+                : headerPeriod === 90
+                  ? 90
+                  : headerPeriod === 180
+                    ? 180
+                    : 1;
 
     return {
       ok: true,
@@ -184,7 +188,7 @@ export async function fetchDashboardJson(
   slug: string,
   options?: {
     limit?: number;
-    period?: 7 | 15 | 30 | 60 | 90 | 180;
+    period?: 1 | 7 | 15 | 30 | 60 | 90 | 180;
     regional?: string;
     unidade?: string;
     indicador?: string;
@@ -211,6 +215,24 @@ export async function fetchDashboardJson(
   }
   const body: unknown = await response.json();
   return normalizeDashboardJsonBody(body, slug);
+}
+
+/**
+ * Pede ao servidor o pre-calculo dos **outros** periodos gerenciais (mesmo regional/unidade),
+ * em background, para a troca de pill reutilizar `computeContext` ja materializado.
+ */
+export function requestGerencialContextPrewarm(options: {
+  activePeriod: 1 | 7 | 15 | 30 | 60 | 90 | 180;
+  regional: string;
+  unidade: string;
+}): void {
+  const p = new URLSearchParams();
+  p.set("activePeriod", String(options.activePeriod));
+  if (options.regional && options.regional !== "ALL") p.set("regional", options.regional);
+  if (options.unidade && options.unidade !== "ALL") p.set("unidade", options.unidade);
+  void fetch(`/api/v1/dashboard/prewarm/gerencial-context?${p.toString()}`, { method: "POST" }).catch(() => {
+    /* opcional; nao bloqueia a UI */
+  });
 }
 
 export type PsHeatmapChegadasResponse = {

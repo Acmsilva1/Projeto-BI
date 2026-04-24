@@ -1,18 +1,41 @@
 import ReactECharts from "echarts-for-react";
 import { Loader2 } from "lucide-react";
-import { useEffect, useMemo, useState, type ReactElement } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import { fetchDashboardRows, fetchPsHeatmapChegadas } from "../../services/api";
+import type { PeriodDays } from "../../lib/gerencialFiltersStorage";
 import { analyzePsHeatmapRows, type HeatmapRow } from "./psChegadasHeatmapAnalysis";
 import { PsChegadasHeatmapReport } from "./PsChegadasHeatmapReport";
 
+export type PsChegadasHeatmapProps = {
+  period: PeriodDays;
+  regional: string;
+  unidade: string;
+};
+
 type FilterRow = { regional: string; unidade: string };
+
+function currentCalendarYm(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
 
 function normalizeIsoDate(value: unknown): string {
   if (value === null || value === undefined) return "";
   if (typeof value === "string") {
     const t = value.trim();
     if (!t) return "";
+    if (t.length >= 10 && t[4] === "-" && t[7] === "-") return t.slice(0, 10);
+    if (t.includes("T")) return t.slice(0, 10);
     return t.length >= 10 ? t.slice(0, 10) : t;
+  }
+  if (typeof value === "number" && Number.isFinite(value)) {
+    const d = new Date(value);
+    if (!Number.isNaN(d.getTime())) {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      return `${y}-${m}-${day}`;
+    }
   }
   if (value instanceof Date && !Number.isNaN(value.getTime())) {
     const y = value.getFullYear();
@@ -27,8 +50,10 @@ function toHeatmapRows(rows: Record<string, unknown>[]): HeatmapRow[] {
   const out: HeatmapRow[] = [];
   for (const row of rows) {
     const data_chegada = normalizeIsoDate(row.data_chegada ?? row.DATA_CHEGADA);
-    const hora = Math.trunc(Number(row.hora ?? row.HORA ?? 0));
-    const qtd = Number(row.qtd_atendimentos ?? row.QTD_ATENDIMENTOS ?? 0);
+    const horaRaw = row.hora ?? row.HORA;
+    const hora = Math.trunc(Number(typeof horaRaw === "string" ? horaRaw.trim() : horaRaw));
+    const qtdRaw = row.qtd_atendimentos ?? row.QTD_ATENDIMENTOS;
+    const qtd = Number(typeof qtdRaw === "string" ? String(qtdRaw).replace(",", ".") : qtdRaw);
     if (!data_chegada || hora < 0 || hora > 23 || !Number.isFinite(qtd)) continue;
     const diaRaw = row.dia_mes ?? row.DIA_MES;
     const dia_mes = Number.isFinite(Number(diaRaw)) ? Math.trunc(Number(diaRaw)) : Number(data_chegada.slice(-2)) || 0;
@@ -54,26 +79,30 @@ const Y_LABELS = Array.from({ length: Y_DAYS }, (_, i) => String(i + 1));
 
 const GRID_LINE = "rgba(71, 85, 105, 0.55)";
 
-export function PsChegadasHeatmap(): ReactElement {
-  const [regional, setRegional] = useState<string>("ALL");
-  const [unidade, setUnidade] = useState<string>("");
-  const [mes, setMes] = useState<string>("");
-
+export function PsChegadasHeatmap(props: PsChegadasHeatmapProps): ReactElement {
+  const { period, regional, unidade } = props;
+  const [mes, setMes] = useState<string>(() => currentCalendarYm());
+  /** Quando o painel está em "Todas" as unidades, o mapa precisa de uma unidade explícita (não altera o filtro global). */
+  const [unidadeMapaLocal, setUnidadeMapaLocal] = useState<string>("");
   const [filtrosRows, setFiltrosRows] = useState<FilterRow[]>([]);
-  const [filtrosLoading, setFiltrosLoading] = useState(true);
+  const [filtrosLoading, setFiltrosLoading] = useState(false);
+  const chartWrapRef = useRef<HTMLDivElement | null>(null);
+  const chartRef = useRef<ReactECharts | null>(null);
 
-  const [rows, setRows] = useState<HeatmapRow[]>([]);
-  const [dataLoading, setDataLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const unidadePainelEspecifica = unidade !== "ALL" && unidade.trim().length > 0;
+  const unidadeParaApi = unidadePainelEspecifica ? unidade.trim() : unidadeMapaLocal.trim();
+  const canQuery = Boolean(mes.trim() && unidadeParaApi.length > 0);
 
-  const canQuery = Boolean(mes.trim() && unidade.trim());
+  useEffect(() => {
+    if (unidadePainelEspecifica) setUnidadeMapaLocal("");
+  }, [unidadePainelEspecifica, unidade]);
 
   useEffect(() => {
     const controller = new AbortController();
     setFiltrosLoading(true);
     void fetchDashboardRows("gerencial-filtros", {
       limit: 2000,
-      period: 30,
+      period,
       regional: regional === "ALL" ? undefined : regional,
       signal: controller.signal
     })
@@ -84,13 +113,31 @@ export function PsChegadasHeatmap(): ReactElement {
               regional: String(r.regional ?? "").trim(),
               unidade: String(r.unidade ?? "").trim()
             }))
-            .filter((r) => r.regional && r.unidade)
+            .filter((r) => r.regional.length > 0 && r.unidade.length > 0)
         );
       })
       .catch(() => setFiltrosRows([]))
       .finally(() => setFiltrosLoading(false));
     return () => controller.abort();
-  }, [regional]);
+  }, [period, regional]);
+
+  const unidadesLista = useMemo(() => {
+    const list =
+      regional === "ALL"
+        ? filtrosRows.map((r) => r.unidade)
+        : filtrosRows.filter((r) => r.regional === regional).map((r) => r.unidade);
+    return [...new Set(list)].sort((a, b) => a.localeCompare(b));
+  }, [filtrosRows, regional]);
+
+  useEffect(() => {
+    if (!unidadePainelEspecifica && unidadeMapaLocal && !unidadesLista.includes(unidadeMapaLocal)) {
+      setUnidadeMapaLocal("");
+    }
+  }, [unidadePainelEspecifica, unidadeMapaLocal, unidadesLista]);
+
+  const [rows, setRows] = useState<HeatmapRow[]>([]);
+  const [dataLoading, setDataLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!canQuery) {
@@ -104,7 +151,7 @@ export function PsChegadasHeatmap(): ReactElement {
     setError(null);
     void fetchPsHeatmapChegadas({
       mes: mes.trim(),
-      unidade: unidade.trim(),
+      unidade: unidadeParaApi,
       regional: regional === "ALL" ? undefined : regional,
       limit: 5000,
       signal: controller.signal
@@ -117,24 +164,30 @@ export function PsChegadasHeatmap(): ReactElement {
       })
       .finally(() => setDataLoading(false));
     return () => controller.abort();
-  }, [canQuery, mes, unidade, regional]);
+  }, [canQuery, mes, unidadeParaApi, regional]);
 
-  const regionais = useMemo(() => {
-    const s = new Set(filtrosRows.map((r) => r.regional));
-    return [...s].sort((a, b) => a.localeCompare(b));
-  }, [filtrosRows]);
-
-  const unidades = useMemo(() => {
-    const list =
-      regional === "ALL"
-        ? filtrosRows.map((r) => r.unidade)
-        : filtrosRows.filter((r) => r.regional === regional).map((r) => r.unidade);
-    return [...new Set(list)].sort((a, b) => a.localeCompare(b));
-  }, [filtrosRows, regional]);
+  const resizeChart = useCallback((): void => {
+    const inst = chartRef.current?.getEchartsInstance?.();
+    if (inst) void inst.resize();
+  }, []);
 
   useEffect(() => {
-    if (unidade && !unidades.includes(unidade)) setUnidade("");
-  }, [unidade, unidades]);
+    if (!canQuery || dataLoading) return;
+    const t = window.setTimeout(resizeChart, 80);
+    return () => window.clearTimeout(t);
+  }, [canQuery, dataLoading, mes, unidadeParaApi, regional, rows.length, resizeChart]);
+
+  useEffect(() => {
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(() => resizeChart()) : null;
+    const el = chartWrapRef.current;
+    if (ro && el) ro.observe(el);
+    window.addEventListener("resize", resizeChart);
+    return () => {
+      window.removeEventListener("resize", resizeChart);
+      if (ro && el) ro.unobserve(el);
+      ro?.disconnect();
+    };
+  }, [resizeChart]);
 
   const analysis = useMemo(() => {
     if (!canQuery || !mes.trim()) return null;
@@ -258,44 +311,15 @@ export function PsChegadasHeatmap(): ReactElement {
     return { option, height: chartHeight };
   }, [rows, mes, canQuery]);
 
+  const chartKey = `${mes}|${unidadeParaApi}|${regional}|${rows.length}`;
+
+  const faltaUnidadeMsg = unidadePainelEspecifica
+    ? "Selecione o mês acima (já vem o mês atual)."
+    : "Com unidade “Todas” no painel, escolha abaixo a unidade do mapa ou fixe uma unidade no resumo gerencial.";
+
   return (
-    <div className="flex w-full flex-col gap-3">
+    <div className="flex w-full min-w-0 flex-col gap-3">
       <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-[var(--table-grid)] bg-[color-mix(in_srgb,var(--app-elevated)_92%,transparent)] p-3 md:p-4">
-        <label className="flex min-w-[140px] flex-col gap-1 text-xs text-[var(--app-muted)]">
-          Regional
-          <select
-            className="filter-select min-w-[140px]"
-            value={regional}
-            onChange={(e) => {
-              setRegional(e.target.value);
-              setUnidade("");
-            }}
-            disabled={filtrosLoading}
-          >
-            <option value="ALL">Todas</option>
-            {regionais.map((r) => (
-              <option key={r} value={r}>
-                {r}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex min-w-[200px] flex-1 flex-col gap-1 text-xs text-[var(--app-muted)]">
-          Unidade
-          <select
-            className="filter-select w-full min-w-[200px]"
-            value={unidade}
-            onChange={(e) => setUnidade(e.target.value)}
-            disabled={filtrosLoading}
-          >
-            <option value="">—</option>
-            {unidades.map((u) => (
-              <option key={u} value={u}>
-                {u}
-              </option>
-            ))}
-          </select>
-        </label>
         <label className="flex min-w-[160px] flex-col gap-1 text-xs text-[var(--app-muted)]">
           Mês
           <input
@@ -305,12 +329,36 @@ export function PsChegadasHeatmap(): ReactElement {
             onChange={(e) => setMes(e.target.value)}
           />
         </label>
+        {!unidadePainelEspecifica && (
+          <label className="flex min-w-[200px] max-w-full flex-1 flex-col gap-1 text-xs text-[var(--app-muted)]">
+            Unidade do mapa
+            <select
+              className="filter-select min-h-[38px] w-full min-w-[200px] px-2"
+              value={unidadeMapaLocal}
+              onChange={(e) => setUnidadeMapaLocal(e.target.value)}
+              disabled={filtrosLoading}
+            >
+              <option value="">— escolher —</option>
+              {unidadesLista.map((u) => (
+                <option key={u} value={u}>
+                  {u}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
       </div>
 
       {!canQuery && (
         <div className="rounded-2xl border border-dashed border-[var(--table-grid)] bg-[var(--app-elevated)]/40 py-16 text-center text-sm text-[var(--app-muted)]">
-          Selecione <strong className="text-[var(--table-header-fg)]">unidade</strong> e{" "}
-          <strong className="text-[var(--table-header-fg)]">mês</strong> para carregar o mapa.
+          {filtrosLoading ? (
+            <span className="inline-flex items-center justify-center gap-2">
+              <Loader2 className="h-5 w-5 animate-spin opacity-70" aria-hidden />
+              Carregando unidades…
+            </span>
+          ) : (
+            <>{faltaUnidadeMsg}</>
+          )}
         </div>
       )}
 
@@ -325,19 +373,25 @@ export function PsChegadasHeatmap(): ReactElement {
       )}
 
       {canQuery && !dataLoading && error === null && chart !== null && (
-        <div className="w-full overflow-visible rounded-2xl border border-[var(--table-grid)] bg-[color-mix(in_srgb,var(--app-elevated)_92%,transparent)] p-2 md:p-3">
+        <div
+          ref={chartWrapRef}
+          className="w-full min-w-0 overflow-hidden rounded-2xl border border-[var(--table-grid)] bg-[color-mix(in_srgb,var(--app-elevated)_92%,transparent)] p-2 md:p-3"
+        >
           <ReactECharts
+            key={chartKey}
+            ref={chartRef}
             option={chart.option}
             notMerge
-            lazyUpdate
-            style={{ width: "100%", height: chart.height }}
+            lazyUpdate={false}
+            style={{ width: "100%", minWidth: 280, height: chart.height }}
             opts={{ renderer: "canvas" }}
+            onChartReady={resizeChart}
           />
         </div>
       )}
 
       {canQuery && !dataLoading && error === null && analysis !== null && (
-        <PsChegadasHeatmapReport unidade={unidade.trim()} mesLabel={mesLabel} analysis={analysis} />
+        <PsChegadasHeatmapReport unidade={unidadeParaApi} mesLabel={mesLabel} analysis={analysis} />
       )}
     </div>
   );

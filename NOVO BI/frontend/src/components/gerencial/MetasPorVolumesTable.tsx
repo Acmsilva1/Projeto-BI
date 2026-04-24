@@ -1,6 +1,7 @@
 import { Loader2, Minus, Plus } from "lucide-react";
 import { Fragment, useCallback, useEffect, useMemo, useState, type ReactElement } from "react";
 import { fetchDashboardJson } from "../../services/api";
+import type { PeriodDays } from "../../lib/gerencialFiltersStorage";
 
 type MonthMeta = { yearMonth: number; label: string };
 type MonthCell = {
@@ -145,7 +146,14 @@ function toYearMonthParam(yearMonth: number): string {
   return `${year}-${String(month).padStart(2, "0")}`;
 }
 
-export function MetasPorVolumesTable(): ReactElement {
+export type MetasPorVolumesTableProps = {
+  period: PeriodDays;
+  regional: string;
+  unidade: string;
+};
+
+export function MetasPorVolumesTable(props: MetasPorVolumesTableProps): ReactElement {
+  const { period, regional, unidade } = props;
   const [selectedMonth, setSelectedMonth] = useState<number | "ALL">("ALL");
   const [state, setState] = useState<
     | { status: "loading" }
@@ -162,6 +170,9 @@ export function MetasPorVolumesTable(): ReactElement {
     setDrillByKey({});
     fetchDashboardJson("gerencial-metas-por-volumes", {
       mes: selectedMonth === "ALL" ? undefined : toYearMonthParam(selectedMonth),
+      period,
+      regional: regional === "ALL" ? undefined : regional,
+      unidade: unidade === "ALL" ? undefined : unidade,
       signal: controller.signal
     })
       .then((payload) => {
@@ -184,7 +195,7 @@ export function MetasPorVolumesTable(): ReactElement {
         setState({ status: "error", message });
       });
     return () => controller.abort();
-  }, [selectedMonth]);
+  }, [selectedMonth, period, regional, unidade]);
 
   useEffect(() => loadMatrix(), [loadMatrix]);
 
@@ -198,7 +209,10 @@ export function MetasPorVolumesTable(): ReactElement {
       setDrillByKey((prev) => ({ ...prev, [key]: "loading" }));
       fetchDashboardJson("gerencial-metas-por-volumes-drill", {
         indicador: key,
-        mes: selectedMonth === "ALL" ? undefined : toYearMonthParam(selectedMonth)
+        mes: selectedMonth === "ALL" ? undefined : toYearMonthParam(selectedMonth),
+        period,
+        regional: regional === "ALL" ? undefined : regional,
+        unidade: unidade === "ALL" ? undefined : unidade
       })
         .then((payload) => {
           const rows = payload.rows as Record<string, unknown>[];
@@ -214,7 +228,7 @@ export function MetasPorVolumesTable(): ReactElement {
           setDrillByKey((prev) => ({ ...prev, [key]: "error" }));
         });
     },
-    [selectedMonth]
+    [selectedMonth, period, regional, unidade]
   );
 
   const toggleDrill = (key: string): void => {

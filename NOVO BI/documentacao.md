@@ -65,3 +65,26 @@ Quando o backend passar a consumir o **DB de produção** (via DuckDB apontando 
 - Reduz gargalo de rede e serializacao.
 - Melhora observabilidade (fica claro qual rota esta lenta).
 - Facilita evolucao e rollback por modulo sem afetar o restante.
+
+### Otimizacao do carregamento gerencial (frontend)
+
+- Em `frontend/src/components/gerencial/GerencialTopCards.tsx`, a resposta Arrow de `gerencial-filtros` e guardada em cache por **regional** (`filtrosCacheRef`).
+- Se a **regional** nao mudou em relacao ao render anterior e o cache e valido, o efeito **nao** refaz o fetch de filtros (`skipFiltros`), poupando um round-trip e parse; a barra de progresso usa **2 passos** nesse caso e **3** quando os filtros precisam ser buscados de novo.
+- Troca de **unidade** ou **periodo** mantendo a mesma regional continua a atualizar KPIs e ranking normalmente.
+
+## Modulo Chegadas por hora (PS)
+
+### Backend
+
+- **Rota:** `GET /api/v1/ps-heatmap/chegadas` (`psHeatmap.routes.ts` → `psHeatmapChegadasController`).
+- **Query obrigatoria:** `mes=YYYY-MM`, `unidade` (nome da unidade; vazio ou `ALL` e rejeitado com 400).
+- **Query opcional:** `regional` (omitir ou `ALL` = sem filtro regional); `limit` (inteiro; padrao **2500** no controller se ausente ou invalido — o componente do mapa pede **5000**).
+- **Resposta:** JSON com `rows`, `rowCount`, `sourceView`, `applied` (espelha mes/unidade/regional aplicados). Suporte a **Apache Arrow** quando o cliente envia `Accept: application/vnd.apache.arrow.stream` ou `?format=arrow` (mesma convencao dos outros endpoints).
+- **Agregacao:** implementada em `dashboard.service.ts` (`getPsChegadasHeatmapPayload`): chegadas por dia civil do mes e hora (0–23) para alimentar o heatmap.
+
+### Frontend
+
+- **Mapa:** `frontend/src/components/gerencial/PsChegadasHeatmap.tsx` — filtro de **mes** (`input type="month"`), selecao de **unidade do mapa** quando o painel gerencial esta em "Todas" as unidades (nao altera o filtro global), consumo via `fetchPsHeatmapChegadas` em `services/api.ts`, grafico **ECharts** heatmap dia × hora.
+- **Leitura para gestao:** `PsChegadasHeatmapReport.tsx` + logica em `psChegadasHeatmapAnalysis.ts` (comparacao sazonal por dia da semana/hora, feriados, destaques).
+- **Formato da leitura:** resumo em **cards** (totais, janela 8h–19h, faixas de tres horas melhor/pior), grade de **cards** por hora (8h–19h: media por dia, pico no mes, rotulo automatico), secao **Onde mais chama atenção** em **cards** (sem tabela).
+- **Cores dos cards de pico** (pelo numero de **chegadas naquela celula** `qtd`): **1 a 9** — tons sky; **10 a 19** — tons ambar; **20 ou mais** — tons rose/vermelho. Legenda textual com as tres faixas fica no cabecalho da secao; o badge do card mostra apenas **Pico #N** (sem repetir o texto da faixa no chip).

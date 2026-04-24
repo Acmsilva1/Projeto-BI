@@ -395,7 +395,7 @@ export function analyzePsHeatmapRows(ym: string, rows: HeatmapRow[]): PsHeatmapA
         etiqueta: "O menos apertado entre as faixas",
         destaqueLinha1: dl,
         destaqueLinha2: fx,
-        complemento: `Mesmo assim, todas as faixas de três horas tiveram algum horário acima do limite; esta teve o menor número de ocorrências (${melhorBloco.acima}). Use a tabela abaixo para o detalhe.`
+        complemento: `Mesmo assim, todas as faixas de três horas tiveram algum horário acima do limite; esta teve o menor número de ocorrências (${melhorBloco.acima}). Os cartões de pico abaixo trazem o detalhe.`
       };
     }
   }

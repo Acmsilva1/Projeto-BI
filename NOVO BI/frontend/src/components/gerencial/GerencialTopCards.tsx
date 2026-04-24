@@ -1,13 +1,22 @@
 import { motion } from "framer-motion";
 import { FlaskConical, House, Loader2, Radiation, RefreshCw, Scan, Syringe, UserMinus, Users } from "lucide-react";
-import { useEffect, useMemo, useState, type ReactElement } from "react";
-import { fetchDashboardJson, fetchDashboardRows, type DashboardRowsPayload } from "../../services/api";
+import { useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import {
-  clearGerencialSessionUnidade,
-  readGerencialFilters,
-  writeGerencialFilters,
-  type PeriodDays
-} from "../../lib/gerencialFiltersStorage";
+  fetchDashboardJson,
+  fetchDashboardRows,
+  requestGerencialContextPrewarm,
+  type DashboardRowsPayload
+} from "../../services/api";
+import { type PeriodDays } from "../../lib/gerencialFiltersStorage";
+
+export type GerencialShellFilters = {
+  period: PeriodDays;
+  regional: string;
+  unidade: string;
+  onPeriodChange: (value: PeriodDays) => void;
+  onRegionalChange: (value: string) => void;
+  onUnidadeChange: (value: string) => void;
+};
 
 type CardTone = "live" | "primary" | "critical" | "urgent";
 
@@ -232,6 +241,7 @@ function toFilterRows(rows: Record<string, unknown>[]): FilterRow[] {
 }
 
 function periodLabel(period: PeriodDays): string {
+  if (period === 1) return "ontem";
   return `${period}d`;
 }
 
@@ -508,21 +518,13 @@ function buildKpiCardsFromTopoRow(first: Record<string, unknown> | undefined, pe
   });
 }
 
-export function GerencialTopCards(): ReactElement {
-  const [period, setPeriod] = useState<PeriodDays>(() => readGerencialFilters().period);
-  /** Sempre abre consolidado: Todas as regionais e todas as unidades (filtros podem mudar depois). */
-  const [regional, setRegional] = useState<string>("ALL");
-  const [unidade, setUnidade] = useState<string>("ALL");
+export function GerencialTopCards(props: GerencialShellFilters): ReactElement {
+  const { period, regional, unidade, onPeriodChange, onRegionalChange, onUnidadeChange } = props;
   const [slots, setSlots] = useState<GerencialSlotsState>(() => initialGerencialSlots());
   const [lastFilterRows, setLastFilterRows] = useState<FilterRow[]>([]);
-
-  useEffect(() => {
-    clearGerencialSessionUnidade();
-  }, []);
-
-  useEffect(() => {
-    writeGerencialFilters({ period, regional, unidade });
-  }, [period, regional, unidade]);
+  const filterTripletRef = useRef<{ period: PeriodDays; regional: string; unidade: string } | null>(null);
+  /** Lista de unidades só depende da regional na API — reutiliza sem novo round-trip. */
+  const filtrosCacheRef = useRef<{ regional: string; payload: DashboardRowsPayload } | null>(null);
 
   useEffect(() => {
     if (slots.filtros.status === "ready") {
@@ -533,15 +535,42 @@ export function GerencialTopCards(): ReactElement {
   useEffect(() => {
     const controller = new AbortController();
     let cancelled = false;
-    setSlots(initialGerencialSlots());
+
+    const prev = filterTripletRef.current;
+    filterTripletRef.current = { period, regional, unidade };
+
+    const regionalIgualAoAnterior = prev !== null && prev.regional === regional;
+    const cacheFiltrosValido =
+      filtrosCacheRef.current !== null && filtrosCacheRef.current.regional === regional;
+    const skipFiltros = regionalIgualAoAnterior && cacheFiltrosValido;
+
+    /** Sem novo pedido de filtros: 2 passos (ranking ou skip + KPIs); com filtros: 3. */
+    const stepsTarget = skipFiltros ? 2 : 3;
+
+    if (skipFiltros && filtrosCacheRef.current) {
+      setSlots({
+        ...initialGerencialSlots(),
+        filtros: { status: "ready", payload: filtrosCacheRef.current.payload }
+      });
+    } else {
+      setSlots(initialGerencialSlots());
+    }
+
+    /** Enquanto os cards do periodo atual carregam, o servidor materializa os outros periodos com os mesmos filtros. */
+    requestGerencialContextPrewarm({
+      activePeriod: period,
+      regional,
+      unidade
+    });
 
     let stepsFinished = 0;
     const bumpProgress = (): void => {
       if (cancelled) return;
-      if (stepsFinished >= 3) return;
       stepsFinished += 1;
-      const pct = Math.min(94, Math.round((stepsFinished / 3) * 100));
-      const msg = LOADING_STEP_MESSAGES[stepsFinished] ?? LOADING_STEP_MESSAGES[LOADING_STEP_MESSAGES.length - 1] ?? "";
+      if (stepsFinished > stepsTarget) return;
+      const pct = Math.min(94, Math.round((stepsFinished / stepsTarget) * 100));
+      const msg =
+        LOADING_STEP_MESSAGES[Math.min(stepsFinished, LOADING_STEP_MESSAGES.length - 1)] ?? "Carregando…";
       setSlots((prev) => ({ ...prev, progress: pct, message: msg }));
     };
 
@@ -581,22 +610,25 @@ export function GerencialTopCards(): ReactElement {
         });
     }
 
-    void fetchDashboardRows("gerencial-filtros", {
-      period,
-      regional: regional === "ALL" ? undefined : regional,
-      limit: 1000,
-      signal: controller.signal
-    })
-      .then((filtersPayload) => {
-        if (cancelled) return;
-        setSlots((prev) => ({ ...prev, filtros: { status: "ready", payload: filtersPayload } }));
-        bumpProgress();
+    if (!skipFiltros) {
+      void fetchDashboardRows("gerencial-filtros", {
+        period,
+        regional: regional === "ALL" ? undefined : regional,
+        limit: 1000,
+        signal: controller.signal
       })
-      .catch((error: unknown) => {
-        if (error instanceof Error && error.name === "AbortError") return;
-        const message = error instanceof Error ? error.message : "Falha ao carregar filtros.";
-        if (!cancelled) setSlots((prev) => ({ ...prev, filtros: { status: "error", message } }));
-      });
+        .then((filtersPayload) => {
+          if (cancelled) return;
+          filtrosCacheRef.current = { regional, payload: filtersPayload };
+          setSlots((prev) => ({ ...prev, filtros: { status: "ready", payload: filtersPayload } }));
+          bumpProgress();
+        })
+        .catch((error: unknown) => {
+          if (error instanceof Error && error.name === "AbortError") return;
+          const message = error instanceof Error ? error.message : "Falha ao carregar filtros.";
+          if (!cancelled) setSlots((prev) => ({ ...prev, filtros: { status: "error", message } }));
+        });
+    }
 
     void fetchDashboardJson("gerencial-kpis-topo", {
       period,
@@ -633,9 +665,9 @@ export function GerencialTopCards(): ReactElement {
         ? [...new Set(allFilterRows.map((row) => row.unidade))]
         : [...new Set(allFilterRows.filter((row) => row.regional === regional).map((row) => row.unidade))];
     if (unidade !== "ALL" && !allowedUnits.includes(unidade)) {
-      setUnidade("ALL");
+      onUnidadeChange("ALL");
     }
-  }, [regional, unidade, allFilterRows]);
+  }, [regional, unidade, allFilterRows, onUnidadeChange]);
 
   const regionais = useMemo(() => {
     const rows = allFilterRows;
@@ -685,11 +717,18 @@ export function GerencialTopCards(): ReactElement {
 
       <div className="mb-4 grid gap-3 md:grid-cols-[auto,1fr,1fr]">
         <div className="glass-card flex items-center gap-2 p-2">
+          <button
+            type="button"
+            onClick={() => onPeriodChange(1)}
+            className={`period-pill ${period === 1 ? "is-active" : ""}`}
+          >
+            Ontem
+          </button>
           {[7, 15, 30, 60, 90, 180].map((value) => (
             <button
               key={value}
               type="button"
-              onClick={() => setPeriod(value as PeriodDays)}
+              onClick={() => onPeriodChange(value as PeriodDays)}
               className={`period-pill ${period === value ? "is-active" : ""}`}
             >
               {value} dias
@@ -699,7 +738,7 @@ export function GerencialTopCards(): ReactElement {
 
         <label className="glass-card flex items-center gap-2 p-2 text-sm text-[var(--app-muted)]">
           Regional
-          <select className="filter-select" value={regional} onChange={(e) => setRegional(e.target.value)}>
+          <select className="filter-select" value={regional} onChange={(e) => onRegionalChange(e.target.value)}>
             <option value="ALL">Todas</option>
             {regionais.map((item) => (
               <option key={item} value={item}>
@@ -711,7 +750,7 @@ export function GerencialTopCards(): ReactElement {
 
         <label className="glass-card flex items-center gap-2 p-2 text-sm text-[var(--app-muted)]">
           Unidade
-          <select className="filter-select" value={unidade} onChange={(e) => setUnidade(e.target.value)}>
+          <select className="filter-select" value={unidade} onChange={(e) => onUnidadeChange(e.target.value)}>
             <option value="ALL">Todas</option>
             {unidades.map((item) => (
               <option key={item} value={item}>

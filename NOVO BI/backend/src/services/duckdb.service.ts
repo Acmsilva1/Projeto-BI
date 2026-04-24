@@ -18,6 +18,8 @@ type DuckDbRuntime = {
   status: DuckDbStatus;
 };
 
+type SupportedFileType = "csv" | "parquet";
+
 const runtime: DuckDbRuntime = {
   initPromise: null,
   database: null,
@@ -48,6 +50,21 @@ function sqlEscapeIdentifier(value: string): string {
   return `"${value.replaceAll('"', '""')}"`;
 }
 
+function getSupportedFileType(fileName: string): SupportedFileType | null {
+  const lower = fileName.toLowerCase();
+  if (lower.endsWith(".parquet")) return "parquet";
+  if (lower.endsWith(".csv")) return "csv";
+  return null;
+}
+
+function buildViewSql(fileType: SupportedFileType, escapedView: string, escapedFile: string): string {
+  if (fileType === "parquet") {
+    return `CREATE OR REPLACE VIEW ${escapedView} AS SELECT * FROM read_parquet('${escapedFile}');`;
+  }
+
+  return `CREATE OR REPLACE VIEW ${escapedView} AS SELECT * FROM read_csv_auto('${escapedFile}', HEADER=true, ALL_VARCHAR=true, SAMPLE_SIZE=-1, IGNORE_ERRORS=true);`;
+}
+
 function runQuery(database: duckdb.Database, sql: string): Promise<void> {
   return new Promise((resolve, reject) => {
     database.run(sql, (error: Error | null) => {
@@ -68,22 +85,21 @@ function allQuery(database: duckdb.Database, sql: string): Promise<Record<string
 
 async function buildViews(database: duckdb.Database): Promise<{ viewsByName: Map<string, string>; errors: string[] }> {
   const files = await fs.readdir(env.csvDataDir);
-  const csvFiles = files
-    .filter((file) => file.toLowerCase().endsWith(".csv"))
-    .sort((a, b) => a.localeCompare(b));
+  const typedFiles = files
+    .map((file) => ({ file, fileType: getSupportedFileType(file) }))
+    .filter((entry): entry is { file: string; fileType: SupportedFileType } => entry.fileType !== null)
+    .sort((a, b) => a.file.localeCompare(b.file));
 
   const viewsByName = new Map<string, string>();
   const errors: string[] = [];
-  for (const file of csvFiles) {
-    const viewName = normalizeViewName(file.replace(/\.csv$/i, ""));
+  for (const { file, fileType } of typedFiles) {
+    const baseName = fileType === "parquet" ? file.replace(/\.parquet$/i, "") : file.replace(/\.csv$/i, "");
+    const viewName = normalizeViewName(baseName);
     const filePath = path.resolve(env.csvDataDir, file);
     const escapedFile = sqlEscapeText(filePath);
     const escapedView = sqlEscapeIdentifier(viewName);
     try {
-      await runQuery(
-        database,
-        `CREATE OR REPLACE VIEW ${escapedView} AS SELECT * FROM read_csv_auto('${escapedFile}', HEADER=true, ALL_VARCHAR=true, SAMPLE_SIZE=-1, IGNORE_ERRORS=true);`
-      );
+      await runQuery(database, buildViewSql(fileType, escapedView, escapedFile));
       viewsByName.set(viewName, file);
     } catch (error) {
       const message = error instanceof Error ? error.message : "falha desconhecida";
@@ -114,7 +130,7 @@ async function initializeDuckDb(): Promise<void> {
     await runQuery(database, "PRAGMA threads=4;");
     const { viewsByName, errors } = await buildViews(database);
     if (viewsByName.size === 0) {
-      throw new Error(errors[0] ?? "Nenhum CSV foi carregado no DuckDB.");
+      throw new Error(errors[0] ?? "Nenhum arquivo suportado (.csv/.parquet) foi carregado no DuckDB.");
     }
 
     runtime.viewsByName = viewsByName;

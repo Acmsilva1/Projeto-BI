@@ -40,7 +40,7 @@ type DashboardQueryPayload = {
   slug: string;
   sourceView: string;
   appliedFilters: {
-    periodDays: 1 | 7 | 15 | 30 | 60 | 90 | 180;
+    periodDays: 1 | 7 | 15 | 30 | 60 | 90 | 180 | 365;
     regional: string | null;
     unidade: string | null;
     indicadorKey?: string | null;
@@ -617,13 +617,13 @@ async function loadDataStoreIntoCache(): Promise<DataStore> {
   });
 }
 
-function queryKey(options: { periodDays: 1 | 7 | 15 | 30 | 60 | 90 | 180; regional?: string; unidade?: string }): string {
+function queryKey(options: { periodDays: 1 | 7 | 15 | 30 | 60 | 90 | 180 | 365; regional?: string; unidade?: string }): string {
   return `${options.periodDays}|${options.regional ?? ""}|${options.unidade ?? ""}`;
 }
 
 function eventInGerencialPeriod(
   dtMs: number,
-  periodDays: 1 | 7 | 15 | 30 | 60 | 90 | 180,
+  periodDays: 1 | 7 | 15 | 30 | 60 | 90 | 180 | 365,
   windowEndForCd: (cd: number) => number,
   cd: number,
   periodMs: number
@@ -637,7 +637,7 @@ function eventInGerencialPeriod(
   return dtMs >= minMs && dtMs <= unitMax;
 }
 
-function computeContext(store: DataStore, options: { periodDays: 1 | 7 | 15 | 30 | 60 | 90 | 180; regional?: string; unidade?: string }): ComputedContext {
+function computeContext(store: DataStore, options: { periodDays: 1 | 7 | 15 | 30 | 60 | 90 | 180 | 365; regional?: string; unidade?: string }): ComputedContext {
   const key = queryKey(options);
   const cached = queryCache.get(key);
   if (cached) return cached;
@@ -891,7 +891,7 @@ function maxMsVolumeDataForCds(store: DataStore, cds: Set<number>): number {
 function buildGerencialKpisTopoRow(
   store: DataStore,
   context: ComputedContext,
-  periodDays: 1 | 7 | 15 | 30 | 60 | 90 | 180
+  periodDays: 1 | 7 | 15 | 30 | 60 | 90 | 180 | 365
 ): Record<string, unknown> {
   const cds = new Set(context.unidadesSelecionadas.map((u) => u.cd));
   const anchorFallback = maxMsVolumeDataForCds(store, cds);
@@ -1208,7 +1208,7 @@ function duckVolumeTimeWhere(dateExpr: string, m: MonthAgg | null): string {
  */
 async function buildGerencialKpisTopoDuckDbPayload(options: {
   limit: number;
-  periodDays: 1 | 7 | 15 | 30 | 60 | 90 | 180;
+  periodDays: 1 | 7 | 15 | 30 | 60 | 90 | 180 | 365;
   regional?: string;
   unidade?: string;
 }): Promise<DashboardQueryPayload> {
@@ -1325,7 +1325,7 @@ SELECT
 
 async function getDashboardPayloadFromDuckDb(
   slug: string,
-  options: { limit: number; periodDays: 1 | 7 | 15 | 30 | 60 | 90 | 180; regional?: string; unidade?: string }
+  options: { limit: number; periodDays: 1 | 7 | 15 | 30 | 60 | 90 | 180 | 365; regional?: string; unidade?: string }
 ): Promise<DashboardQueryPayload | null> {
   if (!["gerencial-filtros", "gerencial-kpis-topo", "gerencial-unidades-ranking"].includes(slug)) {
     return null;
@@ -1597,7 +1597,7 @@ export async function getDashboardQueryPayload(
   slug: string,
   options: {
     limit: number;
-    periodDays: 1 | 7 | 15 | 30 | 60 | 90 | 180;
+    periodDays: 1 | 7 | 15 | 30 | 60 | 90 | 180 | 365;
     regional?: string;
     unidade?: string;
     indicadorKey?: string;
@@ -1900,7 +1900,7 @@ export function clearDashboardCsvCache(): void {
   queryCache.clear();
 }
 
-const GERENCIAL_PERIOD_DAYS: Array<1 | 7 | 15 | 30 | 60 | 90 | 180> = [1, 7, 15, 30, 60, 90, 180];
+const GERENCIAL_PERIOD_DAYS: Array<1 | 7 | 15 | 30 | 60 | 90 | 180 | 365> = [1, 7, 15, 30, 60, 90, 180, 365];
 
 /**
  * Arranque: carrega o store e materializa o contexto de **Ontem** (padrao da UI).
@@ -1922,7 +1922,7 @@ export async function prewarmDashboardStore(): Promise<void> {
  * com os mesmos filtros regional/unidade para troca instantanea de pill.
  */
 export function scheduleGerencialContextPrewarm(options: {
-  activePeriodDays: 1 | 7 | 15 | 30 | 60 | 90 | 180;
+  activePeriodDays: 1 | 7 | 15 | 30 | 60 | 90 | 180 | 365;
   regional?: string;
   unidade?: string;
 }): void {

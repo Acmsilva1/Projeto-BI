@@ -1,6 +1,5 @@
 import { motion } from "framer-motion";
 import { useEffect, useState, type ReactElement } from "react";
-import { AnimatedEmojiField } from "../../components/AnimatedEmojiField";
 import { GerencialTopCards } from "../../components/gerencial/GerencialTopCards";
 import { MetasPorVolumesTable } from "../../components/gerencial/MetasPorVolumesTable";
 import { PsChegadasHeatmap } from "../../components/gerencial/PsChegadasHeatmap";
@@ -28,8 +27,6 @@ export default function App(): ReactElement {
 
   return (
     <div className="app-shell">
-      <AnimatedEmojiField />
-
       <main className="mx-auto flex w-full max-w-[1820px] flex-col gap-6">
         <motion.section
           className="glass-card p-5 md:p-6"
@@ -63,10 +60,9 @@ export default function App(): ReactElement {
           transition={{ duration: 0.55, delay: 0.08 }}
         >
           <div className="mb-3">
-            <h2 className="mt-1 text-xl font-black tracking-tight text-[var(--table-header-fg)] md:text-2xl">Metas por volume</h2>
-            <p className="mt-1 text-xs text-[var(--app-muted)]">
-              Recorte alinhado ao painel acima (período, regional e unidade).
-            </p>
+            <h2 className="mt-1 text-xl font-black tracking-tight text-[var(--table-header-fg)] md:text-2xl">
+              Dashboard de Metas
+            </h2>
           </div>
           <MetasPorVolumesTable period={period} regional={regional} unidade={unidade} />
         </motion.section>
@@ -79,11 +75,10 @@ export default function App(): ReactElement {
         >
           <div className="mb-3">
             <h2 className="mt-1 text-xl font-black tracking-tight text-[var(--table-header-fg)] md:text-2xl">
-              Chegadas por hora (PS)
+              Mapa de calor
             </h2>
             <p className="mt-1 text-xs text-[var(--app-muted)]">
-              Regional segue o resumo acima; com unidade &quot;Todas&quot;, escolha a unidade do mapa no bloco. Mês civil
-              (padrão: mês atual).
+              Baseado no fluxo diário dos pacientes do PS
             </p>
           </div>
           <PsChegadasHeatmap period={period} regional={regional} unidade={unidade} />

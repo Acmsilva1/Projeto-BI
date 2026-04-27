@@ -15,7 +15,7 @@ function readLimit(value: string | string[] | undefined): number {
   return parsed;
 }
 
-function readPeriod(value: string | string[] | undefined): 1 | 7 | 15 | 30 | 60 | 90 | 180 {
+function readPeriod(value: string | string[] | undefined): 1 | 7 | 15 | 30 | 60 | 90 | 180 | 365 {
   const rawValue = Array.isArray(value) ? value[0] : value;
   const parsed = Number.parseInt(rawValue ?? "1", 10);
   if (parsed === 1) return 1;
@@ -25,6 +25,7 @@ function readPeriod(value: string | string[] | undefined): 1 | 7 | 15 | 30 | 60 
   if (parsed === 60) return 60;
   if (parsed === 90) return 90;
   if (parsed === 180) return 180;
+  if (parsed === 365) return 365;
   return 1;
 }
 
@@ -46,7 +47,7 @@ export function gerencialContextPrewarmController(request: Request, response: Re
   const activeRaw = request.query.activePeriod as string | string[] | undefined;
   const first = Array.isArray(activeRaw) ? activeRaw[0] : activeRaw;
   const parsed = Number.parseInt(first ?? "1", 10);
-  const activePeriodDays: 1 | 7 | 15 | 30 | 60 | 90 | 180 =
+  const activePeriodDays: 1 | 7 | 15 | 30 | 60 | 90 | 180 | 365 =
     parsed === 1
       ? 1
       : parsed === 7
@@ -61,7 +62,9 @@ export function gerencialContextPrewarmController(request: Request, response: Re
                 ? 90
                 : parsed === 180
                   ? 180
-                  : 1;
+                  : parsed === 365
+                    ? 365
+                    : 1;
   const regional = readText(request.query.regional as string | string[] | undefined);
   const unidade = readText(request.query.unidade as string | string[] | undefined);
   scheduleGerencialContextPrewarm({ activePeriodDays, regional, unidade });

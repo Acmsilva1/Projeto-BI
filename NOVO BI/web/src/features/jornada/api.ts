@@ -31,7 +31,7 @@ export type DashboardRowsPayload = {
   slug: string;
   sourceView: string;
   appliedFilters?: {
-    periodDays: 1 | 7 | 15 | 30 | 60 | 90 | 180;
+    periodDays: 1 | 7 | 15 | 30 | 60 | 90 | 180 | 365;
     regional: string | null;
     unidade: string | null;
     indicadorKey?: string | null;
@@ -84,7 +84,7 @@ export async function fetchDashboardRows(
   slug: string,
   options?: {
     limit?: number;
-    period?: 1 | 7 | 15 | 30 | 60 | 90 | 180;
+    period?: 1 | 7 | 15 | 30 | 60 | 90 | 180 | 365;
     regional?: string;
     unidade?: string;
     signal?: AbortSignal;
@@ -113,7 +113,7 @@ export async function fetchDashboardRows(
     const rows = parseArrowRows(await response.arrayBuffer());
     const rowCount = Number(response.headers.get("x-row-count") ?? rows.length);
     const headerPeriod = Number(response.headers.get("x-period-days") ?? options?.period ?? 1);
-    const periodDays: 1 | 7 | 15 | 30 | 60 | 90 | 180 =
+    const periodDays: 1 | 7 | 15 | 30 | 60 | 90 | 180 | 365 =
       headerPeriod === 1
         ? 1
         : headerPeriod === 7
@@ -128,7 +128,9 @@ export async function fetchDashboardRows(
                   ? 90
                   : headerPeriod === 180
                     ? 180
-                    : 1;
+                    : headerPeriod === 365
+                      ? 365
+                      : 1;
 
     return {
       ok: true,
@@ -189,7 +191,7 @@ export async function fetchDashboardJson(
   slug: string,
   options?: {
     limit?: number;
-    period?: 1 | 7 | 15 | 30 | 60 | 90 | 180;
+    period?: 1 | 7 | 15 | 30 | 60 | 90 | 180 | 365;
     regional?: string;
     unidade?: string;
     indicador?: string;
@@ -223,7 +225,7 @@ export async function fetchDashboardJson(
  * em background, para a troca de pill reutilizar `computeContext` ja materializado.
  */
 export function requestGerencialContextPrewarm(options: {
-  activePeriod: 1 | 7 | 15 | 30 | 60 | 90 | 180;
+  activePeriod: 1 | 7 | 15 | 30 | 60 | 90 | 180 | 365;
   regional: string;
   unidade: string;
 }): void {

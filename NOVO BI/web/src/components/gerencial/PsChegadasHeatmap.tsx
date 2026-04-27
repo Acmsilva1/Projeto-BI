@@ -14,9 +14,25 @@ export type PsChegadasHeatmapProps = {
 
 type FilterRow = { regional: string; unidade: string };
 
+/** Mês civil alinhado ao painel gerencial: `period === 1` usa ontem (local); demais períodos usam o mês atual. */
+function calendarYmForPeriodAnchor(period: PeriodDays): string {
+  const now = new Date();
+  if (period === 1) {
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  }
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+}
+
+/** Mês civil corrente (local) — usado quando o painel fixa uma unidade no filtro global. */
 function currentCalendarYm(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function initialMes(unidade: string, period: PeriodDays): string {
+  if (unidade !== "ALL" && unidade.trim().length > 0) return currentCalendarYm();
+  return calendarYmForPeriodAnchor(period);
 }
 
 function normalizeIsoDate(value: unknown): string {
@@ -81,21 +97,22 @@ const GRID_LINE = "rgba(71, 85, 105, 0.55)";
 
 export function PsChegadasHeatmap(props: PsChegadasHeatmapProps): ReactElement {
   const { period, regional, unidade } = props;
-  const [mes, setMes] = useState<string>(() => currentCalendarYm());
-  /** Quando o painel estÃ¡ em "Todas" as unidades, o mapa precisa de uma unidade explÃ­cita (nÃ£o altera o filtro global). */
+  const [mes, setMes] = useState<string>(() => initialMes(props.unidade, props.period));
+  /**
+   * Com unidade "Todas" no painel global, a API do mapa exige uma unidade: o utilizador escolhe aqui (sem dados até
+   * haver seleção). Com unidade fixa no painel, o mês abre no mês civil atual dessa unidade.
+   */
   const [unidadeMapaLocal, setUnidadeMapaLocal] = useState<string>("");
   const [filtrosRows, setFiltrosRows] = useState<FilterRow[]>([]);
   const [filtrosLoading, setFiltrosLoading] = useState(false);
   const chartWrapRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<ReactECharts | null>(null);
+  const previousPeriodRef = useRef<PeriodDays>(period);
+  const previousGlobalUnidadeRef = useRef<string>(unidade);
 
   const unidadePainelEspecifica = unidade !== "ALL" && unidade.trim().length > 0;
   const unidadeParaApi = unidadePainelEspecifica ? unidade.trim() : unidadeMapaLocal.trim();
   const canQuery = Boolean(mes.trim() && unidadeParaApi.length > 0);
-
-  useEffect(() => {
-    if (unidadePainelEspecifica) setUnidadeMapaLocal("");
-  }, [unidadePainelEspecifica, unidade]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -130,7 +147,32 @@ export function PsChegadasHeatmap(props: PsChegadasHeatmapProps): ReactElement {
   }, [filtrosRows, regional]);
 
   useEffect(() => {
-    if (!unidadePainelEspecifica && unidadeMapaLocal && !unidadesLista.includes(unidadeMapaLocal)) {
+    if (unidadePainelEspecifica) {
+      previousPeriodRef.current = period;
+      return;
+    }
+    if (previousPeriodRef.current !== period) {
+      previousPeriodRef.current = period;
+      setMes(calendarYmForPeriodAnchor(period));
+    }
+  }, [period, unidadePainelEspecifica]);
+
+  useEffect(() => {
+    if (unidadePainelEspecifica) {
+      setUnidadeMapaLocal("");
+      const u = unidade.trim();
+      if (previousGlobalUnidadeRef.current !== u) {
+        previousGlobalUnidadeRef.current = u;
+        setMes(currentCalendarYm());
+      }
+      return;
+    }
+    previousGlobalUnidadeRef.current = unidade;
+  }, [unidade, unidadePainelEspecifica]);
+
+  useEffect(() => {
+    if (unidadePainelEspecifica) return;
+    if (unidadeMapaLocal && !unidadesLista.includes(unidadeMapaLocal)) {
       setUnidadeMapaLocal("");
     }
   }, [unidadePainelEspecifica, unidadeMapaLocal, unidadesLista]);
@@ -250,7 +292,7 @@ export function PsChegadasHeatmap(props: PsChegadasHeatmapProps): ReactElement {
           const d = p.data;
           if (!d) return "";
           const [hx, yi, val] = d;
-          return `${tooltipY(yi)} Â· ${HOUR_LABELS[hx] ?? String(hx)}<br/><b>${val.toLocaleString("pt-BR")}</b>`;
+          return `${tooltipY(yi)} · ${HOUR_LABELS[hx] ?? String(hx)}<br/><b>${val.toLocaleString("pt-BR")}</b>`;
         },
         backgroundColor: "rgba(15, 23, 42, 0.92)",
         borderColor: "rgba(71, 85, 105, 0.5)",
@@ -314,14 +356,16 @@ export function PsChegadasHeatmap(props: PsChegadasHeatmapProps): ReactElement {
   const chartKey = `${mes}|${unidadeParaApi}|${regional}|${rows.length}`;
 
   const faltaUnidadeMsg = unidadePainelEspecifica
-    ? "Selecione o mÃªs acima (jÃ¡ vem o mÃªs atual)."
-    : "Com unidade â€œTodasâ€ no painel, escolha abaixo a unidade do mapa ou fixe uma unidade no resumo gerencial.";
+    ? "Selecione o mês acima (alinhado ao período do painel ao mudar 1d / 7d / …)."
+    : unidadesLista.length === 0
+      ? "Nenhuma unidade disponível para este regional. Ajuste os filtros do painel ou aguarde o carregamento."
+      : "Com unidade “Todas” no painel, escolha a unidade do mapa abaixo para carregar os dados.";
 
   return (
     <div className="flex w-full min-w-0 flex-col gap-3">
       <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-[var(--table-grid)] bg-[color-mix(in_srgb,var(--app-elevated)_92%,transparent)] p-3 md:p-4">
         <label className="flex min-w-[160px] flex-col gap-1 text-xs text-[var(--app-muted)]">
-          MÃªs
+          Mês
           <input
             type="month"
             className="filter-select min-h-[38px] min-w-[160px] px-2"
@@ -333,12 +377,12 @@ export function PsChegadasHeatmap(props: PsChegadasHeatmapProps): ReactElement {
           <label className="flex min-w-[200px] max-w-full flex-1 flex-col gap-1 text-xs text-[var(--app-muted)]">
             Unidade do mapa
             <select
-              className="filter-select min-h-[38px] w-full min-w-[200px] px-2"
+              className={`filter-select min-h-[38px] w-full min-w-[200px] px-2${unidadeMapaLocal.trim() ? " is-active" : ""}`}
               value={unidadeMapaLocal}
               onChange={(e) => setUnidadeMapaLocal(e.target.value)}
               disabled={filtrosLoading}
             >
-              <option value="">â€” escolher â€”</option>
+              <option value="">— escolher —</option>
               {unidadesLista.map((u) => (
                 <option key={u} value={u}>
                   {u}
@@ -354,7 +398,7 @@ export function PsChegadasHeatmap(props: PsChegadasHeatmapProps): ReactElement {
           {filtrosLoading ? (
             <span className="inline-flex items-center justify-center gap-2">
               <Loader2 className="h-5 w-5 animate-spin opacity-70" aria-hidden />
-              Carregando unidadesâ€¦
+              Carregando unidades…
             </span>
           ) : (
             <>{faltaUnidadeMsg}</>

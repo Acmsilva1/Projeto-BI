@@ -288,7 +288,7 @@ export function rollingWindowForGerencial(
   unitMaxByCd: Map<number, number>,
   globalMaxMs: number,
   cds: Set<number>,
-  periodDays: 1 | 7 | 15 | 30 | 60 | 90 | 180,
+  periodDays: 1 | 7 | 15 | 30 | 60 | 90 | 180 | 365,
   /** Se tempos/intern/altas nao povoam max (ex.: CSV com DATA so em fluxo/med), usa esta ancora em ms */
   anchorFallbackMs?: number
 ): MonthAgg | null {

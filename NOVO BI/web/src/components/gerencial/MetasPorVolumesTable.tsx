@@ -1,7 +1,9 @@
 ﻿import { Loader2, Minus, Plus } from "lucide-react";
-import { Fragment, useCallback, useEffect, useMemo, useState, type ReactElement } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import { fetchDashboardJson } from "../../features/jornada/api";
 import type { PeriodDays } from "../../lib/gerencialFiltersStorage";
+import { useRotatingGerencialLoadPhrases } from "../../lib/gerencialLoadPhrases";
+import { GerencialLoadPanel } from "./GerencialLoadPanel";
 
 type MonthMeta = { yearMonth: number; label: string };
 type MonthCell = {
@@ -50,6 +52,11 @@ type MatrixPayload = {
 
 type MetaDefinitionLite = { key: string; direction?: string };
 
+type MetasVolumeState =
+  | { status: "loading"; loadSession: number; progress: number }
+  | { status: "error"; message: string }
+  | { status: "ready"; matrix: MatrixPayload };
+
 function normalizeIndicators(raw: unknown, metaDefinitions: unknown): IndicatorRow[] {
   const list = Array.isArray(raw) ? raw : [];
   const defs = Array.isArray(metaDefinitions) ? (metaDefinitions as MetaDefinitionLite[]) : [];
@@ -89,6 +96,14 @@ function deltaTrendClass(delta: number | null, direction: DeltaDirection): strin
     if (delta > 0) return "text-[var(--dash-critical)]";
   }
   return "text-[var(--app-muted)]";
+}
+
+/** Delta em vermelho (fora da meta em relação à tendência do indicador). */
+function deltaIsCritical(delta: number | null, direction: DeltaDirection): boolean {
+  if (delta === null || !Number.isFinite(delta)) return false;
+  if (Math.abs(delta) < 1e-12) return false;
+  if (direction === ">") return delta < 0;
+  return delta > 0;
 }
 
 function ytdMetricClass(ytd: number | null, direction: DeltaDirection): string {
@@ -154,28 +169,40 @@ export type MetasPorVolumesTableProps = {
 
 export function MetasPorVolumesTable(props: MetasPorVolumesTableProps): ReactElement {
   const { period, regional, unidade } = props;
+  /** Com "Todas" as unidades, metas = rede inteira (ignora regional e período do filtro master). */
+  const unidadeAll = unidade === "ALL";
   const [selectedMonth, setSelectedMonth] = useState<number | "ALL">("ALL");
-  const [state, setState] = useState<
-    | { status: "loading" }
-    | { status: "error"; message: string }
-    | { status: "ready"; matrix: MatrixPayload }
-  >({ status: "loading" });
+  const loadSessionRef = useRef(0);
+  const [state, setState] = useState<MetasVolumeState>({
+    status: "loading",
+    loadSession: 0,
+    progress: 10
+  });
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [drillByKey, setDrillByKey] = useState<Record<string, DrillRow[] | "loading" | "error">>({});
 
+  /** Refetch só com unidade (master) ou mês civil deste bloco; regional/período do master não disparam nova carga. */
   const loadMatrix = useCallback(() => {
     const controller = new AbortController();
-    setState({ status: "loading" });
+    const loadSession = ++loadSessionRef.current;
+    setState({
+      status: "loading",
+      loadSession,
+      progress: 12
+    });
     setExpanded({});
     setDrillByKey({});
+    const regionalParam = unidadeAll ? undefined : regional === "ALL" ? undefined : regional;
+    const unidadeParam = unidadeAll ? undefined : unidade;
     fetchDashboardJson("gerencial-metas-por-volumes", {
       mes: selectedMonth === "ALL" ? undefined : toYearMonthParam(selectedMonth),
       period,
-      regional: regional === "ALL" ? undefined : regional,
-      unidade: unidade === "ALL" ? undefined : unidade,
+      regional: regionalParam,
+      unidade: unidadeParam,
       signal: controller.signal
     })
       .then((payload) => {
+        if (loadSession !== loadSessionRef.current) return;
         const row = payload.rows[0] as Record<string, unknown> | undefined;
         if (!row || row.kind !== "metas-por-volumes") {
           setState({ status: "error", message: "Resposta inesperada do servidor." });
@@ -191,13 +218,41 @@ export function MetasPorVolumesTable(props: MetasPorVolumesTableProps): ReactEle
       })
       .catch((error: unknown) => {
         if (error instanceof Error && error.name === "AbortError") return;
+        if (loadSession !== loadSessionRef.current) return;
         const message = error instanceof Error ? error.message : "Falha ao carregar Metas por volume.";
         setState({ status: "error", message });
       });
     return () => controller.abort();
-  }, [selectedMonth, period, regional, unidade]);
+  }, [unidade, selectedMonth]); // eslint-disable-line react-hooks/exhaustive-deps -- regional/period do master nao disparam refetch
 
-  useEffect(() => loadMatrix(), [loadMatrix]);
+  useEffect(() => {
+    return loadMatrix();
+  }, [loadMatrix]);
+
+  const loadProgressKey = state.status === "loading" ? state.loadSession : -1;
+  const rotatingLoadMessage = useRotatingGerencialLoadPhrases(
+    state.status === "loading",
+    state.status === "loading" ? `mpv-${state.loadSession}` : "mpv-idle"
+  );
+
+  useEffect(() => {
+    if (state.status !== "loading") return;
+    const session = state.loadSession;
+    const id1 = window.setTimeout(() => {
+      setState((s) =>
+        s.status === "loading" && s.loadSession === session ? { ...s, progress: 46 } : s
+      );
+    }, 340);
+    const id2 = window.setTimeout(() => {
+      setState((s) =>
+        s.status === "loading" && s.loadSession === session ? { ...s, progress: 74 } : s
+      );
+    }, 780);
+    return () => {
+      window.clearTimeout(id1);
+      window.clearTimeout(id2);
+    };
+  }, [loadProgressKey]);
 
   const monthOptions = useMemo(() => {
     if (state.status !== "ready") return [];
@@ -207,12 +262,14 @@ export function MetasPorVolumesTable(props: MetasPorVolumesTableProps): ReactEle
   const fetchDrill = useCallback(
     (key: string) => {
       setDrillByKey((prev) => ({ ...prev, [key]: "loading" }));
+      const regionalParam = unidadeAll ? undefined : regional === "ALL" ? undefined : regional;
+      const unidadeParam = unidadeAll ? undefined : unidade;
       fetchDashboardJson("gerencial-metas-por-volumes-drill", {
         indicador: key,
         mes: selectedMonth === "ALL" ? undefined : toYearMonthParam(selectedMonth),
         period,
-        regional: regional === "ALL" ? undefined : regional,
-        unidade: unidade === "ALL" ? undefined : unidade
+        regional: regionalParam,
+        unidade: unidadeParam
       })
         .then((payload) => {
           const rows = payload.rows as Record<string, unknown>[];
@@ -228,7 +285,7 @@ export function MetasPorVolumesTable(props: MetasPorVolumesTableProps): ReactEle
           setDrillByKey((prev) => ({ ...prev, [key]: "error" }));
         });
     },
-    [selectedMonth, period, regional, unidade]
+    [unidade, selectedMonth] // eslint-disable-line react-hooks/exhaustive-deps -- alinhado à matriz
   );
 
   const toggleDrill = (key: string): void => {
@@ -242,7 +299,7 @@ export function MetasPorVolumesTable(props: MetasPorVolumesTableProps): ReactEle
   };
 
   return (
-    <section className="dashboard-panel mpv-section" aria-label="Metas por volume">
+    <section className="dashboard-panel mpv-section" aria-label="Dashboard de Metas">
       <header className="mpv-head px-3 pt-3">
         <div className="mpv-filters">
           <label className="mpv-filter">
@@ -273,9 +330,8 @@ export function MetasPorVolumesTable(props: MetasPorVolumesTableProps): ReactEle
       )}
 
       {state.status === "loading" && (
-        <div className="mt-6 flex items-center gap-2 text-sm text-[var(--app-muted)]">
-          <Loader2 className="animate-spin text-[var(--dash-live)]" size={18} />
-          Carregando matriz de metas...
+        <div className="mt-4 px-3">
+          <GerencialLoadPanel progress={state.progress} message={rotatingLoadMessage} />
         </div>
       )}
 
@@ -329,7 +385,10 @@ export function MetasPorVolumesTable(props: MetasPorVolumesTableProps): ReactEle
                           {expanded[ind.key] ? <Minus size={14} /> : <Plus size={14} />}
                         </button>
                         <span>
-                          {ind.label} <span className="text-[var(--app-muted)]">{ind.targetDisplay}</span>
+                          {ind.label}{" "}
+                          <span className="mpv-meta-target" title="Meta de referência">
+                            {ind.targetDisplay}
+                          </span>
                         </span>
                       </div>
                     </td>
@@ -339,7 +398,9 @@ export function MetasPorVolumesTable(props: MetasPorVolumesTableProps): ReactEle
                         <td
                           key={mc.yearMonth}
                           colSpan={2}
-                          className={`px-1 py-2 text-center tabular-nums ${cellSurfaceClass(mc.tone)} ${tip ? "mpv-tooltip-cell" : ""}`}
+                          className={`px-1 py-2 text-center tabular-nums ${cellSurfaceClass(mc.tone)}${
+                            deltaIsCritical(mc.deltaVsPrev, ind.direction) ? " mpv-cell--soft-ring-pulse" : ""
+                          } ${tip ? "mpv-tooltip-cell" : ""}`}
                           data-tooltip={tip}
                         >
                           <div className="mpv-value">{formatCell(ind.format, mc.value)}</div>
@@ -357,7 +418,11 @@ export function MetasPorVolumesTable(props: MetasPorVolumesTableProps): ReactEle
                     <td className={`px-1 py-2 text-center tabular-nums text-[var(--table-header-muted)] ${cellSurfaceClass("empty")}`}>
                       {formatCell(ind.format, ind.total.compareParen)}
                     </td>
-                    <td className={`px-1 py-2 text-center tabular-nums ${cellSurfaceClass("empty")}`}>
+                    <td
+                      className={`px-1 py-2 text-center tabular-nums ${cellSurfaceClass("empty")}${
+                        deltaIsCritical(ind.total.variance, ind.direction) ? " mpv-cell--soft-ring-pulse" : ""
+                      }`}
+                    >
                       <span className={deltaTrendClass(ind.total.variance, ind.direction)}>
                         {formatDelta(ind.format, ind.total.variance)}
                       </span>
@@ -376,6 +441,11 @@ export function MetasPorVolumesTable(props: MetasPorVolumesTableProps): ReactEle
                           direction={ind.direction}
                           drill={drillByKey[ind.key]}
                           monthLabels={state.matrix.months.map((m) => m.label)}
+                          indicatorLabel={ind.label}
+                          targetDisplay={ind.targetDisplay}
+                          onCollapse={() => {
+                            setExpanded((prev) => ({ ...prev, [ind.key]: false }));
+                          }}
                         />
                       </td>
                     </tr>
@@ -391,73 +461,137 @@ export function MetasPorVolumesTable(props: MetasPorVolumesTableProps): ReactEle
   );
 }
 
+function DrillSidebar(props: {
+  indicatorLabel: string;
+  targetDisplay: string;
+  onCollapse: () => void;
+}): ReactElement {
+  return (
+    <aside className="mpv-drill-sidebar" aria-label="Indicador do drill">
+      <div className="mpv-drill-sidebar-main">
+        <button
+          type="button"
+          className="mpv-drill-collapse"
+          aria-label="Fechar detalhe por unidade"
+          onClick={props.onCollapse}
+        >
+          <Minus size={14} aria-hidden />
+        </button>
+        <div className="min-w-0">
+          <p className="text-[10px] font-bold uppercase tracking-wide text-[var(--table-header-muted)]">Indicador</p>
+          <p className="mt-0.5 text-sm font-semibold leading-snug text-[var(--foreground)]">
+            {props.indicatorLabel}{" "}
+            <span className="mpv-meta-target align-middle" title="Meta de referência">
+              {props.targetDisplay}
+            </span>
+          </p>
+        </div>
+      </div>
+    </aside>
+  );
+}
+
 function DrillPanel(props: {
   format: "percent" | "number";
   direction: DeltaDirection;
   drill: DrillRow[] | "loading" | "error" | undefined;
   monthLabels: string[];
+  indicatorLabel: string;
+  targetDisplay: string;
+  onCollapse: () => void;
 }): ReactElement {
+  const sidebar = (
+    <DrillSidebar
+      indicatorLabel={props.indicatorLabel}
+      targetDisplay={props.targetDisplay}
+      onCollapse={props.onCollapse}
+    />
+  );
+
   if (props.drill === "loading" || props.drill === undefined) {
     return (
-      <div className="flex items-center gap-2 text-xs text-[var(--app-muted)]">
-        <Loader2 className="animate-spin" size={14} /> Carregando unidades...
+      <div className="mpv-drill-shell">
+        {sidebar}
+        <div className="mpv-drill-content flex min-h-[100px] items-center gap-2 rounded-xl border border-[var(--table-grid)] bg-[color-mix(in_srgb,var(--app-elevated)_88%,transparent)] px-4 py-6 text-xs text-[var(--app-muted)]">
+          <Loader2 className="animate-spin shrink-0" size={16} />
+          <span>Carregando unidades…</span>
+        </div>
       </div>
     );
   }
   if (props.drill === "error") {
-    return <p className="text-xs text-[var(--dash-critical)]">Falha ao carregar drill.</p>;
+    return (
+      <div className="mpv-drill-shell">
+        {sidebar}
+        <div className="mpv-drill-content rounded-xl border border-[var(--dash-critical)]/35 bg-[color-mix(in_srgb,var(--dash-critical)_8%,transparent)] px-4 py-4">
+          <p className="text-xs text-[var(--dash-critical)]">Falha ao carregar drill.</p>
+        </div>
+      </div>
+    );
   }
   if (props.drill.length === 0) {
-    return <p className="text-xs text-[var(--app-muted)]">Nenhuma unidade no recorte.</p>;
+    return (
+      <div className="mpv-drill-shell">
+        {sidebar}
+        <div className="mpv-drill-content rounded-xl border border-[var(--table-grid)] bg-[color-mix(in_srgb,var(--app-elevated)_88%,transparent)] px-4 py-4">
+          <p className="text-xs text-[var(--app-muted)]">Nenhuma unidade no recorte.</p>
+        </div>
+      </div>
+    );
   }
   return (
-    <div className="overflow-x-auto">
-      <table className="mpv-drill-table w-full min-w-[640px] border-collapse text-[13px]">
-        <thead>
-          <tr className="text-left text-[var(--table-header-muted)]">
-            <th className="mpv-drill-th py-1 pr-2">Unidade</th>
-            {props.monthLabels.map((label) => (
-              <th key={label} className="mpv-drill-th px-1 py-1">
-                {label}
-              </th>
-            ))}
-            <th className="mpv-drill-th px-1 py-1 text-center">YTD</th>
-          </tr>
-        </thead>
-        <tbody>
-          {props.drill.map((row, rowIdx) => (
-            <tr key={row.cd}>
-              <td className="py-1 pr-2 font-medium text-[var(--foreground)]">{row.unidade}</td>
-              {row.months.map((mc, idx) => {
-                const tip = tooltipForCell(props.format, mc);
-                const tooltipPos = idx === 0 ? "right" : idx === row.months.length - 1 ? "left" : "center";
-                const tooltipVertical = rowIdx === 0 ? "down" : "up";
-                return (
-                  <td
-                    key={mc.yearMonth}
-                    className={`px-1 py-2 text-center tabular-nums ${drillCellSurfaceClass(mc.deltaVsPrev)} ${tip ? "mpv-tooltip-cell" : ""}`}
-                    data-tooltip={tip}
-                    data-tooltip-pos={tooltipPos}
-                    data-tooltip-vertical={tooltipVertical}
-                  >
-                    <div className="mpv-value">{formatCell(props.format, mc.value)}</div>
-                    {mc.deltaVsPrev !== null && (
-                      <div className={`mpv-delta ${deltaTrendClass(mc.deltaVsPrev, props.direction)}`}>
-                        {formatDelta(props.format, mc.deltaVsPrev)}
-                      </div>
-                    )}
-                  </td>
-                );
-              })}
-              <td className={`px-1 py-1 text-center tabular-nums text-[var(--foreground)] ${cellSurfaceClass("empty")}`}>
-                <span className={`font-semibold ${ytdMetricClass(row.ytd, props.direction)}`}>
-                  {formatDrillYtd(props.format, row.ytd, props.direction)}
-                </span>
-              </td>
+    <div className="mpv-drill-shell">
+      {sidebar}
+      <div className="mpv-drill-content overflow-x-auto">
+        <table className="mpv-drill-table w-full min-w-[520px] border-collapse text-[13px]">
+          <thead>
+            <tr className="text-left text-[var(--table-header-muted)]">
+              <th className="mpv-drill-th mpv-drill-th-unit py-1">Unidade</th>
+              {props.monthLabels.map((label) => (
+                <th key={label} className="mpv-drill-th px-1 py-1 text-center">
+                  {label}
+                </th>
+              ))}
+              <th className="mpv-drill-th px-1 py-1 text-center">Total</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {props.drill.map((row, rowIdx) => (
+              <tr key={row.cd}>
+                <td className="mpv-drill-td-unit py-1 text-left font-medium text-[var(--foreground)]">{row.unidade}</td>
+                {row.months.map((mc, idx) => {
+                  const tip = tooltipForCell(props.format, mc);
+                  const tooltipPos = idx === 0 ? "right" : idx === row.months.length - 1 ? "left" : "center";
+                  const tooltipVertical = rowIdx === 0 ? "down" : "up";
+                  return (
+                    <td
+                      key={mc.yearMonth}
+                      className={`px-1 py-2 text-center tabular-nums ${drillCellSurfaceClass(mc.deltaVsPrev)}${
+                        deltaIsCritical(mc.deltaVsPrev, props.direction) ? " mpv-cell--soft-ring-pulse" : ""
+                      } ${tip ? "mpv-tooltip-cell" : ""}`}
+                      data-tooltip={tip}
+                      data-tooltip-pos={tooltipPos}
+                      data-tooltip-vertical={tooltipVertical}
+                    >
+                      <div className="mpv-value">{formatCell(props.format, mc.value)}</div>
+                      {mc.deltaVsPrev !== null && (
+                        <div className={`mpv-delta ${deltaTrendClass(mc.deltaVsPrev, props.direction)}`}>
+                          {formatDelta(props.format, mc.deltaVsPrev)}
+                        </div>
+                      )}
+                    </td>
+                  );
+                })}
+                <td className={`px-1 py-1 text-center tabular-nums text-[var(--foreground)] ${cellSurfaceClass("empty")}`}>
+                  <span className={`font-semibold ${ytdMetricClass(row.ytd, props.direction)}`}>
+                    {formatDrillYtd(props.format, row.ytd, props.direction)}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

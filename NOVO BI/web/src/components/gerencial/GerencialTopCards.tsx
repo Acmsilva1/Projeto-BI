@@ -8,6 +8,8 @@ import {
   type DashboardRowsPayload
 } from "../../features/jornada/api";
 import { type PeriodDays } from "../../lib/gerencialFiltersStorage";
+import { useRotatingGerencialLoadPhrases } from "../../lib/gerencialLoadPhrases";
+import { GerencialLoadPanel } from "./GerencialLoadPanel";
 
 export type GerencialShellFilters = {
   period: PeriodDays;
@@ -96,66 +98,15 @@ type GerencialSlotsState = {
   kpis: FetchSlot;
   ranking: FetchSlot;
   progress: number;
-  message: string;
 };
-
-const LOADING_STEP_MESSAGES = [
-  "Preparando requisicao ao servidor e aplicando os filtros selecionados.",
-  "Primeiro pacote recebido â€” catalogo de regionais e unidades.",
-  "Volumes principais em consolidacao (atendimentos, lab, RX/ECG, TC/US, prescricoes, reavaliacoes).",
-  "Ultimo pacote confirmado â€” montando os seis cards na interface."
-];
 
 function initialGerencialSlots(): GerencialSlotsState {
   return {
     filtros: { status: "loading" },
     kpis: { status: "loading" },
     ranking: { status: "loading" },
-    progress: 5,
-    message: LOADING_STEP_MESSAGES[0] ?? "Carregando..."
+    progress: 5
   };
-}
-
-type GerencialLoadPanelProps = {
-  progress: number;
-  message: string;
-};
-
-function GerencialLoadPanel(props: GerencialLoadPanelProps): ReactElement {
-  return (
-    <div
-      className="mb-6 overflow-hidden rounded-2xl border border-[var(--table-grid)] bg-[color-mix(in_srgb,var(--app-elevated)_88%,transparent)] shadow-[0_0_40px_-12px_rgba(45,212,191,0.25)]"
-      role="status"
-      aria-live="polite"
-      aria-busy="true"
-    >
-      <div className="h-1 w-full bg-[var(--table-row-sep)]">
-        <div
-          className="h-full bg-gradient-to-r from-[var(--dash-live)] to-teal-300 transition-[width] duration-500 ease-out"
-          style={{ width: `${Math.min(100, Math.max(2, props.progress))}%` }}
-        />
-      </div>
-      <div className="flex gap-4 p-5 md:p-6">
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-[var(--dash-live)]/35 bg-[color-mix(in_srgb,var(--dash-live)_12%,transparent)]">
-          <Loader2 className="animate-spin text-[var(--dash-live)]" size={26} aria-hidden />
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--app-muted)]">
-            Carregando dados
-          </p>
-          <p className="mt-2 text-sm font-medium leading-relaxed text-[var(--table-header-fg)]">{props.message}</p>
-        </div>
-      </div>
-      <div className="px-5 pb-5 md:px-6 md:pb-6">
-        <div className="h-2.5 overflow-hidden rounded-full bg-[var(--table-row-sep)]">
-          <div
-            className="h-full rounded-full bg-gradient-to-r from-[var(--dash-live)] via-teal-400 to-cyan-300 transition-[width] duration-500 ease-out"
-            style={{ width: `${Math.min(100, Math.max(3, props.progress))}%` }}
-          />
-        </div>
-      </div>
-    </div>
-  );
 }
 
 function formatNumber(value: unknown): string {
@@ -245,12 +196,12 @@ function periodLabel(period: PeriodDays): string {
   return `${period}d`;
 }
 
-/** API envia razoes 0â€“1 para `format: "percent"` (exceto se ja vier em escala 0â€“100). */
+/** API envia razoes 0–1 para `format: "percent"` (exceto se ja vier em escala 0–100). */
 function formatPanelValue(format: string | undefined, value: unknown): string {
-  if (value === null || value === undefined) return "â€”";
+  if (value === null || value === undefined) return "—";
   if (format === "percent") {
     const n = Number(value);
-    if (!Number.isFinite(n)) return "â€”";
+    if (!Number.isFinite(n)) return "—";
     const pct = n >= 0 && n <= 1 ? n * 100 : n;
     return `${pct.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`;
   }
@@ -290,7 +241,7 @@ function toneForSituation(s: MetaSituation): CardTone {
 }
 
 /**
- * Fallback quando `kpi_panel` nao vem parseavel â€” seis volumes principais (mesma ordem do backend).
+ * Fallback quando `kpi_panel` nao vem parseavel — seis volumes principais (mesma ordem do backend).
  */
 const GERENCIAL_TOPO_KPI_SLOTS_FALLBACK: readonly { id: string; label: string; format: "number" | "percent" }[] = [
   { id: "total_atendimentos", label: "Total de atendimentos", format: "number" },
@@ -447,7 +398,7 @@ function parseKpiPanelById(first: Record<string, unknown> | undefined): Map<stri
   return byId;
 }
 
-/** Ordem e conjunto de KPIs vÃªm do `kpi_panel` na API (alinhado aos CSVs carregados no backend). */
+/** Ordem e conjunto de KPIs vêm do `kpi_panel` na API (alinhado aos CSVs carregados no backend). */
 function panelEntryToKpiCard(entry: KpiPanelEntryRaw, period: PeriodDays): KpiCard {
   const id = kpiEntryId(entry);
   const label = String(entry.label ?? id);
@@ -471,7 +422,7 @@ function parseKpiPanelOrdered(first: Record<string, unknown> | undefined): KpiPa
   const fromApi = normalizeKpiPanelArray(extractKpiPanelRaw(first));
   if (fromApi.length > 0) return fromApi;
   if (!first) return [];
-  /** `kpi_panel` omitido ou serializado de forma nao parseavel â€” reconstruir os 6 slots a partir dos campos planos. */
+  /** `kpi_panel` omitido ou serializado de forma nao parseavel — reconstruir os 6 slots a partir dos campos planos. */
   return GERENCIAL_TOPO_KPI_SLOTS_FALLBACK.map((slot) =>
     enrichKpiEntryFromTopoRow(
       {
@@ -509,7 +460,7 @@ function buildKpiCardsFromTopoRow(first: Record<string, unknown> | undefined, pe
     if (!api && (rawEntryValue(enriched) === undefined || rawEntryValue(enriched) === null)) {
       return {
         ...card,
-        value: "â€”",
+        value: "—",
         chipLabel: "Neutro",
         tone: "primary" as CardTone
       };
@@ -523,7 +474,7 @@ export function GerencialTopCards(props: GerencialShellFilters): ReactElement {
   const [slots, setSlots] = useState<GerencialSlotsState>(() => initialGerencialSlots());
   const [lastFilterRows, setLastFilterRows] = useState<FilterRow[]>([]);
   const filterTripletRef = useRef<{ period: PeriodDays; regional: string; unidade: string } | null>(null);
-  /** Lista de unidades sÃ³ depende da regional na API â€” reutiliza sem novo round-trip. */
+  /** Lista de unidades só depende da regional na API — reutiliza sem novo round-trip. */
   const filtrosCacheRef = useRef<{ regional: string; payload: DashboardRowsPayload } | null>(null);
 
   useEffect(() => {
@@ -569,9 +520,7 @@ export function GerencialTopCards(props: GerencialShellFilters): ReactElement {
       stepsFinished += 1;
       if (stepsFinished > stepsTarget) return;
       const pct = Math.min(94, Math.round((stepsFinished / stepsTarget) * 100));
-      const msg =
-        LOADING_STEP_MESSAGES[Math.min(stepsFinished, LOADING_STEP_MESSAGES.length - 1)] ?? "Carregandoâ€¦";
-      setSlots((prev) => ({ ...prev, progress: pct, message: msg }));
+      setSlots((prev) => ({ ...prev, progress: pct }));
     };
 
     const rankingSkippedPayload: DashboardRowsPayload = {
@@ -706,6 +655,8 @@ export function GerencialTopCards(props: GerencialShellFilters): ReactElement {
 
   const kpisLoading = slots.kpis.status === "loading";
   const kpisReady = slots.kpis.status === "ready";
+  const loadWaveKey = `${period}|${regional}|${unidade}`;
+  const rotatingLoadMessage = useRotatingGerencialLoadPhrases(kpisLoading, loadWaveKey);
 
   return (
     <section className="dashboard-panel p-4 md:p-6" aria-label="Modulo gerencial">
@@ -716,7 +667,7 @@ export function GerencialTopCards(props: GerencialShellFilters): ReactElement {
       </header>
 
       <div className="mb-4 grid gap-3 md:grid-cols-[auto,1fr,1fr]">
-        <div className="glass-card flex items-center gap-2 p-2">
+        <div className="glass-card gerencial-filter-strip flex flex-wrap items-center gap-2 p-2.5">
           <button
             type="button"
             onClick={() => onPeriodChange(1)}
@@ -724,7 +675,7 @@ export function GerencialTopCards(props: GerencialShellFilters): ReactElement {
           >
             Ontem
           </button>
-          {[7, 15, 30, 60, 90, 180].map((value) => (
+          {[7, 15, 30, 60, 90, 180, 365].map((value) => (
             <button
               key={value}
               type="button"
@@ -736,9 +687,15 @@ export function GerencialTopCards(props: GerencialShellFilters): ReactElement {
           ))}
         </div>
 
-        <label className="glass-card flex items-center gap-2 p-2 text-sm text-[var(--app-muted)]">
-          Regional
-          <select className="filter-select" value={regional} onChange={(e) => onRegionalChange(e.target.value)}>
+        <label className="glass-card gerencial-filter-strip flex min-w-0 flex-col gap-1.5 p-2.5 sm:flex-row sm:items-center">
+          <span className="shrink-0 text-[11px] font-bold uppercase tracking-wide text-[var(--table-header-fg)]">
+            Regional
+          </span>
+          <select
+            className={`filter-select min-w-0 flex-1${regional !== "ALL" ? " is-active" : ""}`}
+            value={regional}
+            onChange={(e) => onRegionalChange(e.target.value)}
+          >
             <option value="ALL">Todas</option>
             {regionais.map((item) => (
               <option key={item} value={item}>
@@ -748,9 +705,15 @@ export function GerencialTopCards(props: GerencialShellFilters): ReactElement {
           </select>
         </label>
 
-        <label className="glass-card flex items-center gap-2 p-2 text-sm text-[var(--app-muted)]">
-          Unidade
-          <select className="filter-select" value={unidade} onChange={(e) => onUnidadeChange(e.target.value)}>
+        <label className="glass-card gerencial-filter-strip flex min-w-0 flex-col gap-1.5 p-2.5 sm:flex-row sm:items-center">
+          <span className="shrink-0 text-[11px] font-bold uppercase tracking-wide text-[var(--table-header-fg)]">
+            Unidade
+          </span>
+          <select
+            className={`filter-select min-w-0 flex-1${unidade !== "ALL" ? " is-active" : ""}`}
+            value={unidade}
+            onChange={(e) => onUnidadeChange(e.target.value)}
+          >
             <option value="ALL">Todas</option>
             {unidades.map((item) => (
               <option key={item} value={item}>
@@ -767,7 +730,7 @@ export function GerencialTopCards(props: GerencialShellFilters): ReactElement {
         </div>
       )}
 
-      {kpisLoading && <GerencialLoadPanel progress={slots.progress} message={slots.message} />}
+      {kpisLoading && <GerencialLoadPanel progress={slots.progress} message={rotatingLoadMessage} />}
 
       {!kpisLoading && kpisReady && kpiCards.length > 0 && (
         <div className="card-grid pb-2" aria-label="Indicadores consolidados do periodo">

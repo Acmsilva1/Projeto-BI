@@ -2,9 +2,9 @@ const GERENCIAL_FILTERS_STORAGE_KEY = "novo-bi:gerencial:filters";
 /** Unidade só na sessão do separador: nova aba abre sempre visão global (Todas). */
 const SESSION_UNIDADE_KEY = "novo-bi:gerencial:unidade-session";
 
-export type PeriodDays = 1 | 7 | 15 | 30 | 60 | 90 | 180;
+export type PeriodDays = 1 | 7 | 15 | 30 | 60 | 90 | 180 | 365;
 
-const ALLOWED_PERIODS: readonly PeriodDays[] = [1, 7, 15, 30, 60, 90, 180];
+const ALLOWED_PERIODS: readonly PeriodDays[] = [1, 7, 15, 30, 60, 90, 180, 365];
 
 type PersistedFilters = {
   period?: number;

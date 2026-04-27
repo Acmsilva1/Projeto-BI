@@ -129,7 +129,7 @@ function feriadosNoMes(ym: string): Map<string, string> {
   return out;
 }
 
-export type HourProfile = {
+type HourProfile = {
   hora: number;
   label: string;
   mediaPorDia: number;
@@ -145,16 +145,19 @@ export type CelulaDestaque = {
   hora: number;
   horaLabel: string;
   qtd: number;
+  /** Soma de chegadas nesse dia civil (todas as horas, 0h–23h). */
+  totalChegadasDia: number;
   feriado: boolean;
   motivoSimples: string;
 };
 
-/** Card para gestão: conclusão da tabela (dia da semana + faixa), sem percentual. */
+/** Card para gestão: dia da semana + faixa de 3h + total de chegadas naquela combinação no mês. */
 export type CardResumoFaixa = {
   etiqueta: string;
   destaqueLinha1: string;
   destaqueLinha2: string;
-  complemento: string;
+  /** Soma de chegadas na faixa (dia da semana × bloco de 3h) no período analisado. */
+  totalChegadasFaixa: number;
 };
 
 export type PsHeatmapAnalysis = {
@@ -167,7 +170,6 @@ export type PsHeatmapAnalysis = {
   pctMomentosCarregados: number;
   slotsJanelaTotal: number;
   slotsAcima: number;
-  horasOrdenadas: HourProfile[];
   destaques: CelulaDestaque[];
   textoSimples: string;
   notaCurta: string;
@@ -261,6 +263,12 @@ export function analyzePsHeatmapRows(ym: string, rows: HeatmapRow[]): PsHeatmapA
     return { v, ref, acima };
   }
 
+  function totalChegadasNoDiaCivil(d: number): number {
+    let s = 0;
+    for (let hh = 0; hh < 24; hh += 1) s += get(d, hh);
+    return s;
+  }
+
   let volAcima = 0;
   let slotsAcima = 0;
   const slotsJanela = lastD * (JANELA_FIM - JANELA_INICIO + 1);
@@ -295,6 +303,7 @@ export function analyzePsHeatmapRows(ym: string, rows: HeatmapRow[]): PsHeatmapA
         hora: h,
         horaLabel: `${pad2(h)}:00`,
         qtd: v,
+        totalChegadasDia: totalChegadasNoDiaCivil(d),
         feriado,
         motivoSimples: motivo
       });
@@ -302,7 +311,8 @@ export function analyzePsHeatmapRows(ym: string, rows: HeatmapRow[]): PsHeatmapA
   }
 
   destaqueCandidatos.sort((a, b) => b.qtd - a.qtd);
-  const destaques = destaqueCandidatos.slice(0, 12);
+  /** Picos fortes: 10+ chegadas na célula (abaixo disso não entra como destaque visual). Até 13 tópicos. */
+  const destaques = destaqueCandidatos.filter((c) => c.qtd >= 10).slice(0, 13);
 
   type BandAgg = { wd: number; h0: number; acima: number; vol: number; slots: number };
   const bandas: BandAgg[] = [];
@@ -367,15 +377,14 @@ export function analyzePsHeatmapRows(ym: string, rows: HeatmapRow[]): PsHeatmapA
         etiqueta: "Onde o mês mais apertou",
         destaqueLinha1: dl,
         destaqueLinha2: fx,
-        complemento: `Nesta faixa, em ${piorBloco.acima} horário(s) as chegadas ficaram bem acima do que é típico para aquele mesmo dia da semana — é onde o calendário mais “aperta”. Somadas, ${piorBloco.vol.toLocaleString("pt-BR")} chegadas nesses dias e horários.`
+        totalChegadasFaixa: piorBloco.vol
       };
     } else {
       cardPiorFaixa = {
         etiqueta: "Onde mais chegou gente",
         destaqueLinha1: dl,
         destaqueLinha2: fx,
-        complemento:
-          "Ninguém passou do limite de alerta nas faixas avaliadas; ainda assim, esta foi a combinação com mais chegadas — é o pico natural do mês para planejar capacidade."
+        totalChegadasFaixa: piorBloco.vol
       };
     }
   }
@@ -388,14 +397,14 @@ export function analyzePsHeatmapRows(ym: string, rows: HeatmapRow[]): PsHeatmapA
         etiqueta: "Onde o mês mais respirou",
         destaqueLinha1: dl,
         destaqueLinha2: fx,
-        complemento: `Nesta faixa não houve nenhuma hora acima do limite usado aqui (sempre comparando com o padrão do mesmo dia da semana). ${melhorBloco.vol.toLocaleString("pt-BR")} chegadas no período, sem “alarme” nesse recorte.`
+        totalChegadasFaixa: melhorBloco.vol
       };
     } else {
       cardMelhorFaixa = {
         etiqueta: "O menos apertado entre as faixas",
         destaqueLinha1: dl,
         destaqueLinha2: fx,
-        complemento: `Mesmo assim, todas as faixas de três horas tiveram algum horário acima do limite; esta teve o menor número de ocorrências (${melhorBloco.acima}). Os cartões de pico abaixo trazem o detalhe.`
+        totalChegadasFaixa: melhorBloco.vol
       };
     }
   }
@@ -446,7 +455,7 @@ export function analyzePsHeatmapRows(ym: string, rows: HeatmapRow[]): PsHeatmapA
     total === 0
       ? "Não há chegadas neste mês para esta unidade."
       : `Foram ${total.toLocaleString("pt-BR")} chegadas no mês; ${volJanela.toLocaleString("pt-BR")} concentraram-se entre 8h e 19h, onde o PS costuma estar mais movimentado. ` +
-        `Os cartões abaixo mostram o recorte de dia da semana + três horas em que o calendário mais “apertou” e o que mais “respirou”, sempre frente ao padrão do mesmo dia da semana. ` +
+        `Os cartões abaixo destacam o recorte de dia da semana + três horas em que o calendário mais “apertou” e o que mais “respirou”, e os picos que mais fogem do padrão esperado. ` +
         (horasQuentes ? `Em média, as horas com mais chegadas foram: ${horasQuentes}.` : "");
 
   const notaCurta =
@@ -462,7 +471,6 @@ export function analyzePsHeatmapRows(ym: string, rows: HeatmapRow[]): PsHeatmapA
     pctMomentosCarregados: pctMomentos,
     slotsJanelaTotal: slotsJanela,
     slotsAcima,
-    horasOrdenadas,
     destaques,
     textoSimples,
     notaCurta,

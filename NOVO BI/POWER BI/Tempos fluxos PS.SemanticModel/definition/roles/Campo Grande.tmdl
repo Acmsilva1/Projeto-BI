@@ -1,7 +1,0 @@
-role 'Campo Grande'
-	modelPermission: read
-
-	tablePermission fluxo = [CD_ESTABELECIMENTO] == 45
-
-	annotation PBI_Id = 10c4135922d24be4a38d7fcc075b74ac
-

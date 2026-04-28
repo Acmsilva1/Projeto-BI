@@ -1,7 +1,0 @@
-role 'Bota Fogo'
-	modelPermission: read
-
-	tablePermission fluxo = [CD_ESTABELECIMENTO] == 26
-
-	annotation PBI_Id = c68fac6368d64c3188447589227c3e4b
-

@@ -1,0 +1,28 @@
+table 'Meta TMP UTI '
+	lineageTag: 22575eaf-03e2-4046-a682-a41d10dd522c
+
+	measure 'Valor Meta TMP UTI ' = SELECTEDVALUE('Meta TMP UTI '[Meta TMP UTI ])
+		lineageTag: c6ca2bc5-be2a-470d-b72d-2b457402002b
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Meta TMP UTI '
+		lineageTag: 912fceb8-219e-4027-82ab-6e9a4ab2f6ea
+		summarizeBy: none
+		sourceColumn: [Value]
+
+		extendedProperty ParameterMetadata =
+				{
+				  "version": 0
+				}
+
+		annotation SummarizationSetBy = User
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	partition 'Meta TMP UTI ' = calculated
+		mode: import
+		source = GENERATESERIES(0, 10.01, 0.001)
+
+	annotation PBI_Id = 753166c1df8f45329d7363aa1b64e431
+

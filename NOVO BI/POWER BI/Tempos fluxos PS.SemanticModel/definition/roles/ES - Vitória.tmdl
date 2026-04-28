@@ -1,7 +1,0 @@
-role 'ES - Vitória'
-	modelPermission: read
-
-	tablePermission fluxo = [CD_ESTABELECIMENTO] == 1
-
-	annotation PBI_Id = 8d476e7af3f8430b89ddae6e78f2c6ce
-

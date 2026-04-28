@@ -458,8 +458,7 @@ export function analyzePsHeatmapRows(ym: string, rows: HeatmapRow[]): PsHeatmapA
         `Os cartões abaixo destacam o recorte de dia da semana + três horas em que o calendário mais “apertou” e o que mais “respirou”, e os picos que mais fogem do padrão esperado. ` +
         (horasQuentes ? `Em média, as horas com mais chegadas foram: ${horasQuentes}.` : "");
 
-  const notaCurta =
-    "Os números comparam cada hora com o que é comum no mesmo dia da semana no mês (sazonalidade). Feriados nacionais usam critério um pouco mais flexível. Não identifica pacientes — só totais agregados.";
+  const notaCurta = "";
 
   return {
     ym,

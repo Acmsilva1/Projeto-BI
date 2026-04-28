@@ -1,0 +1,50 @@
+table 'Métrica qtd unidades'
+	lineageTag: 5dcd35d0-e990-4414-a5ac-946d3db648ca
+
+	column 'Métrica qtd unidades'
+		lineageTag: 1960903c-fa73-4706-8432-6a32e20a88bf
+		summarizeBy: none
+		sourceColumn: [Value1]
+		sortByColumn: 'Métrica qtd unidades Pedido'
+
+		relatedColumnDetails
+			groupByColumn: 'Métrica qtd unidades Campos'
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Métrica qtd unidades Campos'
+		isHidden
+		lineageTag: ca52dabd-eacf-4d1b-9192-5401667c1245
+		summarizeBy: none
+		sourceColumn: [Value2]
+		sortByColumn: 'Métrica qtd unidades Pedido'
+
+		extendedProperty ParameterMetadata =
+				{
+				  "version": 3,
+				  "kind": 2
+				}
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Métrica qtd unidades Pedido'
+		isHidden
+		formatString: 0
+		lineageTag: a4fa2503-701e-40ff-8353-2f53d51fd765
+		summarizeBy: sum
+		sourceColumn: [Value3]
+
+		annotation SummarizationSetBy = Automatic
+
+	partition 'Métrica qtd unidades' = calculated
+		mode: import
+		source =
+				{
+				    ("Qtd internações", NAMEOF('Medidas'[Qtd internacoes]), 0),
+				    ("Qtd altas", NAMEOF('Medidas'[Qtd de altas]), 1),
+				    ("% reinternações 7d", NAMEOF('Medidas'[% reinternacao 7d]), 2),
+				    ("TMP (dias)", NAMEOF('Medidas'[TMP (dias)]), 3)
+				}
+
+	annotation PBI_Id = 5ff1ce0b344147dfb01da536082f8137
+

@@ -1,0 +1,7 @@
+role GERAL
+	modelPermission: read
+
+	tablePermission Internacao = TRUE()
+
+	annotation PBI_Id = 7791af892aa3477dad54a05ad37096a7
+

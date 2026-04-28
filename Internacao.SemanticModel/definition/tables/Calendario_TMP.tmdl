@@ -1,0 +1,28 @@
+table Calendario_TMP
+	lineageTag: c18c62cf-4f87-49e6-bbcf-dcf63a397487
+
+	column Date
+		formatString: General Date
+		lineageTag: c53daab7-d090-433b-8462-486a16a31998
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: [Date]
+
+		variation Variation
+			isDefault
+			relationship: d509ddb3-25b7-401a-9b6c-a93b1239de3a
+			defaultHierarchy: LocalDateTable_fbaccfb6-f8ca-40fd-b2f7-33976711ac2c.'Hierarquia de datas'
+
+		annotation SummarizationSetBy = Automatic
+
+	partition Calendario_TMP = calculated
+		mode: import
+		source =
+				
+				CALENDAR(
+				    MIN ( Calendario[Data] ),
+				    MAX ( Calendario[Data] )
+				)
+
+	annotation PBI_Id = d0260324d3ee4272b8a187e55645b1b6
+

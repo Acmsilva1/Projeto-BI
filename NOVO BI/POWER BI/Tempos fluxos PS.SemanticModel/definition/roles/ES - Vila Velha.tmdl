@@ -1,7 +1,0 @@
-role 'ES - Vila Velha'
-	modelPermission: read
-
-	tablePermission fluxo = [CD_ESTABELECIMENTO] == 3
-
-	annotation PBI_Id = 18742d6d160a469ab08ca763624a1fc8
-

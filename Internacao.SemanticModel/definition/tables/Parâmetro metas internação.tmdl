@@ -1,0 +1,50 @@
+table 'Parâmetro metas internação'
+	lineageTag: 6d3e1c63-d60b-403d-b3c9-f1d5c85df94e
+
+	column 'Parâmetro metas internação'
+		lineageTag: f13df716-c269-40c7-9d93-3db1ddd47c75
+		summarizeBy: none
+		sourceColumn: [Value1]
+		sortByColumn: 'Parâmetro metas internação Pedido'
+
+		relatedColumnDetails
+			groupByColumn: 'Parâmetro metas internação Campos'
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Parâmetro metas internação Campos'
+		isHidden
+		lineageTag: e3abaa9a-e91c-48a0-a0ed-8d7461ac9196
+		summarizeBy: none
+		sourceColumn: [Value2]
+		sortByColumn: 'Parâmetro metas internação Pedido'
+
+		extendedProperty ParameterMetadata =
+				{
+				  "version": 3,
+				  "kind": 2
+				}
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Parâmetro metas internação Pedido'
+		isHidden
+		formatString: 0
+		lineageTag: 190e9955-848b-46b6-bf85-7a2d50f83a87
+		summarizeBy: sum
+		sourceColumn: [Value3]
+
+		annotation SummarizationSetBy = Automatic
+
+	partition 'Parâmetro metas internação' = calculated
+		mode: import
+		source =
+				{
+				    ("Reinternação 7d", NAMEOF('Medidas'[% reinternacao 7d mesmo CID]), 0),
+				    ("Reinternação 30d", NAMEOF('Medidas'[% reinternacao 30d mesmo CID]), 1),
+				    ("TMP (dias)", NAMEOF('Medidas'[TMP (dias)]), 2),
+				    ("Taxa de Ocupação", NAMEOF('Medidas'[Taxa Ocupacao Hospitalar]), 3)
+				}
+
+	annotation PBI_Id = dcd8031aad574950920222e69cde3f1f
+

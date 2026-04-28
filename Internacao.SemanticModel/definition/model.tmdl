@@ -1,0 +1,72 @@
+model Model
+	culture: pt-BR
+	defaultPowerBIDataSourceVersion: powerBI_V3
+	sourceQueryCulture: pt-BR
+	dataAccessOptions
+		legacyRedirects
+		returnErrorValuesAsNull
+
+annotation __PBI_TimeIntelligenceEnabled = 1
+
+annotation PBI_QueryOrder = ["Internacao","Calendario","Medidas","Leitos","Movimentacao_pac","Movimentacao_leitos"]
+
+annotation PBI_ProTooling = ["DevMode"]
+
+ref table Internacao
+ref table DateTableTemplate_1592d55d-913c-4969-98b9-a75c1b1577bb
+ref table LocalDateTable_9caf37ef-da25-416a-913c-b77fed96ff2e
+ref table LocalDateTable_52e4558e-4ee4-4112-b3ce-dd1a281ef963
+ref table LocalDateTable_6c6d41c2-860c-4af1-8fc2-dfc51bac43d2
+ref table Calendario
+ref table LocalDateTable_449c695d-5106-4315-9a00-8792c85cde2e
+ref table Medidas
+ref table LocalDateTable_bc6269c6-27d8-49d5-86da-bddf3b84e212
+ref table 'Métrica qtd (UF x Unid)'
+ref table 'Parâm UF e unidades'
+ref table 'Abertura linhas'
+ref table 'Métrica qtd unidades'
+ref table Unidades
+ref table LocalDateTable_d32c9c06-fb23-4c4c-91dc-9a35f87adfda
+ref table Leitos
+ref table LocalDateTable_ba133a2d-89bc-49f5-93de-74a2b398dc76
+ref table LocalDateTable_dec6dce2-b52a-462e-b883-3c32b34deb31
+ref table LocalDateTable_d7a874a3-b4f7-42c6-be4c-d891e6cf772c
+ref table LocalDateTable_5ccf10af-f288-4fc8-8560-d8d2afb960d1
+ref table LocalDateTable_c10852b3-74d3-4fa7-9118-d09f80ae0710
+ref table Movimentacao_pac
+ref table LocalDateTable_2674d5dd-4532-4da9-bccc-ff7759d53350
+ref table LocalDateTable_5f6fe630-698e-4e81-819f-7da9ab9218eb
+ref table LocalDateTable_c6034a3e-9ada-432d-b3ad-beafc130372f
+ref table LocalDateTable_56a8fca1-2021-4f3e-ab61-a2711cc3c940
+ref table LocalDateTable_a8a5f367-a24e-4acb-869e-0aa7c0254c57
+ref table LocalDateTable_768f670a-f06c-4a54-8421-3ded0196b25b
+ref table LocalDateTable_7d5c57a6-c497-4411-b8ba-0d5f67288738
+ref table LocalDateTable_db04c865-7ebc-4d1f-aee2-57613a31586d
+ref table LocalDateTable_4944da9f-030a-4a21-b5f4-a94e11f74d8d
+ref table 'Meta reinternação 7d'
+ref table 'Meta reinternação 30d'
+ref table 'Meta TMP'
+ref table 'Parâmetro metas internação'
+ref table 'Parâmetro metas saídas'
+ref table 'Meta reinternação UTI 48h'
+ref table 'Meta taxa de mortalidade UTI'
+ref table 'Meta TMP UTI '
+ref table 'Parâmetro metas UTI'
+ref table Calendario_alta
+ref table LocalDateTable_5b75f639-6858-482e-a206-596f61518367
+ref table Calendario_TMP
+ref table LocalDateTable_fbaccfb6-f8ca-40fd-b2f7-33976711ac2c
+ref table UTI_Episodios
+ref table LocalDateTable_508228a8-d8c1-4088-818c-d08e3f47ec5d
+ref table LocalDateTable_36f1c407-77f5-47ec-bbab-85f328de270b
+ref table Movimentacao_leitos
+ref table LocalDateTable_84974838-d204-4332-85d4-c357a74b86bd
+ref table LocalDateTable_c126b1da-95b4-45b8-bb61-870f2c6cd1cf
+ref table LocalDateTable_d2e6c2e3-6924-4fe7-83ce-db08e35f4815
+ref table LocalDateTable_09ef541b-d043-4833-b01c-fed2ea10621b
+ref table LocalDateTable_1d9abd33-9e65-476b-9268-60bf2008311c
+
+ref role GERAL
+
+ref cultureInfo pt-BR
+

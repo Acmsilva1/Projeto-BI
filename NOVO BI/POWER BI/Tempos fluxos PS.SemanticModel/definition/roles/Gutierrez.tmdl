@@ -1,7 +1,0 @@
-role Gutierrez
-	modelPermission: read
-
-	tablePermission fluxo = [CD_ESTABELECIMENTO] == 31
-
-	annotation PBI_Id = 1d3c4e7bfd6c43e2bea177e96d470248
-

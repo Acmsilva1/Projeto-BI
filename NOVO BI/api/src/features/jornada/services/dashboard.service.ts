@@ -1059,7 +1059,7 @@ function buildGerencialKpisTopoRow(
     },
     {
       id: "total_prescricoes_medicacao",
-      label: "Total de prescric. medicam.",
+      label: "Total de prescric. medicação",
       format: "number",
       value: totalPrescricoesMed,
       metaLine: metaLineVol,
@@ -1068,7 +1068,7 @@ function buildGerencialKpisTopoRow(
     },
     {
       id: "total_reavaliacoes",
-      label: "Total de reavaliacoes",
+      label: "Total de reavaliações",
       format: "number",
       value: totalReavaliacoes,
       metaLine: metaLineVol,
@@ -1086,19 +1086,19 @@ function buildGerencialKpisTopoRow(
     },
     {
       id: "obitos",
-      label: "Obitos",
+      label: "Óbitos",
       format: "number",
       value: obitos,
-      metaLine: "Obitos registrados no periodo.",
+      metaLine: "Óbitos registrados no período.",
       metaSituation: "neutro",
       chipLabel: "Assistencial"
     },
     {
       id: "evasoes",
-      label: "Evasoes",
+      label: "Evasões",
       format: "number",
       value: evasoes,
-      metaLine: "Evasoes registradas no periodo.",
+      metaLine: "Evasões registradas no período.",
       metaSituation: "neutro",
       chipLabel: "Assistencial"
     }

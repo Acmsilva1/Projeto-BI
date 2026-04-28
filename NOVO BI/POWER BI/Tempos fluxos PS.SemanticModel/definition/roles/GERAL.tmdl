@@ -1,7 +1,0 @@
-role GERAL
-	modelPermission: read
-
-	tablePermission fluxo = TRUE()
-
-	annotation PBI_Id = 0be181a216174df0bc991889f5518115
-

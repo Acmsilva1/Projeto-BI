@@ -90,10 +90,10 @@ function deltaTrendClass(delta: number | null, direction: DeltaDirection): strin
   if (Math.abs(delta) < 1e-12) return "text-[var(--app-muted)]";
   if (direction === ">") {
     if (delta > 0) return "text-[var(--dash-live)]";
-    if (delta < 0) return "text-[var(--dash-critical)]";
+    if (delta < 0) return "text-[var(--dash-critical)] font-extrabold drop-shadow-[0_0_8px_rgba(224,45,95,0.42)]";
   } else {
     if (delta < 0) return "text-[var(--dash-live)]";
-    if (delta > 0) return "text-[var(--dash-critical)]";
+    if (delta > 0) return "text-[var(--dash-critical)] font-extrabold drop-shadow-[0_0_8px_rgba(224,45,95,0.42)]";
   }
   return "text-[var(--app-muted)]";
 }
@@ -110,9 +110,13 @@ function ytdMetricClass(ytd: number | null, direction: DeltaDirection): string {
   if (ytd === null || !Number.isFinite(ytd)) return "text-[var(--app-muted)]";
   if (Math.abs(ytd) < 1e-12) return "text-[var(--app-muted)]";
   if (direction === "<") {
-    return ytd < 0 ? "text-[var(--dash-live)]" : "text-[var(--dash-critical)]";
+    return ytd < 0
+      ? "text-[var(--dash-live)]"
+      : "text-[var(--dash-critical)] font-extrabold drop-shadow-[0_0_8px_rgba(224,45,95,0.42)]";
   }
-  return ytd > 0 ? "text-[var(--dash-live)]" : "text-[var(--dash-critical)]";
+  return ytd > 0
+    ? "text-[var(--dash-live)]"
+    : "text-[var(--dash-critical)] font-extrabold drop-shadow-[0_0_8px_rgba(224,45,95,0.42)]";
 }
 
 function isYtdRed(ytd: number | null, direction: DeltaDirection): boolean {
@@ -151,7 +155,7 @@ function drillCellSurfaceClass(deltaVsPrev: number | null): string {
 function toneTextClass(tone: "ok" | "warn" | "bad" | "empty"): string {
   if (tone === "ok") return "text-[var(--dash-live)]";
   if (tone === "warn") return "text-[var(--dash-accent-urgent)]";
-  if (tone === "bad") return "text-[var(--dash-critical)]";
+  if (tone === "bad") return "text-[var(--dash-critical)] font-extrabold drop-shadow-[0_0_8px_rgba(224,45,95,0.42)]";
   return "text-[var(--app-muted)]";
 }
 

@@ -1,6 +1,6 @@
 ﻿import { motion } from "framer-motion";
-import { FlaskConical, House, Loader2, Radiation, RefreshCw, Scan, Syringe, UserMinus, Users } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type ReactElement } from "react";
+import { Loader2 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactElement } from "react";
 import {
   fetchDashboardJson,
   fetchDashboardRows,
@@ -30,7 +30,7 @@ type KpiCard = {
   value: string;
   hint: string;
   tone: CardTone;
-  icon: ReactElement;
+  icon: string;
   metaSituation: MetaSituation;
   chipLabel: string;
 };
@@ -196,6 +196,12 @@ function periodLabel(period: PeriodDays): string {
   return `${period}d`;
 }
 
+function selectedScopeLabel(regional: string, unidade: string): string {
+  if (unidade !== "ALL") return `Unidade: ${unidade}`;
+  if (regional !== "ALL") return `Regional: ${regional}`;
+  return "Todas";
+}
+
 /** API envia razoes 0–1 para `format: "percent"` (exceto se ja vier em escala 0–100). */
 function formatPanelValue(format: string | undefined, value: unknown): string {
   if (value === null || value === undefined) return "—";
@@ -208,29 +214,29 @@ function formatPanelValue(format: string | undefined, value: unknown): string {
   return formatNumber(value);
 }
 
-function iconForKpiId(id: string): ReactElement {
+function iconForKpiId(id: string): string {
   switch (id) {
     case "total_atendimentos":
     case "atendimentos":
-      return <Users size={18} />;
+      return "👥";
     case "total_exames_laboratorio":
-      return <FlaskConical size={18} />;
+      return "🧪";
     case "total_rx_ecg":
-      return <Radiation size={18} />;
+      return "☢️";
     case "total_tc_us":
-      return <Scan size={18} />;
+      return "📡";
     case "total_prescricoes_medicacao":
-      return <Syringe size={18} />;
+      return "💉";
     case "total_reavaliacoes":
-      return <RefreshCw size={18} />;
+      return "🔁";
     case "altas":
-      return <House size={18} />;
+      return "🏠";
     case "obitos":
-      return <Radiation size={18} />;
+      return "✝️";
     case "evasoes":
-      return <UserMinus size={18} />;
+      return "🚫";
     default:
-      return <FlaskConical size={18} />;
+      return "📊";
   }
 }
 
@@ -238,6 +244,16 @@ function toneForSituation(s: MetaSituation): CardTone {
   if (s === "negativo") return "critical";
   if (s === "positivo") return "live";
   return "primary";
+}
+
+function toneForKpi(id: string, situation: MetaSituation): CardTone {
+  if (situation === "negativo") return "critical";
+  if (id === "obitos") return "critical";
+  if (id === "evasoes") return "urgent";
+  if (id === "altas" || id === "total_reavaliacoes") return "live";
+  if (id === "total_rx_ecg" || id === "total_tc_us") return "urgent";
+  if (id === "total_prescricoes_medicacao") return "primary";
+  return toneForSituation(situation);
 }
 
 /**
@@ -248,12 +264,29 @@ const GERENCIAL_TOPO_KPI_SLOTS_FALLBACK: readonly { id: string; label: string; f
   { id: "total_exames_laboratorio", label: "Total de exames laborator.", format: "number" },
   { id: "total_rx_ecg", label: "Total de RX/ECG", format: "number" },
   { id: "total_tc_us", label: "Total de TC/US", format: "number" },
-  { id: "total_prescricoes_medicacao", label: "Total de prescric. medicam.", format: "number" },
-  { id: "total_reavaliacoes", label: "Total de reavaliacoes", format: "number" },
+  { id: "total_prescricoes_medicacao", label: "Total de prescric. medicação", format: "number" },
+  { id: "total_reavaliacoes", label: "Total de reavaliações", format: "number" },
   { id: "altas", label: "Altas", format: "number" },
-  { id: "obitos", label: "Obitos", format: "number" },
-  { id: "evasoes", label: "Evasoes", format: "number" }
+  { id: "obitos", label: "Óbitos", format: "number" },
+  { id: "evasoes", label: "Evasões", format: "number" }
 ];
+
+const KPI_BORDER_BY_ID: Record<string, string> = {
+  total_atendimentos: "#22c55e",
+  atendimentos: "#22c55e",
+  total_exames_laboratorio: "#38bdf8",
+  total_rx_ecg: "#a78bfa",
+  total_tc_us: "#14b8a6",
+  total_prescricoes_medicacao: "#facc15",
+  total_reavaliacoes: "#f97316",
+  altas: "#84cc16",
+  obitos: "#ef4444",
+  evasoes: "#f472b6"
+};
+
+function borderAccentForKpi(id: string): string {
+  return KPI_BORDER_BY_ID[id] ?? "var(--primary)";
+}
 
 function kpiEntryId(entry: KpiPanelEntryRaw): string {
   const rec = entry as Record<string, unknown>;
@@ -399,7 +432,7 @@ function parseKpiPanelById(first: Record<string, unknown> | undefined): Map<stri
 }
 
 /** Ordem e conjunto de KPIs vêm do `kpi_panel` na API (alinhado aos CSVs carregados no backend). */
-function panelEntryToKpiCard(entry: KpiPanelEntryRaw, period: PeriodDays): KpiCard {
+function panelEntryToKpiCard(entry: KpiPanelEntryRaw, period: PeriodDays, selectedScope: string): KpiCard {
   const id = kpiEntryId(entry);
   const label = String(entry.label ?? id);
   const format = String(entry.format ?? "number");
@@ -410,8 +443,8 @@ function panelEntryToKpiCard(entry: KpiPanelEntryRaw, period: PeriodDays): KpiCa
     id,
     title: label,
     value: formatPanelValue(format, cell),
-    hint: `Periodo ${periodLabel(period)}`,
-    tone: toneForSituation(metaSituation),
+    hint: `Periodo ${periodLabel(period)} · ${selectedScope}`,
+    tone: toneForKpi(id, metaSituation),
     icon: iconForKpiId(id),
     metaSituation,
     chipLabel
@@ -439,10 +472,10 @@ function parseKpiPanelOrdered(first: Record<string, unknown> | undefined): KpiPa
 }
 
 /** Cards: ordem da API; se o painel nao for parseavel, grelha fixa + merge por `id` (valores reais quando existirem). */
-function buildKpiCardsFromTopoRow(first: Record<string, unknown> | undefined, period: PeriodDays): KpiCard[] {
+function buildKpiCardsFromTopoRow(first: Record<string, unknown> | undefined, period: PeriodDays, selectedScope: string): KpiCard[] {
   const ordered = parseKpiPanelOrdered(first);
   if (ordered.length > 0) {
-    return ordered.map((entry) => panelEntryToKpiCard(enrichKpiEntryFromTopoRow(entry, first), period));
+    return ordered.map((entry) => panelEntryToKpiCard(enrichKpiEntryFromTopoRow(entry, first), period, selectedScope));
   }
   const byId = parseKpiPanelById(first);
   return GERENCIAL_TOPO_KPI_SLOTS_FALLBACK.map((slot) => {
@@ -456,7 +489,7 @@ function buildKpiCardsFromTopoRow(first: Record<string, unknown> | undefined, pe
       chipLabel: "Neutro"
     };
     const enriched = enrichKpiEntryFromTopoRow(stub, first);
-    const card = panelEntryToKpiCard(enriched, period);
+    const card = panelEntryToKpiCard(enriched, period, selectedScope);
     if (!api && (rawEntryValue(enriched) === undefined || rawEntryValue(enriched) === null)) {
       return {
         ...card,
@@ -638,13 +671,22 @@ export function GerencialTopCards(props: GerencialShellFilters): ReactElement {
       rawFirst != null && typeof rawFirst === "object" && !Array.isArray(rawFirst)
         ? (rawFirst as Record<string, unknown>)
         : undefined;
-    return buildKpiCardsFromTopoRow(first, period);
-  }, [slots.kpis, period]);
+    const scope = selectedScopeLabel(regional, unidade);
+    return buildKpiCardsFromTopoRow(first, period, scope);
+  }, [slots.kpis, period, regional, unidade]);
 
   const rankingCards = useMemo((): RankingRow[] => {
     if (slots.ranking.status !== "ready") return [];
     return toRankingRows(slots.ranking.payload.rows);
   }, [slots.ranking]);
+
+  const cardBorderById = useMemo((): Map<string, string> => {
+    const map = new Map<string, string>();
+    for (const card of kpiCards) {
+      map.set(card.id, borderAccentForKpi(card.id));
+    }
+    return map;
+  }, [kpiCards]);
 
   const loadErrorMessage = useMemo((): string | null => {
     if (slots.kpis.status === "error") return slots.kpis.message;
@@ -659,10 +701,10 @@ export function GerencialTopCards(props: GerencialShellFilters): ReactElement {
   const rotatingLoadMessage = useRotatingGerencialLoadPhrases(kpisLoading, loadWaveKey);
 
   return (
-    <section className="dashboard-panel p-4 md:p-6" aria-label="Modulo gerencial">
+    <section className="dashboard-panel module-shell module-shell--resumo p-4 md:p-6" aria-label="Modulo gerencial">
       <header className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-black text-[var(--table-header-fg)] md:text-2xl">Resumo Gerencial</h2>
+          <h2 className="text-xl font-black text-[var(--table-header-fg)] md:text-2xl">Resumo Gerencial - Pronto Socorro</h2>
         </div>
       </header>
 
@@ -738,6 +780,7 @@ export function GerencialTopCards(props: GerencialShellFilters): ReactElement {
             <motion.article
               key={card.id}
               className={`kpi-card tone-${card.tone}`}
+              style={{ "--kpi-border-accent": cardBorderById.get(card.id) ?? "var(--primary)" } as CSSProperties}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.35, delay: Math.min(index, 12) * 0.03 }}
@@ -755,7 +798,9 @@ export function GerencialTopCards(props: GerencialShellFilters): ReactElement {
                   }}
                   whileHover={{ scale: 1.12, rotate: 6 }}
                 >
-                  {card.icon}
+                  <span className="kpi-emoji" role="img" aria-label={card.title}>
+                    {card.icon}
+                  </span>
                 </motion.span>
                 <span className="kpi-title">{card.title}</span>
                 <span className={kpiChipClass(card.metaSituation)}>{card.chipLabel}</span>

@@ -1,0 +1,56 @@
+table Unidades
+	lineageTag: ba1c63a2-ab20-4cf8-a046-baf508e944d2
+
+	column Unidade
+		lineageTag: b08b0ed4-6cec-48eb-9c76-c79576f7322b
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: [Unidade]
+
+		annotation SummarizationSetBy = Automatic
+
+	column Codigo
+		formatString: 0
+		lineageTag: 4b409ab9-4d49-4d8d-baf6-8ad97f1b46e5
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: [Codigo]
+
+		annotation SummarizationSetBy = Automatic
+
+	column Sigla
+		lineageTag: d3ae32d1-229d-4e36-be0b-2bf0a8c49a9c
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: [Sigla]
+
+		annotation SummarizationSetBy = Automatic
+
+	partition Unidades = calculated
+		mode: import
+		source = ```
+				
+				DATATABLE(
+				    "Unidade", STRING,
+				    "Codigo", INTEGER,
+				    "Sigla", STRING,
+				    {
+				        {"ES - HOSPITAL VITORIA", 1,  "ES - VIX"},
+				        {"ES - PS VILA VELHA",    3,  "ES - VV"},
+				        {"ES - BRESSAN",    8,  "ES - BRES"},
+				        {"DF - PS SIG",          13,  "DF - SIG"},
+				        {"RJ - PS BARRA DA TIJUCA", 25, "RJ - BARRA"},
+				        {"RJ - PS BOTAFOGO",     26,  "RJ - BF"},
+				        {"MG - FUNCIONÁRIOS",    28,  "MG - FUNC"},
+				        {"MG BH GUTIERREZ - PS", 31,  "MG - GUT"},
+				        {"MG - PAMPULHA",        33,  "MG - PLU"},
+				        {"DF - PS TAGUATINGA",   39,  "DF - TAG"},
+				        {"DF - AGUAS CLARAS",    43,  "DG - AGCL"},
+				        {"RJ - PS CAMPO GRANDE", 45,  "RJ - CG"}
+				    }
+				)
+				
+				```
+
+	annotation PBI_Id = f213b1a16fd0474eb5ce75d4f1df22b2
+

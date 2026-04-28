@@ -1,7 +1,0 @@
-role Pampulha
-	modelPermission: read
-
-	tablePermission fluxo = [CD_ESTABELECIMENTO] == 33
-
-	annotation PBI_Id = b6e7bf7619d540ffbc12e6c352b1a05d
-

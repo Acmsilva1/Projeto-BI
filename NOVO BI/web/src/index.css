@@ -95,8 +95,211 @@ body {
   background: color-mix(in srgb, var(--app-surface) 82%, transparent);
   backdrop-filter: blur(12px);
   box-shadow:
-    inset 0 1px 0 color-mix(in srgb, var(--primary) 25%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--primary) 14%, transparent),
     0 16px 40px rgba(0, 0, 0, 0.26);
+}
+
+.gerencial-hero {
+  position: relative;
+  overflow: hidden;
+  border: 2px solid color-mix(in srgb, var(--primary) 42%, var(--app-border));
+  background:
+    radial-gradient(circle at 12% 0%, color-mix(in srgb, var(--primary) 28%, transparent), transparent 48%),
+    linear-gradient(150deg, color-mix(in srgb, var(--app-surface) 92%, transparent), color-mix(in srgb, var(--app-elevated) 82%, transparent));
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, #fff 12%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--primary) 20%, transparent),
+    0 18px 44px rgba(2, 6, 23, 0.32);
+}
+
+.gerencial-hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(115deg, transparent 25%, color-mix(in srgb, var(--dash-live) 14%, transparent), transparent 72%);
+}
+
+.gerencial-hero-kicker {
+  margin: 0;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-weight: 800;
+  color: color-mix(in srgb, var(--dash-live) 58%, var(--table-header-fg));
+}
+
+.gerencial-hero-title {
+  margin: 0.2rem 0 0;
+  font-size: clamp(1.55rem, 2.8vw, 2.45rem);
+  line-height: 1.06;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  color: var(--foreground);
+  text-shadow:
+    0 0 24px color-mix(in srgb, var(--primary) 24%, transparent),
+    0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.gerencial-hero-subtitle {
+  margin: 0.35rem 0 0;
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: color-mix(in srgb, var(--table-header-fg) 72%, var(--app-muted));
+}
+
+.module-switch {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.module-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+  min-height: 2.15rem;
+  border: 1px solid color-mix(in srgb, var(--app-border) 75%, transparent);
+  border-radius: 999px;
+  padding: 0.28rem 0.7rem;
+  background: color-mix(in srgb, var(--app-elevated) 82%, transparent);
+  color: var(--table-header-fg);
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
+}
+
+.module-tab-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--app-border) 75%, transparent);
+  background: color-mix(in srgb, var(--app-surface) 78%, transparent);
+  animation: module-tab-icon-float 2.6s ease-in-out infinite;
+}
+
+.module-tab-label {
+  white-space: nowrap;
+}
+
+.module-tab:hover {
+  border-color: color-mix(in srgb, var(--primary) 46%, var(--app-border));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary) 18%, transparent);
+}
+
+.module-tab.is-active {
+  border-color: color-mix(in srgb, var(--primary) 66%, var(--app-border));
+  background: color-mix(in srgb, var(--primary) 14%, var(--app-elevated));
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--primary) 22%, transparent),
+    0 8px 18px color-mix(in srgb, var(--primary) 18%, transparent);
+}
+
+.module-tab.is-active .module-tab-icon {
+  border-color: color-mix(in srgb, var(--primary) 52%, var(--app-border));
+  background: color-mix(in srgb, var(--primary) 20%, var(--app-surface));
+}
+
+.module-shell--internacao {
+  border-color: #8b5cf6;
+}
+
+@keyframes module-tab-icon-float {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    transform: translateY(-1px) scale(1.08);
+  }
+}
+
+.internacao-shell {
+  border-color: #8b5cf6;
+  background:
+    radial-gradient(circle at 100% 0%, color-mix(in srgb, #8b5cf6 24%, transparent), transparent 45%),
+    linear-gradient(160deg, color-mix(in srgb, #1d1530 68%, var(--app-surface)), color-mix(in srgb, #111827 72%, var(--app-elevated)));
+}
+
+.internacao-filter-strip {
+  border-color: color-mix(in srgb, #a78bfa 36%, var(--app-border));
+  background: color-mix(in srgb, #1f1530 58%, var(--app-elevated));
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, #c4b5fd 16%, transparent),
+    0 6px 20px rgba(8, 11, 24, 0.35);
+}
+
+.internacao-pill {
+  cursor: pointer;
+  border: 1px solid color-mix(in srgb, #a78bfa 44%, var(--app-border));
+  border-radius: 0.75rem;
+  background: color-mix(in srgb, #312451 44%, var(--app-elevated));
+  color: color-mix(in srgb, #d8b4fe 64%, var(--table-header-fg));
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 0.5rem 0.8rem;
+  transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
+}
+
+.internacao-pill:hover {
+  border-color: color-mix(in srgb, #c4b5fd 66%, var(--app-border));
+  background: color-mix(in srgb, #3b2a61 62%, var(--app-elevated));
+  box-shadow: 0 0 0 1px color-mix(in srgb, #8b5cf6 24%, transparent);
+}
+
+.internacao-pill.is-active {
+  border-color: color-mix(in srgb, #d8b4fe 72%, var(--app-border));
+  background: linear-gradient(160deg, #6d28d9 0%, #7c3aed 54%, #9333ea 100%);
+  color: #f8f4ff;
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, #8b5cf6 40%, transparent),
+    0 8px 20px color-mix(in srgb, #8b5cf6 24%, transparent);
+}
+
+.internacao-card--internacoes {
+  --kpi-border-accent: #7c3aed;
+}
+
+.internacao-card--altas {
+  --kpi-border-accent: #06b6d4;
+}
+
+.internacao-card--reinternacao {
+  --kpi-border-accent: #f59e0b;
+}
+
+.internacao-card--tmp {
+  --kpi-border-accent: #22c55e;
+}
+
+.kpi-card.internacao-card .kpi-icon {
+  color: var(--kpi-border-accent, var(--primary));
+  border-color: color-mix(in srgb, var(--kpi-border-accent, var(--primary)) 62%, var(--app-border));
+  background: color-mix(in srgb, var(--kpi-border-accent, var(--primary)) 16%, var(--app-elevated));
+}
+
+.kpi-card.internacao-card .kpi-title {
+  color: var(--kpi-border-accent, var(--primary));
+}
+
+.kpi-card.internacao-card .kpi-chip {
+  color: var(--kpi-border-accent, var(--primary));
+  border-color: color-mix(in srgb, var(--kpi-border-accent, var(--primary)) 72%, transparent);
+  background: color-mix(in srgb, var(--kpi-border-accent, var(--primary)) 18%, var(--app-elevated));
+}
+
+.kpi-card.internacao-card .kpi-value {
+  color: var(--kpi-border-accent, var(--primary));
+}
+
+.kpi-card.internacao-card .kpi-hint {
+  color: var(--kpi-border-accent, var(--primary));
 }
 
 .dashboard-panel {
@@ -105,17 +308,150 @@ body {
   border-radius: 1rem;
 }
 
+.module-shell {
+  border-width: 2px;
+  border-style: solid;
+}
+
+.module-shell--resumo {
+  border-color: #38bdf8;
+}
+
+.module-shell--metas {
+  border-color: #f59e0b;
+}
+
+.module-shell--heatmap {
+  border-color: #a78bfa;
+}
+
+.module-shell--variados {
+  border-color: #22c55e;
+}
+
+.internacao-var-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.15rem;
+}
+
+@media (min-width: 960px) {
+  .internacao-var-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.25rem;
+  }
+}
+
+.internacao-var-card {
+  border-radius: 2rem;
+  border: 1px solid #d6dbe3;
+  background: #ffffff;
+  color: #0f172a;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 8px 24px rgba(15, 23, 42, 0.2);
+  padding: 1rem 1rem 0.85rem;
+  min-width: 0;
+}
+
+.internacao-var-title {
+  margin: 0.15rem 0 0.35rem;
+  text-align: center;
+  color: #0f172a;
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+
+.internacao-var-proc-legend-title {
+  margin: 0.15rem 0 0.1rem;
+  text-align: center;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+/* Legenda manual — procedência (bolinha + texto) */
+.internacao-var-proc-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.internacao-var-proc-chart {
+  width: 100%;
+  min-height: min(320px, 42vh);
+  height: 320px;
+}
+
+.internacao-var-proc-legend {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.4rem 0.65rem;
+  margin: 0;
+  padding: 0.35rem 0.25rem 0;
+  list-style: none;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #334155;
+}
+
+@media (min-width: 520px) {
+  .internacao-var-proc-legend {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.internacao-var-proc-legend-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  min-height: 1.2rem;
+  min-width: 0;
+}
+
+.internacao-var-proc-dot {
+  flex-shrink: 0;
+  width: 0.62rem;
+  height: 0.62rem;
+  margin-top: 0.2rem;
+  border-radius: 999px;
+  border: 1px solid rgba(15, 23, 42, 0.18);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.45),
+    0 0 0 1px rgba(255, 255, 255, 0.2);
+}
+
+.internacao-var-proc-label {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.3;
+  word-break: break-word;
+}
+
+.internacao-var-chart-tall {
+  width: 100%;
+  height: 320px;
+}
+
+/* Rótulos do total acima das colunas (faixa etária) sem clip na borda superior */
+.internacao-var-chart-tall .recharts-wrapper {
+  overflow: visible;
+}
+
 .card-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: 0.9rem;
 }
 
 .kpi-card {
   position: relative;
-  min-height: 168px;
+  min-height: 182px;
   border-radius: 1rem;
   border: 1px solid color-mix(in srgb, var(--app-border) 75%, transparent);
+  border-left-width: 3px;
   background:
     linear-gradient(145deg, color-mix(in srgb, var(--app-surface) 92%, transparent), color-mix(in srgb, var(--app-elevated) 70%, transparent));
   padding: 0.95rem;
@@ -149,6 +485,7 @@ body {
   align-items: center;
   gap: 0.5rem;
   justify-content: space-between;
+  min-width: 0;
 }
 
 .kpi-icon {
@@ -158,22 +495,35 @@ body {
   width: 1.95rem;
   height: 1.95rem;
   border-radius: 0.7rem;
-  background: color-mix(in srgb, var(--app-elevated) 70%, transparent);
-  border: 1px solid color-mix(in srgb, var(--app-border) 72%, transparent);
+  color: var(--kpi-border-accent, var(--primary));
+  background: color-mix(in srgb, var(--kpi-border-accent, var(--primary)) 10%, var(--app-elevated));
+  border: 1px solid color-mix(in srgb, var(--kpi-border-accent, var(--primary)) 46%, var(--app-border));
   box-shadow:
     inset 0 1px 0 color-mix(in srgb, #fff 14%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--kpi-border-accent, var(--primary)) 16%, transparent),
     0 8px 18px rgba(2, 6, 23, 0.24);
   transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease, background-color 180ms ease;
 }
 
+.kpi-emoji {
+  display: inline-block;
+  font-size: 1.05rem;
+  line-height: 1;
+  animation: kpi-emoji-wobble 2.8s ease-in-out infinite;
+  transform-origin: center;
+  filter: drop-shadow(0 1px 3px rgba(2, 6, 23, 0.28));
+}
+
 .kpi-title {
-  font-size: 0.76rem;
+  font-size: 0.74rem;
+  line-height: 1.25;
   text-transform: uppercase;
   letter-spacing: 0.11em;
   font-weight: 700;
-  color: var(--app-muted);
+  color: color-mix(in srgb, var(--kpi-border-accent, var(--primary)) 66%, var(--table-header-fg));
   flex: 1;
   margin-right: 0.3rem;
+  min-width: 0;
 }
 
 .kpi-chip {
@@ -186,6 +536,8 @@ body {
   padding: 0.2rem 0.48rem;
   color: var(--app-muted);
   background: color-mix(in srgb, var(--app-elevated) 74%, transparent);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .kpi-value {
@@ -216,8 +568,8 @@ body {
 
 .kpi-chip.kpi-chip--positivo {
   color: var(--dash-live);
-  border-color: color-mix(in srgb, var(--dash-live) 42%, var(--app-border));
-  background: color-mix(in srgb, var(--dash-live) 14%, var(--app-elevated));
+  border-color: color-mix(in srgb, var(--dash-live) 32%, var(--app-border));
+  background: color-mix(in srgb, var(--dash-live) 8%, var(--app-elevated));
 }
 
 .kpi-chip.kpi-chip--negativo {
@@ -228,6 +580,15 @@ body {
 
 .kpi-chip.kpi-chip--neutro {
   color: var(--app-muted);
+}
+
+.kpi-card .kpi-chip,
+.kpi-card .kpi-chip.kpi-chip--positivo,
+.kpi-card .kpi-chip.kpi-chip--negativo,
+.kpi-card .kpi-chip.kpi-chip--neutro {
+  color: color-mix(in srgb, var(--kpi-border-accent, var(--primary)) 82%, var(--table-header-fg));
+  border-color: color-mix(in srgb, var(--kpi-border-accent, var(--primary)) 68%, transparent);
+  background: color-mix(in srgb, var(--kpi-border-accent, var(--primary)) 14%, var(--app-elevated));
 }
 
 .kpi-skeleton {
@@ -244,20 +605,20 @@ body {
   animation: shimmer 1.6s linear infinite;
 }
 
-/* Filtros do resumo gerencial: mais contraste + acento --dash-live sem sair do tema escuro */
+/* Filtros do resumo gerencial: base neutra e acento pontual */
 .glass-card.gerencial-filter-strip {
-  border-color: color-mix(in srgb, var(--dash-live) 32%, var(--app-border));
+  border-color: color-mix(in srgb, var(--primary) 22%, var(--app-border));
   background: color-mix(in srgb, var(--app-surface) 72%, var(--app-elevated));
   box-shadow:
-    inset 0 1px 0 color-mix(in srgb, var(--dash-live) 14%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--primary) 10%, transparent),
     0 6px 22px rgba(0, 0, 0, 0.22);
 }
 
 .period-pill {
   cursor: pointer;
-  border: 1px solid color-mix(in srgb, var(--dash-live) 38%, var(--app-border));
+  border: 1px solid color-mix(in srgb, var(--primary) 22%, var(--app-border));
   border-radius: 0.75rem;
-  background: color-mix(in srgb, var(--app-elevated) 88%, var(--dash-live) 8%);
+  background: color-mix(in srgb, var(--app-elevated) 92%, var(--primary) 5%);
   color: color-mix(in srgb, var(--table-header-fg) 82%, var(--app-muted));
   font-size: 0.8125rem;
   font-weight: 700;
@@ -270,56 +631,66 @@ body {
 }
 
 .period-pill:hover {
-  border-color: color-mix(in srgb, var(--dash-live) 62%, var(--app-border));
-  background: color-mix(in srgb, var(--app-elevated) 78%, var(--dash-live) 16%);
+  border-color: color-mix(in srgb, var(--primary) 46%, var(--app-border));
+  background: color-mix(in srgb, var(--app-elevated) 82%, var(--primary) 12%);
   color: var(--foreground);
   box-shadow:
     inset 0 1px 0 color-mix(in srgb, #fff 9%, transparent),
-    0 0 0 1px color-mix(in srgb, var(--dash-live) 22%, transparent),
-    0 4px 16px color-mix(in srgb, var(--dash-live) 18%, transparent);
+    0 0 0 1px color-mix(in srgb, var(--primary) 20%, transparent),
+    0 4px 16px color-mix(in srgb, var(--primary) 16%, transparent);
   transform: translateY(-1px);
 }
 
-/* Ativo: “chip” cheio — leitura à distância; tema escuro = teal vivo + texto escuro */
+/* Ativo: destaque controlado, sem virar bloco neon */
 .period-pill.is-active {
-  color: #031512;
+  color: var(--foreground);
   font-weight: 800;
   letter-spacing: 0.04em;
-  border: 2px solid rgba(255, 255, 255, 0.5);
-  background: linear-gradient(165deg, #6efadb 0%, var(--dash-live) 42%, #12c4a3 100%);
+  border: 1px solid color-mix(in srgb, var(--primary) 62%, var(--app-border));
+  background: linear-gradient(
+    165deg,
+    color-mix(in srgb, var(--primary) 44%, var(--app-surface)) 0%,
+    color-mix(in srgb, var(--dash-live) 26%, var(--app-elevated)) 54%,
+    color-mix(in srgb, var(--primary) 36%, var(--app-elevated)) 100%
+  );
   box-shadow:
-    0 0 0 1px rgba(0, 0, 0, 0.45),
-    0 6px 18px rgba(45, 224, 185, 0.55),
-    inset 0 1px 0 rgba(255, 255, 255, 0.35);
+    0 0 0 1px color-mix(in srgb, var(--primary) 16%, transparent),
+    0 6px 18px color-mix(in srgb, var(--primary) 24%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
   transform: none;
 }
 
 .period-pill.is-active:hover {
-  filter: brightness(1.05);
-  border-color: rgba(255, 255, 255, 0.65);
+  filter: brightness(1.03);
+  border-color: color-mix(in srgb, var(--primary) 72%, var(--app-border));
 }
 
 .theme-light .period-pill.is-active {
   color: #f8fafc;
-  border: 2px solid color-mix(in srgb, var(--dash-live) 55%, #0f172a);
-  background: linear-gradient(165deg, #2dd4bf 0%, var(--dash-live) 55%, #0d9488 100%);
+  border: 1px solid color-mix(in srgb, var(--primary) 56%, #0f172a);
+  background: linear-gradient(
+    165deg,
+    color-mix(in srgb, var(--primary) 62%, #1e293b) 0%,
+    color-mix(in srgb, var(--dash-live) 34%, #334155) 55%,
+    color-mix(in srgb, var(--primary) 56%, #0f172a) 100%
+  );
   box-shadow:
     0 0 0 1px rgba(255, 255, 255, 0.35),
-    0 6px 18px rgba(15, 118, 110, 0.35),
+    0 6px 18px color-mix(in srgb, var(--primary) 24%, transparent),
     inset 0 1px 0 rgba(255, 255, 255, 0.2);
 }
 
 .theme-light .period-pill.is-active:hover {
-  filter: brightness(1.04);
-  border-color: color-mix(in srgb, var(--dash-live) 70%, #0f172a);
+  filter: brightness(1.03);
+  border-color: color-mix(in srgb, var(--primary) 66%, #0f172a);
 }
 
 .filter-select {
   width: 100%;
   cursor: pointer;
-  border: 1px solid color-mix(in srgb, var(--dash-live) 34%, var(--app-border));
+  border: 1px solid color-mix(in srgb, var(--primary) 18%, var(--app-border));
   border-radius: 0.75rem;
-  background: color-mix(in srgb, var(--app-elevated) 86%, var(--dash-live) 7%);
+  background: color-mix(in srgb, var(--app-elevated) 92%, var(--primary) 4%);
   color: var(--foreground);
   font-size: 0.875rem;
   font-weight: 600;
@@ -328,9 +699,15 @@ body {
   transition: border-color 150ms ease, box-shadow 150ms ease, background 150ms ease;
 }
 
+.filter-select option,
+.filter-select optgroup {
+  color: var(--app-fg);
+  background-color: var(--app-surface);
+}
+
 .filter-select:hover {
-  border-color: color-mix(in srgb, var(--dash-live) 58%, var(--app-border));
-  background: color-mix(in srgb, var(--app-elevated) 78%, var(--dash-live) 12%);
+  border-color: color-mix(in srgb, var(--primary) 44%, var(--app-border));
+  background: color-mix(in srgb, var(--app-elevated) 84%, var(--primary) 10%);
 }
 
 .filter-select:focus {
@@ -338,64 +715,84 @@ body {
 }
 
 .filter-select:focus-visible {
-  border-color: var(--dash-live);
+  border-color: color-mix(in srgb, var(--primary) 80%, var(--dash-live));
   box-shadow:
     inset 0 1px 0 color-mix(in srgb, #fff 8%, transparent),
     0 0 0 2px var(--app-bg),
-    0 0 0 4px color-mix(in srgb, var(--dash-live) 50%, transparent);
+    0 0 0 4px color-mix(in srgb, var(--primary) 42%, transparent);
 }
 
 /* Mesmo destaque visual do period-pill ativo: regional/unidade (ou outro select) com valor ≠ “todos” */
 .filter-select.is-active {
-  color: #031512;
+  color: var(--foreground);
   font-weight: 800;
   letter-spacing: 0.03em;
-  border: 2px solid rgba(255, 255, 255, 0.5);
-  background: linear-gradient(165deg, #6efadb 0%, var(--dash-live) 42%, #12c4a3 100%);
+  border: 1px solid color-mix(in srgb, var(--primary) 62%, var(--app-border));
+  background: linear-gradient(
+    165deg,
+    color-mix(in srgb, var(--primary) 46%, var(--app-surface)) 0%,
+    color-mix(in srgb, var(--dash-live) 24%, var(--app-elevated)) 54%,
+    color-mix(in srgb, var(--primary) 34%, var(--app-elevated)) 100%
+  );
   box-shadow:
-    0 0 0 1px rgba(0, 0, 0, 0.45),
-    0 6px 18px rgba(45, 224, 185, 0.55),
-    inset 0 1px 0 rgba(255, 255, 255, 0.35);
+    0 0 0 1px color-mix(in srgb, var(--primary) 16%, transparent),
+    0 6px 18px color-mix(in srgb, var(--primary) 24%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
 }
 
 .filter-select.is-active:hover {
-  filter: brightness(1.05);
-  border-color: rgba(255, 255, 255, 0.65);
+  filter: brightness(1.03);
+  border-color: color-mix(in srgb, var(--primary) 72%, var(--app-border));
 }
 
 .filter-select.is-active:focus-visible {
-  border-color: rgba(255, 255, 255, 0.65);
+  border-color: color-mix(in srgb, var(--primary) 72%, var(--app-border));
   box-shadow:
-    0 0 0 1px rgba(0, 0, 0, 0.45),
-    0 6px 18px rgba(45, 224, 185, 0.55),
-    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    0 0 0 1px color-mix(in srgb, var(--primary) 16%, transparent),
+    0 6px 18px color-mix(in srgb, var(--primary) 24%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
     0 0 0 2px var(--app-bg),
-    0 0 0 4px color-mix(in srgb, var(--dash-live) 50%, transparent);
+    0 0 0 4px color-mix(in srgb, var(--primary) 42%, transparent);
 }
 
 .theme-light .filter-select.is-active {
   color: #f8fafc;
-  border: 2px solid color-mix(in srgb, var(--dash-live) 55%, #0f172a);
-  background: linear-gradient(165deg, #2dd4bf 0%, var(--dash-live) 55%, #0d9488 100%);
+  border: 1px solid color-mix(in srgb, var(--primary) 56%, #0f172a);
+  background: linear-gradient(
+    165deg,
+    color-mix(in srgb, var(--primary) 62%, #1e293b) 0%,
+    color-mix(in srgb, var(--dash-live) 34%, #334155) 55%,
+    color-mix(in srgb, var(--primary) 56%, #0f172a) 100%
+  );
   box-shadow:
     0 0 0 1px rgba(255, 255, 255, 0.35),
-    0 6px 18px rgba(15, 118, 110, 0.35),
+    0 6px 18px color-mix(in srgb, var(--primary) 24%, transparent),
     inset 0 1px 0 rgba(255, 255, 255, 0.2);
 }
 
 .theme-light .filter-select.is-active:hover {
-  filter: brightness(1.04);
-  border-color: color-mix(in srgb, var(--dash-live) 70%, #0f172a);
+  filter: brightness(1.03);
+  border-color: color-mix(in srgb, var(--primary) 66%, #0f172a);
+}
+
+.theme-light .filter-select option,
+.theme-light .filter-select optgroup {
+  color: #0f172a;
+  background-color: #ffffff;
 }
 
 .tone-live .kpi-icon {
-  color: var(--dash-live);
-  background: color-mix(in srgb, var(--dash-live) 14%, var(--app-elevated));
-  border-color: color-mix(in srgb, var(--dash-live) 48%, var(--app-border));
+  color: var(--kpi-border-accent, var(--dash-live));
+  background: color-mix(in srgb, var(--kpi-border-accent, var(--dash-live)) 10%, var(--app-elevated));
+  border-color: color-mix(in srgb, var(--kpi-border-accent, var(--dash-live)) 34%, var(--app-border));
   box-shadow:
     inset 0 1px 0 color-mix(in srgb, #fff 14%, transparent),
-    0 0 0 1px color-mix(in srgb, var(--dash-live) 18%, transparent),
-    0 10px 22px color-mix(in srgb, var(--dash-live) 26%, transparent);
+    0 0 0 1px color-mix(in srgb, var(--kpi-border-accent, var(--dash-live)) 14%, transparent),
+    0 10px 22px color-mix(in srgb, var(--kpi-border-accent, var(--dash-live)) 18%, transparent);
+}
+.kpi-card.tone-live {
+  border-color: color-mix(in srgb, var(--kpi-border-accent, var(--dash-live)) 56%, var(--app-border));
+  border-left-color: var(--kpi-border-accent, var(--dash-live));
 }
 .tone-live .kpi-chip {
   color: var(--dash-live);
@@ -403,13 +800,17 @@ body {
 }
 
 .tone-primary .kpi-icon {
-  color: var(--primary);
-  background: color-mix(in srgb, var(--primary) 14%, var(--app-elevated));
-  border-color: color-mix(in srgb, var(--primary) 48%, var(--app-border));
+  color: var(--kpi-border-accent, var(--primary));
+  background: color-mix(in srgb, var(--kpi-border-accent, var(--primary)) 14%, var(--app-elevated));
+  border-color: color-mix(in srgb, var(--kpi-border-accent, var(--primary)) 48%, var(--app-border));
   box-shadow:
     inset 0 1px 0 color-mix(in srgb, #fff 14%, transparent),
-    0 0 0 1px color-mix(in srgb, var(--primary) 18%, transparent),
-    0 10px 22px color-mix(in srgb, var(--primary) 25%, transparent);
+    0 0 0 1px color-mix(in srgb, var(--kpi-border-accent, var(--primary)) 18%, transparent),
+    0 10px 22px color-mix(in srgb, var(--kpi-border-accent, var(--primary)) 25%, transparent);
+}
+.kpi-card.tone-primary {
+  border-color: color-mix(in srgb, var(--kpi-border-accent, var(--primary)) 56%, var(--app-border));
+  border-left-color: var(--kpi-border-accent, var(--primary));
 }
 .tone-primary .kpi-chip {
   color: var(--primary);
@@ -417,13 +818,17 @@ body {
 }
 
 .tone-critical .kpi-icon {
-  color: var(--dash-critical);
-  background: color-mix(in srgb, var(--dash-critical) 14%, var(--app-elevated));
-  border-color: color-mix(in srgb, var(--dash-critical) 52%, var(--app-border));
+  color: var(--kpi-border-accent, var(--dash-critical));
+  background: color-mix(in srgb, var(--kpi-border-accent, var(--dash-critical)) 14%, var(--app-elevated));
+  border-color: color-mix(in srgb, var(--kpi-border-accent, var(--dash-critical)) 52%, var(--app-border));
   box-shadow:
     inset 0 1px 0 color-mix(in srgb, #fff 14%, transparent),
-    0 0 0 1px color-mix(in srgb, var(--dash-critical) 18%, transparent),
-    0 10px 22px color-mix(in srgb, var(--dash-critical) 26%, transparent);
+    0 0 0 1px color-mix(in srgb, var(--kpi-border-accent, var(--dash-critical)) 18%, transparent),
+    0 10px 22px color-mix(in srgb, var(--kpi-border-accent, var(--dash-critical)) 26%, transparent);
+}
+.kpi-card.tone-critical {
+  border-color: color-mix(in srgb, var(--kpi-border-accent, var(--dash-critical)) 56%, var(--app-border));
+  border-left-color: var(--kpi-border-accent, var(--dash-critical));
 }
 .tone-critical .kpi-chip {
   color: var(--dash-critical);
@@ -431,17 +836,37 @@ body {
 }
 
 .tone-urgent .kpi-icon {
-  color: var(--dash-accent-urgent);
-  background: color-mix(in srgb, var(--dash-accent-urgent) 16%, var(--app-elevated));
-  border-color: color-mix(in srgb, var(--dash-accent-urgent) 50%, var(--app-border));
+  color: var(--kpi-border-accent, var(--dash-accent-urgent));
+  background: color-mix(in srgb, var(--kpi-border-accent, var(--dash-accent-urgent)) 16%, var(--app-elevated));
+  border-color: color-mix(in srgb, var(--kpi-border-accent, var(--dash-accent-urgent)) 50%, var(--app-border));
   box-shadow:
     inset 0 1px 0 color-mix(in srgb, #fff 14%, transparent),
-    0 0 0 1px color-mix(in srgb, var(--dash-accent-urgent) 20%, transparent),
-    0 10px 22px color-mix(in srgb, var(--dash-accent-urgent) 24%, transparent);
+    0 0 0 1px color-mix(in srgb, var(--kpi-border-accent, var(--dash-accent-urgent)) 20%, transparent),
+    0 10px 22px color-mix(in srgb, var(--kpi-border-accent, var(--dash-accent-urgent)) 24%, transparent);
+}
+.kpi-card.tone-urgent {
+  border-color: color-mix(in srgb, var(--kpi-border-accent, var(--dash-accent-urgent)) 56%, var(--app-border));
+  border-left-color: var(--kpi-border-accent, var(--dash-accent-urgent));
 }
 .tone-urgent .kpi-chip {
   color: var(--dash-accent-urgent);
   border-color: color-mix(in srgb, var(--dash-accent-urgent) 60%, transparent);
+}
+
+@keyframes kpi-emoji-wobble {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg) scale(1);
+  }
+  25% {
+    transform: translateY(-1px) rotate(-5deg) scale(1.03);
+  }
+  50% {
+    transform: translateY(0) rotate(0deg) scale(1.07);
+  }
+  75% {
+    transform: translateY(-1px) rotate(5deg) scale(1.03);
+  }
 }
 
 @keyframes shimmer {
@@ -652,11 +1077,11 @@ body {
 
 /* Drill: variação no sentido “amarelo” do PB — aqui em bege para não competir com deltas */
 .mpv-cell--drill-negative {
-  background: color-mix(in srgb, #c9b896 44%, transparent);
+  background: color-mix(in srgb, #7a6540 58%, transparent);
 }
 
 .theme-light .mpv-cell--drill-negative {
-  background: color-mix(in srgb, #b8a078 32%, transparent);
+  background: color-mix(in srgb, #8c6d3f 44%, transparent);
 }
 
 .mpv-cell--drill-empty {
@@ -834,3 +1259,32 @@ body {
     grid-template-columns: 1fr;
   }
 }
+
+/* Internacao: garantir mesma logica visual do PS (itens internos seguem a cor da borda) */
+.kpi-card.internacao-card .kpi-icon {
+  color: var(--kpi-border-accent, var(--primary)) !important;
+  border-color: color-mix(in srgb, var(--kpi-border-accent, var(--primary)) 62%, var(--app-border)) !important;
+  background: color-mix(in srgb, var(--kpi-border-accent, var(--primary)) 16%, var(--app-elevated)) !important;
+}
+
+.kpi-card.internacao-card .kpi-title {
+  color: var(--kpi-border-accent, var(--primary)) !important;
+}
+
+.kpi-card.internacao-card .kpi-chip,
+.kpi-card.internacao-card .kpi-chip.kpi-chip--positivo,
+.kpi-card.internacao-card .kpi-chip.kpi-chip--negativo,
+.kpi-card.internacao-card .kpi-chip.kpi-chip--neutro {
+  color: var(--kpi-border-accent, var(--primary)) !important;
+  border-color: color-mix(in srgb, var(--kpi-border-accent, var(--primary)) 72%, transparent) !important;
+  background: color-mix(in srgb, var(--kpi-border-accent, var(--primary)) 18%, var(--app-elevated)) !important;
+}
+
+.kpi-card.internacao-card .kpi-value {
+  color: #f8fafc !important;
+}
+
+.kpi-card.internacao-card .kpi-hint {
+  color: #e2e8f0 !important;
+}
+

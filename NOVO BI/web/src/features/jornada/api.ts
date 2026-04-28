@@ -149,6 +149,73 @@ export async function fetchDashboardRows(
   return (await response.json()) as DashboardRowsPayload;
 }
 
+async function fetchInternacaoEndpoint(
+  path: "filtros" | "topo" | "metas" | "variados",
+  options?: {
+    limit?: number;
+    period?: 1 | 7 | 15 | 30 | 60 | 90 | 180 | 365;
+    regional?: string;
+    unidade?: string;
+    signal?: AbortSignal;
+  }
+): Promise<DashboardRowsPayload> {
+  const queryParams = new URLSearchParams();
+  if (options?.limit) queryParams.set("limit", String(options.limit));
+  if (options?.period) queryParams.set("period", String(options.period));
+  if (options?.regional) queryParams.set("regional", options.regional);
+  if (options?.unidade) queryParams.set("unidade", options.unidade);
+  const query = queryParams.toString() ? `?${queryParams.toString()}` : "";
+  const response = await fetch(buildApiUrl(`/api/v1/internacao/${path}${query}`), {
+    signal: options?.signal,
+    headers: { Accept: "application/json" }
+  });
+  if (!response.ok) {
+    throw new Error(`Falha ao consultar internacao "${path}" (${response.status})`);
+  }
+  const body: unknown = await response.json();
+  return normalizeDashboardJsonBody(body, `internacao-${path}`);
+}
+
+export function fetchInternacaoFiltros(options?: {
+  limit?: number;
+  period?: 1 | 7 | 15 | 30 | 60 | 90 | 180 | 365;
+  regional?: string;
+  unidade?: string;
+  signal?: AbortSignal;
+}): Promise<DashboardRowsPayload> {
+  return fetchInternacaoEndpoint("filtros", options);
+}
+
+export function fetchInternacaoTopo(options?: {
+  limit?: number;
+  period?: 1 | 7 | 15 | 30 | 60 | 90 | 180 | 365;
+  regional?: string;
+  unidade?: string;
+  signal?: AbortSignal;
+}): Promise<DashboardRowsPayload> {
+  return fetchInternacaoEndpoint("topo", options);
+}
+
+export function fetchInternacaoMetas(options?: {
+  limit?: number;
+  period?: 1 | 7 | 15 | 30 | 60 | 90 | 180 | 365;
+  regional?: string;
+  unidade?: string;
+  signal?: AbortSignal;
+}): Promise<DashboardRowsPayload> {
+  return fetchInternacaoEndpoint("metas", options);
+}
+
+export function fetchInternacaoVariados(options?: {
+  limit?: number;
+  period?: 1 | 7 | 15 | 30 | 60 | 90 | 180 | 365;
+  regional?: string;
+  unidade?: string;
+  signal?: AbortSignal;
+}): Promise<DashboardRowsPayload> {
+  return fetchInternacaoEndpoint("variados", options);
+}
+
 /**
  * Alguns ambientes serializam arrays como objetos `{ "0": a, "1": b }` em vez de `[a,b]`.
  * Sem isto, `rows[0]` fica `undefined` e o painel `kpi_panel` nunca e lido.

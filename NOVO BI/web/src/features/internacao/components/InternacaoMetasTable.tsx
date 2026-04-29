@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type ReactElement } from "react";
-import { fetchInternacaoMetas } from "../../features/jornada/api";
-import type { PeriodDays } from "../../lib/gerencialFiltersStorage";
-import { useRotatingGerencialLoadPhrases } from "../../lib/gerencialLoadPhrases";
-import { GerencialLoadPanel } from "../gerencial/GerencialLoadPanel";
+import { fetchInternacaoMetas } from "../../jornada/api";
+import type { PeriodDays } from "../../../lib/gerencialFiltersStorage";
+import { useRotatingGerencialLoadPhrases } from "../../../lib/gerencialLoadPhrases";
+import { GerencialLoadPanel } from "../../gerencial/components/GerencialLoadPanel";
 
 type InternacaoMetasTableProps = {
   period: PeriodDays;

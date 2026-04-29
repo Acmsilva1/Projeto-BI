@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { env } from "../../../config/env.js";
+import { env } from "../../../core/config/env.js";
 import {
   queryLimitedRowsConn,
   resolveExistingNamedFile,

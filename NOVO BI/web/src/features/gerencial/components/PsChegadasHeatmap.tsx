@@ -1,8 +1,8 @@
 ﻿import ReactECharts from "echarts-for-react";
 import { Loader2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from "react";
-import { fetchDashboardRows, fetchPsHeatmapChegadas } from "../../features/jornada/api";
-import type { PeriodDays } from "../../lib/gerencialFiltersStorage";
+import { fetchDashboardRows, fetchPsHeatmapChegadas } from "../../jornada/api";
+import type { PeriodDays } from "../../../lib/gerencialFiltersStorage";
 import { analyzePsHeatmapRows, type HeatmapRow } from "./psChegadasHeatmapAnalysis";
 import { PsChegadasHeatmapReport } from "./PsChegadasHeatmapReport";
 

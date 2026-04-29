@@ -1,8 +1,8 @@
 ﻿import { Loader2, Minus, Plus } from "lucide-react";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from "react";
-import { fetchDashboardJson } from "../../features/jornada/api";
-import type { PeriodDays } from "../../lib/gerencialFiltersStorage";
-import { useRotatingGerencialLoadPhrases } from "../../lib/gerencialLoadPhrases";
+import { fetchDashboardJson } from "../../jornada/api";
+import type { PeriodDays } from "../../../lib/gerencialFiltersStorage";
+import { useRotatingGerencialLoadPhrases } from "../../../lib/gerencialLoadPhrases";
 import { GerencialLoadPanel } from "./GerencialLoadPanel";
 
 type MonthMeta = { yearMonth: number; label: string };

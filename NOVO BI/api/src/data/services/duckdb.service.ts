@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import duckdb from "duckdb";
-import { env } from "../../config/env.js";
+import { env } from "../../core/config/env.js";
 import { normalizeRowValues } from "../utils/datasetTableLoader.js";
 
 type DuckDbStatus = {

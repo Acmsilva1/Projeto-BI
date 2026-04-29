@@ -26,7 +26,7 @@ Você atua como um Mentor Especialista em TI e Engenheiro DevOps. Suas respostas
 ## 🏗 ARQUITETURA E DESENVOLVIMENTO
 
 - **Foco:** Clean Architecture e SOLID. Nada de código "espaguete".
-- **Stack Preferencial:** Node.js, React, Tailwind CSS (Bento UI style), PostgreSQL.
+- **Stack Preferencial:** Node.js, React, Tailwind; **neste repo** API **Express** 5 + **DuckDB** (datasets analíticos), não Postgres obrigatório no servidor local.
 - **Proibição:** Não coloque citações ou comentários óbvios no código.
 - **LGPD:** Antes de sugerir qualquer log ou persistência, verifique se há dados sensíveis (PHI/PII). Se houver, aplique anonimização ou alerte o humano.
 
@@ -51,15 +51,12 @@ Você atua como um Mentor Especialista em TI e Engenheiro DevOps. Suas respostas
 - Interfaces em Dark Mode, alta fidelidade visual (Tailwind `rounded-2xl`, `blue-600`).
 - 
 
-2. 🏗️ Architecture: Modular Monolith `<a name="architecture"></a>`
-Esta é a regra de ouro para a organização do Super App e Projetos Hospitalares.
-Estrutura de Pastas: O projeto é dividido em /modules. Cada módulo é independente.
-Padrão Interno (MVC+S):
-controller/: Entrada e status HTTP.
-service/: Cérebro do módulo. Toda a regra de negócio e cálculos ficam aqui.
-model/ ou repository/: Acesso direto ao banco (PostgreSQL).
-routes/: Definição dos endpoints do módulo.
-Isolamento: Um módulo não deve acessar o model de outro diretamente. Use os services para comunicação inter-modular.
+2. 🏗️ Architecture: feature slices + core (NOVO BI) `<a name="architecture"></a>`
+Workspace **`web/`** + **`api/`** (Express + TypeScript):
+- **Front:** `web/src/features/{jornada,gerencial,internacao}/`, `web/src/shared/`; tema em `web/src/theme/`; Vite **5175** `strictPort`; `web/src/main.tsx` importa a shell (ex.: `features/jornada/App`).
+- **API:** `api/src/features/jornada/` (controllers, routes, services, `domain/` dashboard/internação); `api/src/core/config/env.ts`; dados DuckDB em `api/src/data/`.
+- **Fluxo:** rotas Express → controller → service → DuckDB/Arrow; config só em `core/config`.
+- **Isolamento:** novos painéis → nova subpasta em `web/src/features/` e endpoints alinhados em `api/src/features/jornada/` (ou nova feature API se o domínio divergir).
 3. 🎨 Skill: Frontend (React/Tailwind) `<a name="frontend"></a>`
 Estética: Dark Blue, layout estilo "Bento UI" (cards organizados).
 Componentização: Padrão atômico. CSS apenas via Tailwind.
@@ -124,7 +121,8 @@ Sempre que este arquivo for lido, direcione a stack com base no objetivo da tare
 ## 🟢 STACK NODE.JS: INTERAÇÃO E FLUXO
 
 - **Runtime:** Node.js (LTS).
-- **Framework:** Express (Minimalista) ou Fastify (Performance).
+- **Framework:** Express ou Fastify em projetos genéricos.
+- **Este repositório:** **Express** (`api/src/server.ts`, `app.ts`) — alinhar documentação a este stack.
 - **Linguagem:** TypeScript (Sempre).
 - **ORM/Query Builder:** Prisma (para produtividade) ou Knex.js (para consultas SQL complexas/hospitalares).
 - **Comunicação:** Socket.io para atualizações em tempo real (essencial para Censo Hospitalar).
@@ -308,23 +306,23 @@ Foco: Arquitetura de Software, Segurança de Dados (LGPD), DevOps e Manutenibili
 
 Utilizar esta secção para saber **em que parte do repositório** intervir e **em que tópico fixo** do `.md` técnico registar a informação. Símbolos: **[B]** = apenas backend, **[F]** = apenas frontend, **[T]** = transversal (ambos ou contrato API + consumidor).
 
-2.1 Onde está o código (repositório `command-center-web`)
+2.1 Onde está o código (repositório **NOVO BI**)
 
 | Âmbito | Árvore típica | O que documentar aqui |
 
 |--------|----------------|------------------------|
 
-| **[B]** | `api/features/<domínio>/` | Rotas Express, controllers, services, models/repositories, SQL executada no servidor, middlewares (`api/core/middlewares/`). |
+| **[B]** | `api/src/features/jornada/` | Rotas `/api/v1/...`, controllers, services, agregadores, catálogo de queries em `domain/`. |
 
-| **[B]** | `api/core/` | Migrations (`api/core/migrations/`), pools (`api/core/db/`), utilitários partilhados invocados pela API. |
+| **[B]** | `api/src/core/config/`, `api/src/data/` | `env.ts`, DuckDB service, loaders de dataset. |
 
-| **[F]** | `web/features/<domínio>/` | Páginas, componentes, hooks da feature; chamadas `fetch` / `apiClient` / `buildApiUrl`; estado UI; rotas SPA em `web/App.jsx`. |
+| **[F]** | `web/src/features/{jornada,gerencial,internacao}/` | Componentes e páginas por painel; ECharts/React. |
 
-| **[F]** | `web/shared/` | UI genérica, hooks globais, `web/shared/lib/api.js`, clientes HTTP partilhados. |
+| **[F]** | `web/src/shared/`, `web/src/theme/` | UI partilhada e tokens de tema. |
 
-| **[T]** | Contrato **HTTP** `/api/...` | Implementação em **## 4**; consumo no cliente em **## 3**; inventário na **## 4** (tabela). |
+| **[T]** | Contrato **HTTP** `/api/v1/...` | **## 4** + **## 3**; tabela de inventário em **## 4**. |
 
-| **[T]** | **SQL no browser** (`postgresClient`, etc.) | Detalhe técnico em **## 3** ou **## 5**; risco em **## 6**. |
+| **[T]** | **Dados volumétricos no browser** (Arrow) | **## 5** / **## 6** — risco de memória e exposição. |
 
 2.2 Correspondência: tópico fixo ↔ âmbito
 
@@ -352,8 +350,8 @@ Utilizar esta secção para saber **em que parte do repositório** intervir e **
 
 2.3 Regra de ouro de separação na escrita
 
-- Conteúdo **servidor** (`api/`, SQL no pool Node, migrations): **## 4**, **## 5** e **## 7**.
-- Conteúdo **cliente** (`web/`, chamadas a partir do browser, rotas SPA): **## 2** e **## 3**.
+- Conteúdo **servidor** (`api/src/`, DuckDB, migrations Postgres **se** existirem): **## 4**, **## 5** e **## 7**.
+- Conteúdo **cliente** (`web/src/`, chamadas no browser, rotas SPA): **## 2** e **## 3**.
 
 -**Permissões, PII e risco**: **## 6**.
 
@@ -363,35 +361,35 @@ Utilizar esta secção para saber **em que parte do repositório** intervir e **
 
 Toda análise deve respeitar a separação por domínio funcional conforme a estrutura do repositório:
 
-3.1 Camada Backend **[B]** (`api/`)
+3.1 Camada Backend **[B]** (`api/src/`)
 
-Core (`api/core/`): Infraestrutura compartilhada. Não deve conter lógica de negócio específica.
+Core (`api/src/core/config/`): env e arranque; `api/src/data/` para DuckDB.
 
-Features (`api/features/`): Isolamento total por domínio.
+Features (`api/src/features/jornada/`): toda a API REST do BI actual; novos domínios podem exigir nova pasta em `api/src/features/<nome>/`.
 
-Fluxo Obrigatório: Route (Entrada/Auth) → Controller (Orquestração) → Service (Lógica de Negócio) → Model (Persistência).
+Fluxo: route → controller → service → DuckDB/Parquet.
 
-Regra de Ouro: SQL puro ou lógica complexa de banco deve residir exclusivamente no Service ou Model.
+Regra de Ouro: queries pesadas e agregações no service, não no controller nem no front.
 
-3.2 Camada Frontend **[F]** (`web/`)
+3.2 Camada Frontend **[F]** (`web/src/`)
 
-Shared (`web/shared/`): Componentes de UI (Radix/Shadcn), hooks globais e instâncias de API.
+Shared + theme: componentes reutilizáveis e design tokens.
 
-Features (`web/features/`): Páginas, componentes de domínio e hooks específicos.
+Features (`web/src/features/<painel>/`): jornada (mapa), gerencial (heatmap, metas), internação (gráficos/tabelas).
 
-Nomenclatura: Seguir padrão PascalCase para componentes e camelCase para funções/hooks.
+Nomenclatura: PascalCase / camelCase; ver `agents.md`, `mudanca_arquitetura.md`.
 
 4. Governança de Dados, Segurança e LGPD **[T]** (auditoria em ambas as camadas)
 
 O agente deve auditar cada feature buscando os seguintes critérios:
 
-Controle de Acesso **[B]**: Verificação da presença do middleware `authorizePermission` (e afins) em rotas de API em `api/`.
+Controle de Acesso **[B]**: CORS e limites nas rotas `api/src/features/jornada/` quando aplicável.
 
-Controle de Acesso **[F]**: Rotas SPA protegidas em `web/App.jsx` (ou router), permissões avaliadas no cliente quando documentado.
+Controle de Acesso **[F]**: se existir auth no BI, documentar em **## 6**; caso público interno, declarar explícito.
 
-Privacidade (LGPD) **[T]**: Identificação de campos PII. Documentar tratamento (Criptografia, Anonimização ou Acesso Restrito) **na origem [B] e na exposição [F]**.
+Privacidade (LGPD) **[T]**: métricas hospitalares — evitar identificadores desnecessários nas respostas JSON.
 
-Integridade **[B]**: Verificação de que alterações de Schema possuem migrations correspondentes em `api/core/migrations/`.
+Integridade **[B]**: alterações em `dashboardQueryCatalog`, views DuckDB e env documentadas; sem pasta `api/src/config/` solta (usar `api/src/core/config/`).
 
 5. Estrutura fixa obrigatória: tópicos da documentação técnica (`*_DOCUMENTACAO_TECNICA.md`)
 
@@ -437,21 +435,21 @@ Propósito técnico do módulo, quem usa, limites de escopo e dependências exte
 
 **## 2. Superfícies, rotas e estrutura de navegação [F]**
 
-Tabela obrigatória com colunas: **ID interno** (ex.: `PAINEL_*`, `TELA_*`, ou `MODULO_UNICO`) | **Rota SPA** (ou «N/A») | **Componente raiz** (`web/...`) | **Nota** (permissão de rota, família de URLs). **Mínimo uma linha.**
+Tabela obrigatória com colunas: **ID interno** (ex.: `PAINEL_*`, `TELA_*`, ou `MODULO_UNICO`) | **Rota SPA** (ou «N/A») | **Componente raiz** (`web/src/...`) | **Nota** (permissão de rota, família de URLs). **Mínimo uma linha.**
 
 Subsecção opcional `### 2.1 Elementos de UI oficiais em relação às superfícies`: tabela (cartões, abas, seletores) ↔ superfície do índice; se não existir, **«Não aplicável.»** + uma linha.
 
 **## 3. Interface (frontend) [F]**
 
-Ponto(s) de entrada (`App.jsx`, páginas), estado, componentes `web/features` e `web/shared`, integração com API (funções `api.js`, `buildApiUrl`, `fetch`). Se não houver UI: **«Não aplicável.»** + uma linha.
+Ponto(s) de entrada (`web/src/main.tsx`), estado, componentes `web/src/features` e `web/src/shared`, integração com API (`api.ts` por feature, `fetch`). Se não houver UI: **«Não aplicável.»** + uma linha.
 
 **## 4. Backend, API e processamento [B]**
 
-Rotas montadas, controllers, services, middlewares, ficheiros em `api/`. Tabela obrigatória **inventário de API**: **ID da superfície** (mesmo da secção 2) ou **«Módulo»** | **Método e caminho** `/api/...` | **Observação** (WebSocket, BroadcastChannel, etc.). **Mínimo uma linha** (pode ser «Sem endpoints dedicados — …»). Sem caminhos `web/` nesta secção.
+Rotas **Express**, routers, controllers e services em `api/src/`. Tabela obrigatória **inventário de API**: **ID da superfície** (mesmo da secção 2) ou **«Módulo»** | **Método e caminho** `/api/v1/...` | **Observação** (DuckDB, Arrow, etc.). **Mínimo uma linha**. Sem caminhos `web/src/` nesta secção.
 
 **## 5. Persistência, dados e consultas [B]**
 
-Schemas e tabelas; tabela **mapeamento de dados** (área da UI ou ID | entrada de dados | ficheiro `api/` ou `web/` | objeto BD: view/tabela/função). Incluir **SQL no browser** nesta tabela quando existir. Se não houver base de dados: **«Não aplicável.»** + uma linha.
+DuckDB/views e datasets; tabela **mapeamento de dados** (área da UI ou ID | entrada | ficheiro `api/src/` ou `web/src/` | tabela/view DuckDB ou query catalog). Incluir **Apache Arrow no browser** nesta tabela quando existir. Se não aplicável: **«Não aplicável.»** + uma linha.
 
 **## 6. Segurança e conformidade (LGPD) [T]**
 
@@ -463,7 +461,7 @@ Migrations de referência, variáveis de ambiente (`api/` e `VITE_*` se aplicáv
 
 **## 8. Observações técnicas e registo de revisão [T]**
 
-Lista formal de melhorias, riscos, dívidas técnicas; última linha com **DOC-ID** da revisão do documento (ex.: «Documento revisado em … — `CC-WEB-…-TEC-RNN`.»). Se não houver observações: **«Nenhuma observação adicional nesta revisão.»**
+Lista formal de melhorias, riscos, dívidas técnicas; última linha com **DOC-ID** da revisão do documento (ex.: «Documento revisado em … — `NOVOBI-…-TEC-RNN`.»). Se não houver observações: **«Nenhuma observação adicional nesta revisão.»**
 
 5.4 Documentos agregados (várias superfícies no mesmo `.md`)
 
@@ -479,7 +477,7 @@ Manter o mesmo **## 0 a ## 8**; na secção **2**, a tabela tem uma linha; nas s
 
 6.1 Regra de DOC-ID
 
-Utilizar o prefixo acordado para o produto (ex.: `CC-WEB-{SIGLA_MODULO}-TEC-RNN` para documentação técnica, `CC-WEB-{SIGLA_MODULO}-PLN-RNN` para plano).
+Utilizar o prefixo acordado para o produto (ex.: `NOVOBI-{SIGLA_MODULO}-TEC-RNN` ou o padrão em `doc/` / identificação do módulo).
 
 Incrementar `RNN` a cada alteração **material** do mesmo tipo de documento.
 
@@ -499,7 +497,7 @@ Para cada módulo documentado de forma autónoma, recomenda-se na **mesma pasta*
 
 Ao ser solicitado para documentar uma parte do código, o agente deve:
 
-Realizar o «Scaffolding» da estrutura de arquivos em **`api/` [B]** e **`web/` [F]** conforme o domínio.
+Realizar o «Scaffolding» da estrutura de arquivos em **`api/src/` [B]** e **`web/src/` [F]** conforme o domínio.
 
 Identificar o fluxo de dados do backend ao frontend (**[B]** → **[F]**), listando endpoints e consumidores.
 

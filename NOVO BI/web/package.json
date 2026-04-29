@@ -5,7 +5,7 @@
   "type": "module",
   "description": "Novo BI Web - React TypeScript base",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --port 5175 --strictPort",
     "build": "tsc -b && vite build",
     "preview": "vite preview"
   },

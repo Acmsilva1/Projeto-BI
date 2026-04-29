@@ -1,5 +1,5 @@
 import { app } from "../dist/app.js";
-import { env } from "../dist/config/env.js";
+import { env } from "../dist/core/config/env.js";
 
 const PORT = 3341;
 const BASE_URL = `http://127.0.0.1:${PORT}`;

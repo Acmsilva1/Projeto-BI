@@ -1,5 +1,5 @@
 import { app } from "./app.js";
-import { env } from "./config/env.js";
+import { env } from "./core/config/env.js";
 import { prewarmDashboardStore } from "./features/jornada/services/dashboard.service.js";
 import { ensureDuckDbReady } from "./data/services/duckdb.service.js";
 

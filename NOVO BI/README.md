@@ -2,6 +2,8 @@
 
 Workspace TypeScript com arquitetura modular por feature.
 
+**Guias:** [mudanca_arquitetura.md](mudanca_arquitetura.md) · **[agents.md](agents.md)** (inclui **Checkpoint**). Dev web: **5175** (`vite --strictPort`).
+
 ## Pacotes
 
 - `api/`: API Node + Express
@@ -30,18 +32,11 @@ web/src/
 ├── main.tsx
 ├── index.css
 ├── vite-env.d.ts
-├── shared/
-└── features/jornada/
-    ├── App.tsx
-    ├── api.ts
-    ├── apiBase.ts
-    └── components/
-        ├── MapFlow.tsx
-        ├── SectorBackgroundNode.tsx
-        ├── PatientWalkingNode.tsx
-        ├── PatientQueueRow.tsx
-        ├── StepDetailModal.tsx
-        └── FootprintEdge.tsx
+├── shared/                    # componentes e utilitários transversais
+└── features/
+    ├── jornada/               # fluxo / mapa (ReactFlow)
+    ├── gerencial/             # painéis gerenciais (heatmap, metas, etc.)
+    └── internacao/            # internação (gráficos, metas)
 ```
 
 ### API (`api/src`)
@@ -50,8 +45,9 @@ web/src/
 api/src/
 ├── app.ts
 ├── server.ts
-├── config/
-│   └── env.ts
+├── core/
+│   └── config/
+│       └── env.ts             # env central (não usar pasta config/ solta na raiz)
 ├── data/
 │   ├── services/
 │   │   └── duckdb.service.ts
@@ -60,12 +56,13 @@ api/src/
 ├── shared/
 │   └── utils/
 │       └── arrow.ts
-└── features/jornada/
+└── features/jornada/          # rotas, controllers, services, domain (dashboard, internação, heatmap)
     ├── controllers/
     ├── routes/
     ├── services/
-    └── domain/dashboard/
-        └── dashboardQueryCatalog.ts
+    └── domain/
+        ├── dashboard/
+        └── internacao/
 ```
 
 ## Endpoints principais

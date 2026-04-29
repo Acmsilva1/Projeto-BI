@@ -13,10 +13,10 @@ import {
   XAxis,
   YAxis
 } from "recharts";
-import { fetchInternacaoVariados } from "../../features/jornada/api";
-import type { PeriodDays } from "../../lib/gerencialFiltersStorage";
-import { useRotatingGerencialLoadPhrases } from "../../lib/gerencialLoadPhrases";
-import { GerencialLoadPanel } from "../gerencial/GerencialLoadPanel";
+import { fetchInternacaoVariados } from "../../jornada/api";
+import type { PeriodDays } from "../../../lib/gerencialFiltersStorage";
+import { useRotatingGerencialLoadPhrases } from "../../../lib/gerencialLoadPhrases";
+import { GerencialLoadPanel } from "../../gerencial/components/GerencialLoadPanel";
 
 type InternacaoGraficosVariadosProps = {
   period: PeriodDays;

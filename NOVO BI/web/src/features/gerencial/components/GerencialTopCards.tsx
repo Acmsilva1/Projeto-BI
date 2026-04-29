@@ -6,9 +6,9 @@ import {
   fetchDashboardRows,
   requestGerencialContextPrewarm,
   type DashboardRowsPayload
-} from "../../features/jornada/api";
-import { type PeriodDays } from "../../lib/gerencialFiltersStorage";
-import { useRotatingGerencialLoadPhrases } from "../../lib/gerencialLoadPhrases";
+} from "../../jornada/api";
+import { type PeriodDays } from "../../../lib/gerencialFiltersStorage";
+import { useRotatingGerencialLoadPhrases } from "../../../lib/gerencialLoadPhrases";
 import { GerencialLoadPanel } from "./GerencialLoadPanel";
 
 export type GerencialShellFilters = {

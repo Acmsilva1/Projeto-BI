@@ -1,9 +1,9 @@
 import { motion } from "framer-motion";
 import { useEffect, useMemo, useRef, useState, type ReactElement } from "react";
-import { fetchInternacaoFiltros, fetchInternacaoTopo } from "../../features/jornada/api";
-import type { PeriodDays } from "../../lib/gerencialFiltersStorage";
-import { useRotatingGerencialLoadPhrases } from "../../lib/gerencialLoadPhrases";
-import { GerencialLoadPanel } from "../gerencial/GerencialLoadPanel";
+import { fetchInternacaoFiltros, fetchInternacaoTopo } from "../../jornada/api";
+import type { PeriodDays } from "../../../lib/gerencialFiltersStorage";
+import { useRotatingGerencialLoadPhrases } from "../../../lib/gerencialLoadPhrases";
+import { GerencialLoadPanel } from "../../gerencial/components/GerencialLoadPanel";
 
 type InternacaoTopCardsProps = {
   period: PeriodDays;

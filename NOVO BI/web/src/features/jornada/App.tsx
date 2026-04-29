@@ -1,11 +1,11 @@
 import { motion } from "framer-motion";
 import { useEffect, useState, type ReactElement } from "react";
-import { GerencialTopCards } from "../../components/gerencial/GerencialTopCards";
-import { MetasPorVolumesTable } from "../../components/gerencial/MetasPorVolumesTable";
-import { PsChegadasHeatmap } from "../../components/gerencial/PsChegadasHeatmap";
-import { InternacaoMetasTable } from "../../components/internacao/InternacaoMetasTable";
-import { InternacaoTopCards } from "../../components/internacao/InternacaoTopCards";
-import { InternacaoGraficosVariados } from "../../components/internacao/InternacaoGraficosVariados";
+import { GerencialTopCards } from "../gerencial/components/GerencialTopCards";
+import { MetasPorVolumesTable } from "../gerencial/components/MetasPorVolumesTable";
+import { PsChegadasHeatmap } from "../gerencial/components/PsChegadasHeatmap";
+import { InternacaoMetasTable } from "../internacao/components/InternacaoMetasTable";
+import { InternacaoTopCards } from "../internacao/components/InternacaoTopCards";
+import { InternacaoGraficosVariados } from "../internacao/components/InternacaoGraficosVariados";
 import {
   clearGerencialSessionUnidade,
   readGerencialFilters,

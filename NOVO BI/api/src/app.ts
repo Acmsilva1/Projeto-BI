@@ -1,7 +1,7 @@
 import cors from "cors";
 import express from "express";
 import { gerencialContextPrewarmController } from "./features/jornada/controllers/dashboard.controller.js";
-import { env } from "./config/env.js";
+import { env } from "./core/config/env.js";
 import { coreRoutes } from "./features/jornada/routes/core.routes.js";
 import { dataRoutes } from "./features/jornada/routes/data.routes.js";
 import { dashboardRoutes } from "./features/jornada/routes/dashboard.routes.js";

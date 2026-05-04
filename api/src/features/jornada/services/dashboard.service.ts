@@ -19,6 +19,7 @@ import {
   type ViasVolumeRow,
   VOLUME_META_DEFINITIONS
 } from "./metasPorVolumesAggregator.js";
+import { buildMedicacaoPsDashboard, type MedicacaoPsDashboardData } from "./medicacaoPsAggregator.js";
 
 type DashboardCatalogItem = {
   slug: string;
@@ -717,7 +718,11 @@ async function loadDataStoreIntoCache(factsRetentionDays: number): Promise<DataS
       nr: pick(row, "NR_ATENDIMENTO", "nr_atendimento") ?? "",
       dataMs,
       nrPrescricao: pick(row, "NR_PRESCRICAO", "nr_prescricao") ?? "",
-      cdMaterial: Math.trunc(toNumber(pick(row, "CD_MATERIAL", "cd_material")))
+      cdMaterial: Math.trunc(toNumber(pick(row, "CD_MATERIAL", "cd_material"))),
+      dsMaterial: pick(row, "DS_MATERIAL", "ds_material") ?? "",
+      ieViaAplicacao: pick(row, "IE_VIA_APLICACAO", "ie_via_aplicacao") ?? "",
+      ieAplicBolus: (pick(row, "IE_APLIC_BOLUS", "ie_aplic_bolus") ?? "").toUpperCase(),
+      ieAplicLenta: (pick(row, "IE_APLIC_LENTA", "ie_aplic_lenta") ?? "").toUpperCase()
     });
   }
 
@@ -2077,3 +2082,35 @@ export function scheduleGerencialContextPrewarm(options: {
     });
   });
 }
+
+export async function getPsMedicacaoPayload(options: {
+  periodDays: GerencialPeriodDays;
+  regional?: string;
+  unidade?: string;
+}): Promise<MedicacaoPsDashboardData> {
+  const store = await ensureStore(options.periodDays);
+  const { unidadesSelecionadas } = computeContext(store, options);
+  const cds = new Set(unidadesSelecionadas.map((u) => u.cd));
+  const unidadesMap = new Map(unidadesSelecionadas.map((u) => [u.cd, u.unidade]));
+
+  const window = rollingWindowForGerencial(
+    store.unitMaxEventMs,
+    store.maxEventMs,
+    cds,
+    options.periodDays
+  );
+
+  if (!window) {
+    return {
+      totalMedicacoes: 0,
+      infusao: { lenta: 0, rapida: 0 },
+      vias: [],
+      topLenta: [],
+      topRapida: [],
+      porUnidade: []
+    };
+  }
+
+  return buildMedicacaoPsDashboard(store.viasMedicamentos, cds, unidadesMap, window);
+}
+

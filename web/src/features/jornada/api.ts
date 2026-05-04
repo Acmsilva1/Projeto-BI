@@ -343,3 +343,44 @@ export async function fetchPsHeatmapChegadas(options: {
     applied
   };
 }
+
+export type PsMedicacaoResponse = {
+  ok: true;
+  data: {
+    totalMedicacoes: number;
+    infusao: { lenta: number; rapida: number };
+    vias: Array<{ via: string; qtd: number }>;
+    topLenta: Array<{ nome: string; qtd: number }>;
+    topRapida: Array<{ nome: string; qtd: number }>;
+    porUnidade: Array<{
+      unidade: string;
+      lenta: number;
+      rapida: number;
+      pctLenta: number;
+    }>;
+  };
+};
+
+export async function fetchPsMedicacaoDashboard(options: {
+  period: 1 | 7 | 15 | 30 | 60 | 90 | 180 | 365;
+  regional?: string;
+  unidade?: string;
+  signal?: AbortSignal;
+}): Promise<PsMedicacaoResponse> {
+  const p = new URLSearchParams();
+  p.set("period", String(options.period));
+  if (options.regional && options.regional !== "ALL") p.set("regional", options.regional);
+  if (options.unidade && options.unidade !== "ALL") p.set("unidade", options.unidade);
+
+  const response = await fetch(buildApiUrl(`/api/v1/ps-medicacao?${p.toString()}`), {
+    signal: options.signal,
+    headers: { Accept: "application/json" }
+  });
+
+  const body = (await response.json()) as { ok: boolean; error?: string; data?: any };
+  if (!response.ok || !body.ok) {
+    throw new Error(body.error || `Falha ao carregar medicação (${response.status})`);
+  }
+  return body as PsMedicacaoResponse;
+}
+

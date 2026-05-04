@@ -2,6 +2,7 @@ import { motion } from "framer-motion";
 import { useEffect, useState, type ReactElement } from "react";
 import { GerencialTopCards } from "../gerencial/components/GerencialTopCards";
 import { MetasPorVolumesTable } from "../gerencial/components/MetasPorVolumesTable";
+import { MedicacaoPsDashboard } from "../gerencial/components/MedicacaoPsDashboard";
 import { PsChegadasHeatmap } from "../gerencial/components/PsChegadasHeatmap";
 import { InternacaoMetasTable } from "../internacao/components/InternacaoMetasTable";
 import { InternacaoTopCards } from "../internacao/components/InternacaoTopCards";
@@ -119,6 +120,8 @@ export default function App(): ReactElement {
                 onUnidadeChange={setUnidade}
               />
             </motion.div>
+
+            <MedicacaoPsDashboard period={period} regional={regional} unidade={unidade} />
 
             <motion.section
               className="glass-card module-shell module-shell--metas p-4 md:p-6"

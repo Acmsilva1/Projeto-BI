@@ -61,6 +61,13 @@ export type ViasVolumeRow = {
   ieAplicLenta: string;
 };
 
+export type FarmaciaRow = {
+  cd: number;
+  unidade: string;
+  padrao: string;
+  dataMs: number;
+};
+
 export type VolumeMetaDefinition = {
   key: string;
   label: string;

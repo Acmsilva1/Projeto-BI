@@ -161,23 +161,11 @@ export type CardResumoFaixa = {
 };
 
 export type PsHeatmapAnalysis = {
-  ym: string;
-  lastD: number;
-  totalChegadas: number;
-  volumeNaJanela08a19: number;
-  pctVolumeJanela: number;
-  pctVolumeAcimaDoEsperado: number;
-  pctMomentosCarregados: number;
-  slotsJanelaTotal: number;
-  slotsAcima: number;
+  dailySeries: { day: number; total: number }[];
+  hourlySeries: { hour: number; avg: number }[];
+  weekdaySeries: { weekday: string; avg: number }[];
   destaques: CelulaDestaque[];
-  textoSimples: string;
-  notaCurta: string;
-  feriadosResumo: string;
-  /** Faixa 3h + dia da semana com mais “alertas” (acima do padrão sazonal); se empate sem alerta, a mais movimentada. */
-  cardPiorFaixa: CardResumoFaixa | null;
-  /** Faixa em que não houve alerta; se não existir, a menos crítica. */
-  cardMelhorFaixa: CardResumoFaixa | null;
+  totalChegadas: number;
 };
 
 /**
@@ -441,40 +429,38 @@ export function analyzePsHeatmapRows(ym: string, rows: HeatmapRow[]): PsHeatmapA
   }
   horasOrdenadas.sort((a, b) => b.mediaPorDia - a.mediaPorDia);
 
-  const pctVolJanela = total > 0 ? (volJanela / total) * 100 : 0;
-  const pctAcima = total > 0 ? (volAcima / total) * 100 : 0;
-  const pctMomentos = slotsJanela > 0 ? (slotsAcima / slotsJanela) * 100 : 0;
+  const dailySeries = Array.from({ length: lastD }, (_, i) => ({
+    day: i + 1,
+    total: totalChegadasNoDiaCivil(i + 1)
+  }));
 
-  const horasQuentes = horasOrdenadas
-    .filter((x) => x.hora >= JANELA_INICIO && x.hora <= JANELA_FIM)
-    .slice(0, 4)
-    .map((x) => x.label)
-    .join(", ");
+  const hourlySeries = horasOrdenadas
+    .sort((a, b) => a.hora - b.hora)
+    .map((h) => ({
+      hour: h.hora,
+      avg: h.mediaPorDia
+    }));
 
-  const textoSimples =
-    total === 0
-      ? "Não há chegadas neste mês para esta unidade."
-      : `Foram ${total.toLocaleString("pt-BR")} chegadas no mês; ${volJanela.toLocaleString("pt-BR")} concentraram-se entre 8h e 19h, onde o PS costuma estar mais movimentado. ` +
-        `Os cartões abaixo destacam o recorte de dia da semana + três horas em que o calendário mais “apertou” e o que mais “respirou”, e os picos que mais fogem do padrão esperado. ` +
-        (horasQuentes ? `Em média, as horas com mais chegadas foram: ${horasQuentes}.` : "");
+  const weekdayCounts = new Array(7).fill(0);
+  const weekdayTotals = new Array(7).fill(0);
 
-  const notaCurta = "";
+  for (let d = 1; d <= lastD; d += 1) {
+    const t = toDateNoon(ym, d);
+    const wd = t.getDay();
+    weekdayCounts[wd] += 1;
+    weekdayTotals[wd] += totalChegadasNoDiaCivil(d);
+  }
+
+  const weekdaySeries = NOME_DIA.map((name, i) => ({
+    weekday: name,
+    avg: weekdayCounts[i] > 0 ? weekdayTotals[i] / weekdayCounts[i] : 0
+  }));
 
   return {
-    ym,
-    lastD,
-    totalChegadas: total,
-    volumeNaJanela08a19: volJanela,
-    pctVolumeJanela: pctVolJanela,
-    pctVolumeAcimaDoEsperado: pctAcima,
-    pctMomentosCarregados: pctMomentos,
-    slotsJanelaTotal: slotsJanela,
-    slotsAcima,
+    dailySeries,
+    hourlySeries,
+    weekdaySeries,
     destaques,
-    textoSimples,
-    notaCurta,
-    feriadosResumo,
-    cardPiorFaixa,
-    cardMelhorFaixa
+    totalChegadas: total
   };
 }

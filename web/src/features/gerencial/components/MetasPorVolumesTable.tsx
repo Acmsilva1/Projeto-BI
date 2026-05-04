@@ -1,4 +1,4 @@
-﻿import { Loader2, Minus, Plus } from "lucide-react";
+import { Bell, Loader2, Minus, Plus } from "lucide-react";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import { fetchDashboardJson } from "../../jornada/api";
 import type { PeriodDays } from "../../../lib/gerencialFiltersStorage";
@@ -55,7 +55,7 @@ type MetaDefinitionLite = { key: string; direction?: string };
 type MetasVolumeState =
   | { status: "loading"; loadSession: number; progress: number }
   | { status: "error"; message: string }
-  | { status: "ready"; matrix: MatrixPayload };
+  | { status: "ready"; matrix: MatrixPayload; isStale?: boolean; pendingMatrix?: MatrixPayload };
 
 function normalizeIndicators(raw: unknown, metaDefinitions: unknown): IndicatorRow[] {
   const list = Array.isArray(raw) ? raw : [];
@@ -191,15 +191,25 @@ export function MetasPorVolumesTable(props: MetasPorVolumesTableProps): ReactEle
   const loadMatrix = useCallback(() => {
     const controller = new AbortController();
     const loadSession = ++loadSessionRef.current;
-    setState({
-      status: "loading",
-      loadSession,
-      progress: 12
+    
+    const cacheKey = `mpv-cache-${unidade}-${selectedMonth}`;
+    const cached = localStorage.getItem(cacheKey);
+    
+    setState((prev) => {
+      if (cached) {
+        try {
+          const matrix = JSON.parse(cached) as MatrixPayload;
+          return { status: "ready", matrix, isStale: true };
+        } catch { /* skip */ }
+      }
+      return { status: "loading", loadSession, progress: 12 };
     });
+
     setExpanded({});
     setDrillByKey({});
     const regionalParam = unidadeAll ? undefined : regional === "ALL" ? undefined : regional;
     const unidadeParam = unidadeAll ? undefined : unidade;
+    
     fetchDashboardJson("gerencial-metas-por-volumes", {
       mes: selectedMonth === "ALL" ? undefined : toYearMonthParam(selectedMonth),
       period,
@@ -220,7 +230,15 @@ export function MetasPorVolumesTable(props: MetasPorVolumesTableProps): ReactEle
           anchorYearMonth: Number(row.anchorYearMonth ?? 0),
           indicators: normalizeIndicators(row.indicators, row.metaDefinitions)
         };
-        setState({ status: "ready", matrix });
+        
+        localStorage.setItem(cacheKey, JSON.stringify(matrix));
+        
+        setState((prev) => {
+          if (prev.status === "ready" && prev.isStale) {
+            return { ...prev, pendingMatrix: matrix };
+          }
+          return { status: "ready", matrix, isStale: false };
+        });
       })
       .catch((error: unknown) => {
         if (error instanceof Error && error.name === "AbortError") return;
@@ -229,7 +247,7 @@ export function MetasPorVolumesTable(props: MetasPorVolumesTableProps): ReactEle
         setState({ status: "error", message });
       });
     return () => controller.abort();
-  }, [unidade, selectedMonth]); // eslint-disable-line react-hooks/exhaustive-deps -- regional/period do master nao disparam refetch
+  }, [unidade, selectedMonth, period, regional, unidadeAll]);
 
   useEffect(() => {
     return loadMatrix();
@@ -302,13 +320,9 @@ export function MetasPorVolumesTable(props: MetasPorVolumesTableProps): ReactEle
           });
         });
     },
-    [unidade, selectedMonth] // eslint-disable-line react-hooks/exhaustive-deps -- alinhado à matriz
+    [unidade, selectedMonth, period, regional, unidadeAll]
   );
 
-  /**
-   * Pré-carrega drills na ordem dos indicadores (1º → último), um pedido de cada vez.
-   * Alinha-se a apresentação indicador a indicador: ao chegar ao N, os anteriores já tendem a estar prontos.
-   */
   useEffect(() => {
     if (state.status !== "ready" || state.matrix.months.length === 0) return;
     const keys = state.matrix.indicators.map((ind) => ind.key);
@@ -316,7 +330,7 @@ export function MetasPorVolumesTable(props: MetasPorVolumesTableProps): ReactEle
     const regionalParam = unidadeAll ? undefined : regional === "ALL" ? undefined : regional;
     const unidadeParam = unidadeAll ? undefined : unidade;
 
-    const applyPayload = (key: string, payload: Awaited<ReturnType<typeof fetchDashboardJson>>): void => {
+    const applyPayload = (key: string, payload: any): void => {
       const rows = payload.rows as Record<string, unknown>[];
       const drill: DrillRow[] = rows.map((r) => ({
         cd: Number(r.cd ?? 0),
@@ -326,43 +340,41 @@ export function MetasPorVolumesTable(props: MetasPorVolumesTableProps): ReactEle
       }));
       setDrillByKey((prev) => {
         if (Array.isArray(prev[key])) return prev;
-        if (prev[key] === "error") return prev;
-        if (prev[key] === "loading") return { ...prev, [key]: drill };
         return { ...prev, [key]: drill };
       });
     };
 
-    const loadSequential = async (): Promise<void> => {
-      for (const key of keys) {
+    const loadInBatches = async (): Promise<void> => {
+      const concurrency = 3;
+      for (let i = 0; i < keys.length; i += concurrency) {
         if (cancelled) return;
-        try {
-          const payload = await fetchDashboardJson("gerencial-metas-por-volumes-drill", {
-            indicador: key,
-            mes: selectedMonth === "ALL" ? undefined : toYearMonthParam(selectedMonth),
-            period,
-            regional: regionalParam,
-            unidade: unidadeParam
-          });
-          if (cancelled) return;
-          applyPayload(key, payload);
-        } catch {
-          /* utilizador pode repetir com fetchDrill */
-        }
+        const batch = keys.slice(i, i + concurrency);
+        await Promise.all(
+          batch.map(async (key) => {
+            if (cancelled || drillByKeyRef.current[key]) return;
+            try {
+              const payload = await fetchDashboardJson("gerencial-metas-por-volumes-drill", {
+                indicador: key,
+                mes: selectedMonth === "ALL" ? undefined : toYearMonthParam(selectedMonth),
+                period,
+                regional: regionalParam,
+                unidade: unidadeParam
+              });
+              if (!cancelled) applyPayload(key, payload);
+            } catch { /* skip */ }
+          })
+        );
       }
     };
 
-    void loadSequential();
-    return () => {
-      cancelled = true;
-    };
+    void loadInBatches();
+    return () => { cancelled = true; };
   }, [state.status, state.matrix, selectedMonth, unidade, unidadeAll, regional, period]);
 
   const toggleDrill = (key: string): void => {
     setExpanded((prev) => {
       const willOpen = !prev[key];
-      if (willOpen) {
-        void fetchDrill(key);
-      }
+      if (willOpen) void fetchDrill(key);
       return { ...prev, [key]: willOpen };
     });
   };
@@ -370,11 +382,11 @@ export function MetasPorVolumesTable(props: MetasPorVolumesTableProps): ReactEle
   return (
     <section className="dashboard-panel mpv-section" aria-label="Dashboard de Metas">
       <header className="mpv-head px-3 pt-3">
-        <div className="mpv-filters">
-          <label className="mpv-filter">
-            <span className="mpv-filter-label">Mes</span>
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="flex flex-col gap-1.5">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--app-muted)] ml-1">Mes</span>
             <select
-              className="filter-select"
+              className="filter-select min-w-[240px]"
               value={selectedMonth === "ALL" ? "ALL" : String(selectedMonth)}
               onChange={(event) => {
                 const next = event.target.value;
@@ -389,6 +401,22 @@ export function MetasPorVolumesTable(props: MetasPorVolumesTableProps): ReactEle
               ))}
             </select>
           </label>
+
+          {state.status === "ready" && state.pendingMatrix && (
+            <button
+              type="button"
+              className="flex items-center gap-2 rounded-full border border-[var(--dash-live)] bg-[color-mix(in_srgb,var(--dash-live)_15%,transparent)] px-4 py-1.5 text-[11px] font-bold uppercase tracking-tight text-[var(--dash-live)] shadow-[0_0_10px_rgba(45,224,185,0.2)] transition-all hover:bg-[var(--dash-live)] hover:text-white active:scale-95 animate-bounce-subtle mb-1"
+              onClick={() => {
+                setState((prev) => {
+                  if (prev.status !== "ready" || !prev.pendingMatrix) return prev;
+                  return { ...prev, matrix: prev.pendingMatrix, isStale: false, pendingMatrix: undefined };
+                });
+              }}
+            >
+              <Bell size={13} className="animate-bell-shake" />
+              Novos dados disponíveis
+            </button>
+          )}
         </div>
       </header>
 
@@ -408,121 +436,128 @@ export function MetasPorVolumesTable(props: MetasPorVolumesTableProps): ReactEle
         <p className="mt-4 text-sm text-[var(--app-muted)]">Sem dados de fluxo no recorte selecionado.</p>
       )}
 
+      {state.status === "ready" && state.isStale && !state.pendingMatrix && (
+        <div className="flex items-center gap-2 px-4 py-1 text-[10px] font-bold uppercase tracking-widest text-[var(--dash-accent-urgent)] animate-pulse">
+          <Loader2 size={10} className="animate-spin" />
+          <span>Sincronizando dados em tempo real...</span>
+        </div>
+      )}
+
       {state.status === "ready" && state.matrix.months.length > 0 && (
         <div className="px-3 pb-3">
           <div className="mpv-table-wrap mt-5 overflow-x-auto rounded-xl border border-[var(--table-grid)] bg-[var(--app-elevated)]">
-          <table className="mpv-table min-w-[1180px] w-full border-collapse text-[13px]">
-            <thead>
-              <tr className="bg-[color-mix(in_srgb,var(--primary)_6%,transparent)]">
-                <th className="mpv-th sticky left-0 z-20 bg-[var(--app-elevated)] px-3 py-3 text-left font-bold text-[var(--table-header-fg)]">
-                  Indicador
-                </th>
-                {state.matrix.months.map((m) => (
-                  <th key={m.yearMonth} colSpan={2} className="mpv-th px-2 py-3 text-center font-bold text-[var(--table-header-fg)]">
-                    {m.label}
+            <table className="mpv-table min-w-[1180px] w-full border-collapse text-[13px]">
+              <thead>
+                <tr className="bg-[color-mix(in_srgb,var(--primary)_6%,transparent)]">
+                  <th className="mpv-th sticky left-0 z-20 bg-[var(--app-elevated)] px-3 py-3 text-left font-bold text-[var(--table-header-fg)]">
+                    Indicador
                   </th>
-                ))}
-                <th colSpan={4} className="mpv-th px-2 py-3 text-center font-bold text-[var(--table-header-fg)]">
-                  Total
-                </th>
-              </tr>
-              <tr className="text-xs font-semibold uppercase tracking-wide text-[var(--table-header-muted)]">
-                <th className="mpv-th sticky left-0 z-20 bg-[var(--app-elevated)] px-3 py-2" />
-                {state.matrix.months.map((m) => (
-                  <th key={`${m.yearMonth}-h`} colSpan={2} className="mpv-th px-1 py-2 text-center">
-                    Valor / Var.
+                  {state.matrix.months.map((m) => (
+                    <th key={m.yearMonth} colSpan={2} className="mpv-th px-2 py-3 text-center font-bold text-[var(--table-header-fg)]">
+                      {m.label}
+                    </th>
+                  ))}
+                  <th colSpan={4} className="mpv-th px-2 py-3 text-center font-bold text-[var(--table-header-fg)]">
+                    Total
                   </th>
-                ))}
-                <th className="mpv-th px-1 py-2 text-center">Valor atual</th>
-                <th className="mpv-th px-1 py-2 text-center">Valor anterior</th>
-                <th className="mpv-th px-1 py-2 text-center">Var.</th>
-                <th className="mpv-th px-1 py-2 text-center">YTD</th>
-              </tr>
-            </thead>
-            <tbody>
-              {state.matrix.indicators.map((ind) => (
-                <Fragment key={ind.key}>
-                  <tr>
-                    <td className="mpv-td sticky left-0 z-10 bg-[var(--background)] px-2 py-2 font-medium text-[var(--foreground)]">
-                      <div className="flex items-center gap-1">
-                        <button
-                          type="button"
-                          className="rounded border border-[var(--table-grid)] p-0.5 text-[var(--app-muted)] hover:bg-[var(--app-elevated)]"
-                          aria-expanded={Boolean(expanded[ind.key])}
-                          onClick={() => toggleDrill(ind.key)}
-                        >
-                          {expanded[ind.key] ? <Minus size={14} /> : <Plus size={14} />}
-                        </button>
-                        <span>
-                          {ind.label}{" "}
-                          <span className="mpv-meta-target" title="Meta de referência">
-                            {ind.targetDisplay}
+                </tr>
+                <tr className="text-xs font-semibold uppercase tracking-wide text-[var(--table-header-muted)]">
+                  <th className="mpv-th sticky left-0 z-20 bg-[var(--app-elevated)] px-3 py-2" />
+                  {state.matrix.months.map((m) => (
+                    <th key={`${m.yearMonth}-h`} colSpan={2} className="mpv-th px-1 py-2 text-center">
+                      Valor / Var.
+                    </th>
+                  ))}
+                  <th className="mpv-th px-1 py-2 text-center">Valor atual</th>
+                  <th className="mpv-th px-1 py-2 text-center">Valor anterior</th>
+                  <th className="mpv-th px-1 py-2 text-center">Var.</th>
+                  <th className="mpv-th px-1 py-2 text-center">YTD</th>
+                </tr>
+              </thead>
+              <tbody>
+                {state.matrix.indicators.map((ind) => (
+                  <Fragment key={ind.key}>
+                    <tr>
+                      <td className="mpv-td sticky left-0 z-10 bg-[var(--background)] px-2 py-2 font-medium text-[var(--foreground)]">
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            className="rounded border border-[var(--table-grid)] p-0.5 text-[var(--app-muted)] hover:bg-[var(--app-elevated)]"
+                            aria-expanded={Boolean(expanded[ind.key])}
+                            onClick={() => toggleDrill(ind.key)}
+                          >
+                            {expanded[ind.key] ? <Minus size={14} /> : <Plus size={14} />}
+                          </button>
+                          <span>
+                            {ind.label}{" "}
+                            <span className="mpv-meta-target" title="Meta de referência">
+                              {ind.targetDisplay}
+                            </span>
                           </span>
+                        </div>
+                      </td>
+                      {ind.months.map((mc) => {
+                        const tip = tooltipForCell(ind.format, mc);
+                        return (
+                          <td
+                            key={mc.yearMonth}
+                            colSpan={2}
+                            className={`px-1 py-2 text-center tabular-nums ${cellSurfaceClass(mc.tone)}${
+                              deltaIsCritical(mc.deltaVsPrev, ind.direction) ? " mpv-cell--soft-ring-pulse" : ""
+                            } ${tip ? "mpv-tooltip-cell" : ""}`}
+                            data-tooltip={tip}
+                          >
+                            <div className="mpv-value">{formatCell(ind.format, mc.value)}</div>
+                            {mc.deltaVsPrev !== null && (
+                              <div className={`mpv-delta ${deltaTrendClass(mc.deltaVsPrev, ind.direction)}`}>
+                                {formatDelta(ind.format, mc.deltaVsPrev)}
+                              </div>
+                            )}
+                          </td>
+                        );
+                      })}
+                      <td className={`px-1 py-2 text-center tabular-nums ${cellSurfaceClass(ind.total.toneTotal)}`}>
+                        {formatCell(ind.format, ind.total.value)}
+                      </td>
+                      <td className={`px-1 py-2 text-center tabular-nums text-[var(--table-header-muted)] ${cellSurfaceClass("empty")}`}>
+                        {formatCell(ind.format, ind.total.compareParen)}
+                      </td>
+                      <td
+                        className={`px-1 py-2 text-center tabular-nums ${cellSurfaceClass("empty")}${
+                          deltaIsCritical(ind.total.variance, ind.direction) ? " mpv-cell--soft-ring-pulse" : ""
+                        }`}
+                      >
+                        <span className={deltaTrendClass(ind.total.variance, ind.direction)}>
+                          {formatDelta(ind.format, ind.total.variance)}
                         </span>
-                      </div>
-                    </td>
-                    {ind.months.map((mc) => {
-                      const tip = tooltipForCell(ind.format, mc);
-                      return (
-                        <td
-                          key={mc.yearMonth}
-                          colSpan={2}
-                          className={`px-1 py-2 text-center tabular-nums ${cellSurfaceClass(mc.tone)}${
-                            deltaIsCritical(mc.deltaVsPrev, ind.direction) ? " mpv-cell--soft-ring-pulse" : ""
-                          } ${tip ? "mpv-tooltip-cell" : ""}`}
-                          data-tooltip={tip}
-                        >
-                          <div className="mpv-value">{formatCell(ind.format, mc.value)}</div>
-                          {mc.deltaVsPrev !== null && (
-                            <div className={`mpv-delta ${deltaTrendClass(mc.deltaVsPrev, ind.direction)}`}>
-                              {formatDelta(ind.format, mc.deltaVsPrev)}
-                            </div>
-                          )}
-                        </td>
-                      );
-                    })}
-                    <td className={`px-1 py-2 text-center tabular-nums ${cellSurfaceClass(ind.total.toneTotal)}`}>
-                      {formatCell(ind.format, ind.total.value)}
-                    </td>
-                    <td className={`px-1 py-2 text-center tabular-nums text-[var(--table-header-muted)] ${cellSurfaceClass("empty")}`}>
-                      {formatCell(ind.format, ind.total.compareParen)}
-                    </td>
-                    <td
-                      className={`px-1 py-2 text-center tabular-nums ${cellSurfaceClass("empty")}${
-                        deltaIsCritical(ind.total.variance, ind.direction) ? " mpv-cell--soft-ring-pulse" : ""
-                      }`}
-                    >
-                      <span className={deltaTrendClass(ind.total.variance, ind.direction)}>
-                        {formatDelta(ind.format, ind.total.variance)}
-                      </span>
-                    </td>
-                    <td className={`px-1 py-2 text-center tabular-nums ${cellSurfaceClass(ind.total.toneYtd)}`}>
-                      <span className={`font-semibold ${toneTextClass(ind.total.toneYtd)}`}>
-                        {formatCell(ind.format, ind.total.ytd)}
-                      </span>
-                    </td>
-                  </tr>
-                  {expanded[ind.key] && (
-                    <tr className="bg-[color-mix(in_srgb,var(--primary)_4%,transparent)]">
-                      <td colSpan={1 + state.matrix.months.length * 2 + 4} className="px-3 py-3">
-                        <DrillPanel
-                          format={ind.format}
-                          direction={ind.direction}
-                          drill={drillByKey[ind.key]}
-                          monthLabels={state.matrix.months.map((m) => m.label)}
-                          indicatorLabel={ind.label}
-                          targetDisplay={ind.targetDisplay}
-                          onCollapse={() => {
-                            setExpanded((prev) => ({ ...prev, [ind.key]: false }));
-                          }}
-                        />
+                      </td>
+                      <td className={`px-1 py-2 text-center tabular-nums ${cellSurfaceClass(ind.total.toneYtd)}`}>
+                        <span className={`font-semibold ${toneTextClass(ind.total.toneYtd)}`}>
+                          {formatCell(ind.format, ind.total.ytd)}
+                        </span>
                       </td>
                     </tr>
-                  )}
-                </Fragment>
-              ))}
-            </tbody>
-          </table>
+                    {expanded[ind.key] && (
+                      <tr className="bg-[color-mix(in_srgb,var(--primary)_25%,transparent)]">
+                        <td colSpan={1 + state.matrix.months.length * 2 + 4} className="px-3 py-3">
+                          <DrillPanel
+                            format={ind.format}
+                            direction={ind.direction}
+                            drill={drillByKey[ind.key]}
+                            monthLabels={state.matrix.months.map((m) => m.label)}
+                            indicatorLabel={ind.label}
+                            targetDisplay={ind.targetDisplay}
+                            onCollapse={() => {
+                              setExpanded((prev) => ({ ...prev, [ind.key]: false }));
+                            }}
+                          />
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       )}

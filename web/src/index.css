@@ -354,6 +354,10 @@ body {
   min-width: 0;
 }
 
+.internacao-var-card-full {
+  grid-column: 1 / -1;
+}
+
 .internacao-var-title {
   margin: 0.15rem 0 0.35rem;
   text-align: center;

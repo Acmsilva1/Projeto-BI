@@ -128,6 +128,7 @@ type DataStore = {
   tcUsVolume: TcUsVolumeRow[];
   reavaliacaoVolume: ReavVolumeRow[];
   viasMedicamentos: ViasVolumeRow[];
+  farmacia: FarmaciaRow[];
 };
 
 function parseYearMonthFilter(value: string | undefined): number | undefined {
@@ -360,13 +361,16 @@ function computePsFactsAnchorMs(
   medicacaoRows: Record<string, string>[],
   laboratorioRows: Record<string, string>[],
   reavaliacaoRows: Record<string, string>[],
-  viasRows: Record<string, string>[]
+  viasRows: Record<string, string>[],
+  farmaciaLibRows: Record<string, string>[],
+  farmaciaPenRows: Record<string, string>[]
 ): number {
   let m = 0;
   const bump = (ms: number): void => {
     if (Number.isFinite(ms) && ms > m) m = ms;
   };
 
+  // ... (previous bumps)
   for (const row of temposRows) {
     bump(parseDateMs(pick(row, "DT_ENTRADA", "dt_entrada")));
     bump(parseDateMs(pick(row, "DATA", "data")));
@@ -407,6 +411,13 @@ function computePsFactsAnchorMs(
     bump(parseDateMs(pick(row, "DATA", "data")));
   }
 
+  for (const row of farmaciaLibRows) {
+    bump(parseDateMs(pick(row, "DT_LIBERACAO", "dt_liberacao")));
+  }
+  for (const row of farmaciaPenRows) {
+    bump(parseDateMs(pick(row, "DT_LIBERACAO", "dt_liberacao")));
+  }
+
   return m;
 }
 
@@ -423,7 +434,9 @@ const GERENCIAL_STORE_TABLE_BASES = [
   "tbl_tempos_medicacao",
   "tbl_tempos_laboratorio",
   "tbl_tempos_reavaliacao",
-  "tbl_vias_medicamentos"
+  "tbl_vias_medicamentos",
+  "tbl_farm_relatorio_liberadas_base",
+  "tbl_farm_relatorio_pendentes_base"
 ] as const;
 
 async function loadDataStoreIntoCache(factsRetentionDays: number): Promise<DataStore> {
@@ -441,6 +454,8 @@ async function loadDataStoreIntoCache(factsRetentionDays: number): Promise<DataS
     const laboratorioRows = loaded[9] ?? [];
     const reavaliacaoRows = loaded[10] ?? [];
     const viasRows = loaded[11] ?? [];
+    const farmaciaLibRows = loaded[12] ?? [];
+    const farmaciaPenRows = loaded[13] ?? [];
 
   const unidades = unidadesRows
     .filter((row) => ["true", "1", "t"].includes((pick(row, "ps") ?? "").toLowerCase()))
@@ -498,7 +513,9 @@ async function loadDataStoreIntoCache(factsRetentionDays: number): Promise<DataS
     medicacaoRows,
     laboratorioRows,
     reavaliacaoRows,
-    viasRows
+    viasRows,
+    farmaciaLibRows,
+    farmaciaPenRows
   );
   const retentionDays = factsRetentionDays;
   const cutoffMs =
@@ -726,6 +743,21 @@ async function loadDataStoreIntoCache(factsRetentionDays: number): Promise<DataS
     });
   }
 
+  const farmacia: FarmaciaRow[] = [];
+  const pushFarmacia = (row: Record<string, string>): void => {
+    const cd = toNumber(pick(row, "CD_ESTABELECIMENTO", "cd_estabelecimento"));
+    if (!cd) return;
+    const dataMs = parseDateMs(pick(row, "DT_LIBERACAO", "dt_liberacao")) || 0;
+    farmacia.push({
+      cd,
+      unidade: pick(row, "UNIDADE", "unidade") ?? "",
+      padrao: (pick(row, "PADRAO", "padrao") ?? "S").trim().toUpperCase(),
+      dataMs
+    });
+  };
+  for (const row of farmaciaLibRows) pushFarmacia(row);
+  for (const row of farmaciaPenRows) pushFarmacia(row);
+
   storeCache = {
     unidades,
     snapshotByCd,
@@ -741,7 +773,8 @@ async function loadDataStoreIntoCache(factsRetentionDays: number): Promise<DataS
     laboratorioVolume,
     tcUsVolume,
     reavaliacaoVolume,
-    viasMedicamentos
+    viasMedicamentos,
+    farmacia
   };
   queryCache.clear();
   const maxEvtHint =
@@ -2107,10 +2140,11 @@ export async function getPsMedicacaoPayload(options: {
       vias: [],
       topLenta: [],
       topRapida: [],
-      porUnidade: []
+      porUnidade: [],
+      rankingNaoPadrao: []
     };
   }
 
-  return buildMedicacaoPsDashboard(store.viasMedicamentos, cds, unidadesMap, window);
+  return buildMedicacaoPsDashboard(store.viasMedicamentos, store.farmacia, cds, unidadesMap, window);
 }
 

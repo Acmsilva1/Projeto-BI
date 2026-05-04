@@ -1,5 +1,5 @@
-﻿import ReactECharts from "echarts-for-react";
-import { Loader2 } from "lucide-react";
+import ReactECharts from "echarts-for-react";
+import { Bell, Loader2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import { fetchDashboardRows, fetchPsHeatmapChegadas } from "../../jornada/api";
 import type { PeriodDays } from "../../../lib/gerencialFiltersStorage";
@@ -178,6 +178,8 @@ export function PsChegadasHeatmap(props: PsChegadasHeatmapProps): ReactElement {
   }, [unidadePainelEspecifica, unidadeMapaLocal, unidadesLista]);
 
   const [rows, setRows] = useState<HeatmapRow[]>([]);
+  const [isStale, setIsStale] = useState(false);
+  const [pendingRows, setPendingRows] = useState<HeatmapRow[] | null>(null);
   const [dataLoading, setDataLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -189,8 +191,20 @@ export function PsChegadasHeatmap(props: PsChegadasHeatmapProps): ReactElement {
       return;
     }
     const controller = new AbortController();
-    setDataLoading(true);
+    const cacheKey = `heatmap-cache-${unidadeParaApi}-${mes}`;
+    const cached = localStorage.getItem(cacheKey);
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached) as HeatmapRow[];
+        setRows(parsed);
+        setIsStale(true);
+      } catch { /* skip */ }
+    }
+
+    setDataLoading(!cached); // Só mostra loader se não tiver cache
     setError(null);
+    setPendingRows(null);
+
     void fetchPsHeatmapChegadas({
       mes: mes.trim(),
       unidade: unidadeParaApi,
@@ -198,7 +212,17 @@ export function PsChegadasHeatmap(props: PsChegadasHeatmapProps): ReactElement {
       limit: 5000,
       signal: controller.signal
     })
-      .then((p) => setRows(toHeatmapRows(p.rows)))
+      .then((p) => {
+        const nextRows = toHeatmapRows(p.rows);
+        localStorage.setItem(cacheKey, JSON.stringify(nextRows));
+        
+        if (cached) {
+          setPendingRows(nextRows);
+        } else {
+          setRows(nextRows);
+          setIsStale(false);
+        }
+      })
       .catch((e: unknown) => {
         if (e instanceof Error && e.name === "AbortError") return;
         setError(e instanceof Error ? e.message : "Erro");
@@ -391,7 +415,29 @@ export function PsChegadasHeatmap(props: PsChegadasHeatmapProps): ReactElement {
             </select>
           </label>
         )}
+
+        {canQuery && pendingRows && (
+          <button
+            type="button"
+            className="flex items-center gap-2 rounded-full border border-[var(--dash-live)] bg-[color-mix(in_srgb,var(--dash-live)_15%,transparent)] px-4 py-1.5 text-[11px] font-bold uppercase tracking-tight text-[var(--dash-live)] shadow-[0_0_15px_rgba(45,224,185,0.3)] transition-all hover:bg-[var(--dash-live)] hover:text-white active:scale-95 animate-bounce-subtle z-30"
+            onClick={() => {
+              setRows(pendingRows);
+              setPendingRows(null);
+              setIsStale(false);
+            }}
+          >
+            <Bell size={13} className="animate-bell-shake" />
+            Novos dados disponíveis
+          </button>
+        )}
       </div>
+
+      {canQuery && isStale && !pendingRows && (
+        <div className="flex items-center gap-2 px-4 py-1 text-[10px] font-bold uppercase tracking-widest text-[var(--dash-accent-urgent)] animate-pulse">
+          <Loader2 size={10} className="animate-spin" />
+          <span>Sincronizando dados em tempo real...</span>
+        </div>
+      )}
 
       {!canQuery && (
         <div className="rounded-2xl border border-dashed border-[var(--table-grid)] bg-[var(--app-elevated)]/40 py-16 text-center text-sm text-[var(--app-muted)]">

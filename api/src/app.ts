@@ -7,6 +7,7 @@ import { dataRoutes } from "./features/jornada/routes/data.routes.js";
 import { dashboardRoutes } from "./features/jornada/routes/dashboard.routes.js";
 import { internacaoDashboardRoutes } from "./features/jornada/routes/internacaoDashboard.routes.js";
 import { psHeatmapRoutes } from "./features/jornada/routes/psHeatmap.routes.js";
+import { psMedicacaoRoutes } from "./features/jornada/routes/psMedicacao.routes.js";
 
 export const app = express();
 
@@ -34,3 +35,4 @@ app.use("/api/v1/data", dataRoutes);
 app.use("/api/v1/dashboard", dashboardRoutes);
 app.use("/api/v1/internacao", internacaoDashboardRoutes);
 app.use("/api/v1/ps-heatmap", psHeatmapRoutes);
+app.use("/api/v1/ps-medicacao", psMedicacaoRoutes);

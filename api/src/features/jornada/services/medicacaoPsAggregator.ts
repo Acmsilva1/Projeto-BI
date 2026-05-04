@@ -1,4 +1,4 @@
-import { type ViasVolumeRow, type MonthAgg, EXCLUDED_MATERIAL_IDS } from "./metasPorVolumesAggregator.js";
+import { type ViasVolumeRow, type MonthAgg, EXCLUDED_MATERIAL_IDS, type FarmaciaRow } from "./metasPorVolumesAggregator.js";
 
 export type MedicacaoPsDashboardData = {
   totalMedicacoes: number;
@@ -15,92 +15,95 @@ export type MedicacaoPsDashboardData = {
     rapida: number; 
     pctLenta: number 
   }>;
+  rankingNaoPadrao: Array<{ unidade: string; qtd: number }>;
 };
 
 export function buildMedicacaoPsDashboard(
   vias: ViasVolumeRow[],
+  farmacia: FarmaciaRow[],
   cds: Set<number>,
   unidadesMap: Map<number, string>,
   m: MonthAgg
 ): MedicacaoPsDashboardData {
-  const filtered = vias.filter(v => 
+  // 1. Filtrar Vias (já existente)
+  const filteredVias = vias.filter(v => 
     cds.has(v.cd) && 
     v.dataMs >= m.startMs && 
     v.dataMs <= m.endMs &&
     !EXCLUDED_MATERIAL_IDS.has(v.cdMaterial)
   );
 
+  // 2. Filtrar Farmácia (Não Padrão)
+  const filteredFarmacia = farmacia.filter(f => {
+    const p = (f.padrao || "").trim().toUpperCase();
+    const isNaoPadrao = p.startsWith("N");
+    // Garantir que a comparação de CD seja numérica
+    const fCd = Number(f.cd);
+    const isUnitSelected = Array.from(cds).some(c => Number(c) === fCd);
+    return isNaoPadrao && isUnitSelected;
+  });
+
   const stats = {
-    total: filtered.length,
+    total: filteredVias.length,
     lenta: 0,
     rapida: 0,
     viasMap: new Map<string, number>(),
     topLentaMap: new Map<string, number>(),
     topRapidaMap: new Map<string, number>(),
-    unidadeMap: new Map<number, { lenta: number; rapida: number }>()
+    unidadeMap: new Map<number, { lenta: number; rapida: number }>(),
+    farmaciaMap: new Map<number, number>()
   };
 
-  for (const v of filtered) {
-    // Normalizar via
+  // Processar Vias
+  for (const v of filteredVias) {
     const rawVia = (v.ieViaAplicacao || "N/D").trim().toUpperCase();
-    
-    // Regra de Via Exibida
     const viaExibida = (rawVia === "EV" && v.ieAplicBolus === "S") ? "EV BOLUS" : rawVia;
-    
-    // Regra de Velocidade
     const isRapida = rawVia === "IM" || rawVia === "VO" || (rawVia === "EV" && v.ieAplicBolus === "S");
-    const velocidade = isRapida ? "Rápida" : "Lenta";
 
     if (isRapida) stats.rapida++;
     else stats.lenta++;
 
-    // Agrupar por Via
     stats.viasMap.set(viaExibida, (stats.viasMap.get(viaExibida) || 0) + 1);
 
-    // Agrupar Top 10 por Velocidade
     const targetMap = isRapida ? stats.topRapidaMap : stats.topLentaMap;
     const material = (v.dsMaterial || "N/D").trim().toUpperCase();
     targetMap.set(material, (targetMap.get(material) || 0) + 1);
 
-    // Agrupar por Unidade
-    if (!stats.unidadeMap.has(v.cd)) {
-      stats.unidadeMap.set(v.cd, { lenta: 0, rapida: 0 });
+    const vCd = Number(v.cd);
+    if (!stats.unidadeMap.has(vCd)) {
+      stats.unidadeMap.set(vCd, { lenta: 0, rapida: 0 });
     }
-    const u = stats.unidadeMap.get(v.cd)!;
+    const u = stats.unidadeMap.get(vCd)!;
     if (isRapida) u.rapida++;
     else u.lenta++;
   }
 
-  // Formatar Vias com agrupamento "OUTROS"
-  const total = filtered.length;
+  // Processar Farmácia (Não Padrão)
+  for (const f of filteredFarmacia) {
+    const fCd = Number(f.cd);
+    stats.farmaciaMap.set(fCd, (stats.farmaciaMap.get(fCd) || 0) + 1);
+  }
+
+  // Formatar Vias
   const rawViasArr = Array.from(stats.viasMap.entries())
     .map(([via, qtd]) => ({ via, qtd }))
     .sort((a, b) => b.qtd - a.qtd);
 
   const viasFinal: Array<{ via: string; qtd: number }> = [];
   let outrosQtd = 0;
-
   for (const item of rawViasArr) {
-    const pct = total > 0 ? (item.qtd / total) * 100 : 0;
-    if (pct < 1 && rawViasArr.length > 8) { // Só agrupa se tiver muitas vias
-      outrosQtd += item.qtd;
-    } else {
-      viasFinal.push(item);
-    }
+    const pct = stats.total > 0 ? (item.qtd / stats.total) * 100 : 0;
+    if (pct < 1 && rawViasArr.length > 8) outrosQtd += item.qtd;
+    else viasFinal.push(item);
   }
+  if (outrosQtd > 0) viasFinal.push({ via: "OUTROS", qtd: outrosQtd });
 
-  if (outrosQtd > 0) {
-    viasFinal.push({ via: "OUTROS", qtd: outrosQtd });
-  }
-
-  // Formatar Top 10
   const formatTop = (map: Map<string, number>) => 
     Array.from(map.entries())
       .map(([nome, qtd]) => ({ nome, qtd }))
       .sort((a, b) => b.qtd - a.qtd)
       .slice(0, 10);
 
-  // Formatar Unidades
   const porUnidade = Array.from(stats.unidadeMap.entries())
     .map(([cd, data]) => {
       const totalU = data.lenta + data.rapida;
@@ -113,6 +116,14 @@ export function buildMedicacaoPsDashboard(
     })
     .sort((a, b) => (b.lenta + b.rapida) - (a.lenta + a.rapida));
 
+  // Formatar Ranking Não Padrão (Garantir que usamos o nome da unidade se disponível)
+  const rankingNaoPadrao = Array.from(stats.farmaciaMap.entries())
+    .map(([cd, qtd]) => ({
+      unidade: unidadesMap.get(cd) || `Unidade ${cd}`,
+      qtd
+    }))
+    .sort((a, b) => b.qtd - a.qtd);
+
   return {
     totalMedicacoes: stats.total,
     infusao: {
@@ -122,6 +133,7 @@ export function buildMedicacaoPsDashboard(
     vias: viasFinal,
     topLenta: formatTop(stats.topLentaMap),
     topRapida: formatTop(stats.topRapidaMap),
-    porUnidade
+    porUnidade,
+    rankingNaoPadrao
   };
 }

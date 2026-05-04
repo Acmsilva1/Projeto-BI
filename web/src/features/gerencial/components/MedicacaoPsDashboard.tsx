@@ -325,6 +325,45 @@ export function MedicacaoPsDashboard(props: MedicacaoPsDashboardProps): ReactEle
             </ResponsiveContainer>
           </div>
         </article>
+
+        {/* Gráfico 5: Ranking Não Padrão (Vertical Column) */}
+        <article className="internacao-var-card">
+          <h3 className="internacao-var-title mb-8 text-center">Utilização de Medicações Não Padrão por Unidade ({data.rankingNaoPadrao.length})</h3>
+          <div className="internacao-var-chart-tall mt-4" style={{ height: '350px' }}>
+            {data.rankingNaoPadrao.length === 0 ? (
+              <div className="flex h-full items-center justify-center text-sm font-medium text-slate-400 italic">
+                Nenhum dado não padrão no período
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={data.rankingNaoPadrao}
+                  margin={{ top: 20, right: 30, left: 20, bottom: 70 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                  <XAxis 
+                    dataKey="unidade" 
+                    fontSize={10} 
+                    fontWeight={700}
+                    interval={0}
+                    angle={-45}
+                    textAnchor="end"
+                    height={80}
+                    tick={{ fill: "#475569" }}
+                  />
+                  <YAxis hide />
+                  <Tooltip 
+                    cursor={{ fill: 'rgba(0,0,0,0.05)' }}
+                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                  />
+                  <Bar dataKey="qtd" fill="#ef4444" radius={[4, 4, 0, 0]} barSize={40}>
+                    <LabelList dataKey="qtd" position="top" fontSize={12} fontWeight={800} fill="#ef4444" offset={10} />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        </article>
       </div>
     </motion.section>
   );

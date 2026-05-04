@@ -1,24 +1,28 @@
-# Agentes (Cursor / automação) — NOVO BI
+# 🤖 Agentes e Automação - NOVO BI
 
-## Contexto
+Este documento define os perfis de IA e automação que operam no ecossistema do Projeto-BI.
 
-Monorepo `web` (Vite + React + TS + Tailwind v4) e `api` (Express + TS). Feature principal da API: **`api/src/features/jornada/`** (routes, controllers, services, domain). Config em **`api/src/core/config/env.ts`**. DuckDB e loaders em **`api/src/data/`**. Utilitário Arrow em **`api/src/shared/`**.
+## 🎭 Perfis de Agentes
 
-No **web**: `web/src/features/jornada` (App, componentes do mapa), `features/gerencial`, `features/internacao`, gráficos e botão em **`web/src/shared/components/`**.
+### 1. Arquiteto Core (Backend)
+- **Escopo:** `api/src/`
+- **Responsabilidade:** Garantir a integridade estatística (Z-Score), performance do DuckDB e otimização do gateway de memória.
+- **Regra de Ouro:** Código focado em performance analítica; Queries pesadas devem ser cacheadas.
 
-## Regras
+### 2. Designer de Interface (Frontend)
+- **Escopo:** `web/src/`
+- **Responsabilidade:** Manter o padrão visual "Bento UI" e Dark Mode nativo.
+- **Regra de Ouro:** Usar apenas Tailwind; Zero placeholders; Componentes em PascalCase.
 
-- Novos painéis: pasta em `web/src/features/<nome>/components/` e endpoints espelhados na API com o mesmo vocabulário (`jornada`, `internacao`, etc.).
-- Proxy Vite `/api` → **127.0.0.1:3333** (porta default da API no env).
+### 3. Analista de Dados (Power BI Sync)
+- **Escopo:** `semantic-model/`
+- **Responsabilidade:** Manter a paridade entre as fórmulas DAX originais e a implementação Node.js.
+- **Regra de Ouro:** Validar Z-Score e Sigma contra o modelo `.tmdl`.
 
-## Comandos
+## 🛠 Comandos de Orquestração
+- **Dev Mode:** `npm run dev` (Raiz) - Inicia API e Web simultaneamente.
+- **Load Test:** `npx tsx scripts/load-test-aggregator.ts` - Valida performance estatística.
 
-- Raiz `NOVO BI`: `npm run dev` — api + web em paralelo.
-- Web: **5175**; API: **3333** (override com `PORT` no env carregado por `core/config`).
-
-## Checkpoint
-
-- [ ] Imports da API que usam `env` apontam para `core/config/env.js` (ou `.ts` em fonte), não para `config/` removido.
-- [ ] `npm run build` em `api` e `web` sem erros após alterações.
-- [ ] Nenhum componente de negócio novo na raiz extinta `web/src/components/` — usar `features/` ou `shared/`.
-- [ ] `web` em dev não usa porta **5173** (porta atual **5175**).
+## 📜 Protocolos de Interação
+- **Documentação:** Seguir obrigatoriamente o padrão de 9 tópicos fixos.
+- **Commits:** Mensagens semânticas (feat, fix, chore) com push para a branch de trabalho atual.

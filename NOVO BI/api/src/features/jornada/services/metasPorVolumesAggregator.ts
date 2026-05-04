@@ -260,6 +260,18 @@ function distinct<T>(arr: T[]): T[] {
   return [...new Set(arr)];
 }
 
+/** Coeficiente estatístico oculto (Sigma) alinhado ao Power BI */
+const Z_SCORE_THRESHOLD = 1.5;
+
+function calculateStats(values: number[]): { mean: number; stdev: number } | null {
+  const n = values.length;
+  if (n < 2) return null;
+  const mean = values.reduce((a, b) => a + b, 0) / n;
+  const variance = values.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / (n - 1);
+  const stdev = Math.sqrt(variance);
+  return { mean, stdev };
+}
+
 export function toneForRatio(actual: number | null, target: number, direction: "<" | ">"): "ok" | "warn" | "bad" | "empty" {
   if (actual === null || !Number.isFinite(actual)) return "empty";
   const ratio = direction === "<" ? actual / target : target === 0 ? 1 : actual / target;
@@ -668,12 +680,13 @@ function ytdStartMs(lastMonth: MonthAgg): number {
 
 function computeYtd(
   key: string,
-  ctx: Omit<Parameters<typeof computeIndicator>[1], "m">,
+  ctx: Omit<Parameters<typeof computeIndicator>[1], "m"> & { getCachedIndicator?: (key: string, m: MonthAgg) => number | null },
   lastMonth: MonthAgg
 ): number | null {
   const start = ytdStartMs(lastMonth);
   const end = ytdEndMs(lastMonth);
   const synthetic: MonthAgg = { startMs: start, endMs: end, yearMonth: lastMonth.yearMonth, label: "YTD" };
+  if (ctx.getCachedIndicator) return ctx.getCachedIndicator(key, synthetic);
   return computeIndicator(key, { ...ctx, m: synthetic });
 }
 
@@ -702,14 +715,14 @@ function januaryYearMonth(yearMonth: number): number {
 
 function computeYtdDiffFromJanuary(
   key: string,
-  ctx: Omit<Parameters<typeof computeIndicator>[1], "m">,
+  ctx: Omit<Parameters<typeof computeIndicator>[1], "m"> & { getCachedIndicator?: (key: string, m: MonthAgg) => number | null },
   anchorMonth: MonthAgg,
   currentValue: number | null
 ): number | null {
   if (currentValue === null || !Number.isFinite(currentValue)) return null;
   const janAgg = monthAggFromYearMonth(januaryYearMonth(anchorMonth.yearMonth));
   if (!janAgg) return null;
-  const janValue = computeIndicator(key, { ...ctx, m: janAgg });
+  const janValue = ctx.getCachedIndicator ? ctx.getCachedIndicator(key, janAgg) : computeIndicator(key, { ...ctx, m: janAgg });
   if (janValue === null || !Number.isFinite(janValue)) return null;
   return currentValue - janValue;
 }
@@ -741,6 +754,8 @@ export type MetasPorVolumesMonthCell = {
   denominator: number | null;
   deltaVsPrev: number | null;
   tone: "ok" | "warn" | "bad" | "empty";
+  zScore: number | null;
+  isOutlier: boolean;
 };
 
 export type MetasPorVolumesIndicatorRow = {
@@ -803,13 +818,24 @@ export function buildMetasPorVolumesMatrix(input: MetasPorVolumesInput): {
   const availableMonthsMeta = resolved.availableMonths.map((m) => ({ yearMonth: m.yearMonth, label: m.label }));
   const monthsMeta = resolved.analysisMonths.map((m) => ({ yearMonth: m.yearMonth, label: m.label }));
   const ctxBase = { flux, med, lab, tc, reav, vias, cds: unidadesCds };
+
+  // --- CACHE DE INDICADORES (Otimização Z-Score) ---
+  const indicatorCache = new Map<string, number | null>();
+  const getCachedIndicator = (key: string, m: MonthAgg) => {
+    const cacheKey = `${key}|${m.yearMonth}|${m.startMs}|${m.endMs}`;
+    if (indicatorCache.has(cacheKey)) return indicatorCache.get(cacheKey)!;
+    const val = computeIndicator(key, { ...ctxBase, m });
+    indicatorCache.set(cacheKey, val);
+    return val;
+  };
+
   const lastIdx = resolved.analysisMonths.length - 1;
   const totalAnchorMonth =
     (selectedYearMonth ? monthAggFromYearMonth(selectedYearMonth) : null) ?? resolved.analysisMonths[lastIdx]!;
   const prevMonthAgg = monthAggFromYearMonth(previousYearMonth(totalAnchorMonth.yearMonth));
 
   const indicators: MetasPorVolumesIndicatorRow[] = VOLUME_META_DEFINITIONS.map((def) => {
-    const values: (number | null)[] = resolved.analysisMonths.map((m) => computeIndicator(def.key, { ...ctxBase, m }));
+    const values: (number | null)[] = resolved.analysisMonths.map((m) => getCachedIndicator(def.key, m));
     const monthCells: MetasPorVolumesMonthCell[] = resolved.analysisMonths.map((m, idx) => {
       const value = values[idx] ?? null;
       const counts = indicatorCellCounts(def.key, { ...ctxBase, m });
@@ -819,11 +845,11 @@ export function buildMetasPorVolumesMatrix(input: MetasPorVolumesInput): {
           ? (() => {
               if (!selectedYearMonth) {
                 const prevAgg = monthAggFromYearMonth(previousYearMonth(m.yearMonth));
-                return prevAgg ? computeIndicator(def.key, { ...ctxBase, m: prevAgg }) : null;
+                return prevAgg ? getCachedIndicator(def.key, prevAgg) : null;
               }
               if (m.label === weekSliceLabel("W1")) {
                 const prevWeekAgg = resolveWeekSliceAgg(previousYearMonth(m.yearMonth), "W4");
-                return prevWeekAgg ? computeIndicator(def.key, { ...ctxBase, m: prevWeekAgg }) : null;
+                return prevWeekAgg ? getCachedIndicator(def.key, prevWeekAgg) : null;
               }
               return null;
             })()
@@ -831,7 +857,34 @@ export function buildMetasPorVolumesMatrix(input: MetasPorVolumesInput): {
       const prev = prevFromVisible ?? prevFromHiddenMonth;
       const deltaVsPrev =
         value !== null && prev !== null && Number.isFinite(value) && Number.isFinite(prev) ? value - prev : null;
+      
+      // --- LÓGICA Z-SCORE (Histórico de 12 Deltas com Cache) ---
+      let zScore: number | null = null;
+      if (deltaVsPrev !== null) {
+        const historyDeltas: number[] = [];
+        let cursorYm = m.yearMonth;
+        for (let i = 0; i < 12; i++) {
+          const mRef = monthAggFromYearMonth(previousYearMonth(cursorYm));
+          if (!mRef) break;
+          const vRef = getCachedIndicator(def.key, mRef);
+          const mPrevRef = monthAggFromYearMonth(previousYearMonth(mRef.yearMonth));
+          const vPrevRef = mPrevRef ? getCachedIndicator(def.key, mPrevRef) : null;
+          
+          if (vRef !== null && vPrevRef !== null) {
+            historyDeltas.push(vRef - vPrevRef);
+          }
+          cursorYm = mRef.yearMonth;
+        }
+        
+        const stats = calculateStats(historyDeltas);
+        if (stats && stats.stdev !== 0) {
+          zScore = (deltaVsPrev - stats.mean) / stats.stdev;
+        }
+      }
+
+      const isOutlier = zScore !== null && Math.abs(zScore) > Z_SCORE_THRESHOLD;
       const tone = toneForRatio(value, def.targetValue, def.direction);
+
       return {
         yearMonth: m.yearMonth,
         label: m.label,
@@ -839,15 +892,17 @@ export function buildMetasPorVolumesMatrix(input: MetasPorVolumesInput): {
         numerator: counts.numerator,
         denominator: counts.denominator,
         deltaVsPrev,
-        tone
+        tone,
+        zScore,
+        isOutlier
       };
     });
 
     const mLast = resolved.analysisMonths[lastIdx]!;
-    const vLast = computeIndicator(def.key, { ...ctxBase, m: totalAnchorMonth });
-    const vPrev = prevMonthAgg ? computeIndicator(def.key, { ...ctxBase, m: prevMonthAgg }) : null;
+    const vLast = getCachedIndicator(def.key, totalAnchorMonth);
+    const vPrev = prevMonthAgg ? getCachedIndicator(def.key, prevMonthAgg) : null;
     const variance = vLast !== null && vPrev !== null ? vLast - vPrev : null;
-    const ytd = computeYtdDiffFromJanuary(def.key, ctxBase, totalAnchorMonth, vLast);
+    const ytd = computeYtdDiffFromJanuary(def.key, { ...ctxBase, getCachedIndicator }, totalAnchorMonth, vLast);
 
     return {
       key: def.key,
@@ -908,7 +963,18 @@ export function buildMetasPorVolumesDrill(
         vias: input.vias,
         cds
       };
-      const values = resolved.analysisMonths.map((m) => computeIndicator(def.key, { ...ctxBase, m }));
+
+      // --- CACHE DE INDICADORES (Drill Unidade) ---
+      const unitIndicatorCache = new Map<string, number | null>();
+      const getUnitCachedIndicator = (key: string, m: MonthAgg) => {
+        const cacheKey = `${key}|${m.yearMonth}|${m.startMs}|${m.endMs}`;
+        if (unitIndicatorCache.has(cacheKey)) return unitIndicatorCache.get(cacheKey)!;
+        const val = computeIndicator(key, { ...ctxBase, m });
+        unitIndicatorCache.set(cacheKey, val);
+        return val;
+      };
+
+      const values = resolved.analysisMonths.map((m) => getUnitCachedIndicator(def.key, m));
       const months: MetasPorVolumesMonthCell[] = resolved.analysisMonths.map((m, idx) => {
         const value = values[idx] ?? null;
         const counts = indicatorCellCounts(def.key, { ...ctxBase, m });
@@ -918,11 +984,11 @@ export function buildMetasPorVolumesDrill(
             ? (() => {
                 if (!input.selectedYearMonth) {
                   const prevAgg = monthAggFromYearMonth(previousYearMonth(m.yearMonth));
-                  return prevAgg ? computeIndicator(def.key, { ...ctxBase, m: prevAgg }) : null;
+                  return prevAgg ? getUnitCachedIndicator(def.key, prevAgg) : null;
                 }
                 if (m.label === weekSliceLabel("W1")) {
                   const prevWeekAgg = resolveWeekSliceAgg(previousYearMonth(m.yearMonth), "W4");
-                  return prevWeekAgg ? computeIndicator(def.key, { ...ctxBase, m: prevWeekAgg }) : null;
+                  return prevWeekAgg ? getUnitCachedIndicator(def.key, prevWeekAgg) : null;
                 }
                 return null;
               })()
@@ -930,7 +996,32 @@ export function buildMetasPorVolumesDrill(
         const prev = prevFromVisible ?? prevFromHiddenMonth;
         const deltaVsPrev =
           value !== null && prev !== null && Number.isFinite(value) && Number.isFinite(prev) ? value - prev : null;
+        
+        // --- LÓGICA Z-SCORE (Drill Unidade) ---
+        let zScore: number | null = null;
+        if (deltaVsPrev !== null) {
+          const historyDeltas: number[] = [];
+          let cursorYm = m.yearMonth;
+          for (let i = 0; i < 12; i++) {
+            const mRef = monthAggFromYearMonth(previousYearMonth(cursorYm));
+            if (!mRef) break;
+            const vRef = getUnitCachedIndicator(def.key, mRef);
+            const mPrevRef = monthAggFromYearMonth(previousYearMonth(mRef.yearMonth));
+            const vPrevRef = mPrevRef ? getUnitCachedIndicator(def.key, mPrevRef) : null;
+            if (vRef !== null && vPrevRef !== null) {
+              historyDeltas.push(vRef - vPrevRef);
+            }
+            cursorYm = mRef.yearMonth;
+          }
+          const stats = calculateStats(historyDeltas);
+          if (stats && stats.stdev !== 0) {
+            zScore = (deltaVsPrev - stats.mean) / stats.stdev;
+          }
+        }
+
+        const isOutlier = zScore !== null && Math.abs(zScore) > Z_SCORE_THRESHOLD;
         const tone = toneForRatio(value, def.targetValue, def.direction);
+
         return {
           yearMonth: m.yearMonth,
           label: m.label,
@@ -938,12 +1029,13 @@ export function buildMetasPorVolumesDrill(
           numerator: counts.numerator,
           denominator: counts.denominator,
           deltaVsPrev,
-          tone
+          tone,
+          zScore,
+          isOutlier
         };
       });
-      const totalValue = computeIndicator(def.key, { ...ctxBase, m: totalAnchorMonth });
-      const ytd = computeYtdDiffFromJanuary(def.key, ctxBase, totalAnchorMonth, totalValue);
+        const totalValue = getUnitCachedIndicator(def.key, totalAnchorMonth);
+        const ytd = computeYtdDiffFromJanuary(def.key, { ...ctxBase, getCachedIndicator: getUnitCachedIndicator }, totalAnchorMonth, totalValue);
       return { cd: u.cd, unidade: u.unidade, months, ytd };
     });
 }
-

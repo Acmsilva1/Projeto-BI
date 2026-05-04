@@ -1,0 +1,47 @@
+table 'Dim Indicadores Volume'
+	lineageTag: 751e292a-2a18-4a3b-9bcd-c8b3d5fb01e7
+
+	column Indicador
+		lineageTag: 58d7eb31-9db8-40ed-9c3c-2be47f531cc3
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: [Indicador]
+		sortByColumn: Ordem
+
+		annotation SummarizationSetBy = Automatic
+
+	column Ordem
+		formatString: 0
+		lineageTag: 197d89fb-668a-4dfd-a34d-f5aa74cf6595
+		summarizeBy: sum
+		isNameInferred
+		sourceColumn: [Ordem]
+
+		annotation SummarizationSetBy = Automatic
+
+	partition 'Dim Indicadores Volume' = calculated
+		mode: import
+		source =
+				
+				DATATABLE(
+				    "Indicador", STRING,
+				    "Ordem", INTEGER,
+				    {
+				        {"Conversão", 1},
+				        {"Pacs medicados", 2},
+				        {"Medicações por paciente", 3},
+				        {"Pacs c/ exames laboratoriais", 4},
+				        {"Laboratório por paciente", 5},
+				        {"Pacs c/ exames de TC", 6},
+				        {"TCs por paciente", 7},
+				        {"Triagem acima da meta", 8},
+				        {"Consulta acima da meta", 9},
+				        {"Medicação acima da meta", 10},
+				        {"Reavaliação acima da meta", 11},
+				        {"Permanência acima da meta", 12},
+				        {"Desfecho do médico do atend.", 13}
+				    }
+				)
+
+	annotation PBI_Id = 3a6ed855df0e4ba5ad4ea8f707b4ab7b
+

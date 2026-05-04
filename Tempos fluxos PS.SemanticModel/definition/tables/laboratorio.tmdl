@@ -1,0 +1,123 @@
+table laboratorio
+	lineageTag: 15655b09-83d6-4470-8123-9261f75bbe52
+
+	column CD_ESTABELECIMENTO
+		dataType: int64
+		formatString: 0
+		lineageTag: 4a9c53b2-63f4-4868-9970-8ce0e69cfb15
+		summarizeBy: sum
+		sourceColumn: CD_ESTABELECIMENTO
+
+		annotation SummarizationSetBy = Automatic
+
+	column UNIDADE
+		dataType: string
+		lineageTag: 5ca0ed6b-d7d1-4f1c-b052-a0eb94cc8c2f
+		summarizeBy: none
+		sourceColumn: UNIDADE
+
+		annotation SummarizationSetBy = Automatic
+
+	column NR_ATENDIMENTO
+		dataType: int64
+		formatString: 0
+		lineageTag: 1bbb7648-437f-40b0-a17b-203fca47cb87
+		summarizeBy: none
+		sourceColumn: NR_ATENDIMENTO
+
+		annotation SummarizationSetBy = Automatic
+
+	column PACIENTE
+		dataType: string
+		lineageTag: 8c059a33-5461-48dd-b3e5-cea22f1dee1e
+		summarizeBy: none
+		sourceColumn: PACIENTE
+
+		annotation SummarizationSetBy = Automatic
+
+	column DS_PROC_EXAME
+		dataType: string
+		lineageTag: 0a1a22eb-cea7-4ce8-a66b-b88e82c4a72b
+		summarizeBy: none
+		sourceColumn: DS_PROC_EXAME
+
+		annotation SummarizationSetBy = Automatic
+
+	column DT_SOLICITACAO
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: b8bdda9e-4b4c-4c6c-9aca-786f41819ce6
+		summarizeBy: none
+		sourceColumn: DT_SOLICITACAO
+
+		variation Variation
+			isDefault
+			relationship: 77663b91-7e3b-4296-9e78-88967d167b45
+			defaultHierarchy: LocalDateTable_c2d18390-e8d6-4047-bd71-683cdbafc988.'Hierarquia de datas'
+
+		annotation SummarizationSetBy = Automatic
+
+	column DT_EXAME
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: 58ca0778-c151-4ec0-96f1-d096c7ebd9db
+		summarizeBy: none
+		sourceColumn: DT_EXAME
+
+		variation Variation
+			isDefault
+			relationship: 327184f2-532d-450a-a9fc-d35d628c957f
+			defaultHierarchy: LocalDateTable_e6dc309e-57a6-4075-8811-302124e3ce44.'Hierarquia de datas'
+
+		annotation SummarizationSetBy = Automatic
+
+	column MEDICO
+		dataType: string
+		lineageTag: 0b048900-b3a9-4fcc-9e5a-0f32f88dda44
+		summarizeBy: none
+		sourceColumn: MEDICO
+
+		annotation SummarizationSetBy = Automatic
+
+	column DATA
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: 3148d4d7-6bc6-447e-aee7-2d5093c5ee31
+		summarizeBy: none
+		sourceColumn: DATA
+
+		variation Variation
+			isDefault
+			relationship: c2f1592e-5240-4a15-87c7-91b2429be589
+			defaultHierarchy: LocalDateTable_1fedebc9-1ae8-463d-b644-8a0ece2d419b.'Hierarquia de datas'
+
+		annotation SummarizationSetBy = Automatic
+
+	column DT_ENTRADA
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: 6f07690f-c25e-42cc-9c1e-63e7328866dc
+		summarizeBy: none
+		sourceColumn: DT_ENTRADA
+
+		variation Variation
+			isDefault
+			relationship: 5b44f1f2-8844-4a9a-b7a7-25a46c3fad60
+			defaultHierarchy: LocalDateTable_2ee95e3e-3908-4c41-a7fa-3384a06a390a.'Hierarquia de datas'
+
+		annotation SummarizationSetBy = Automatic
+
+	partition laboratorio = m
+		mode: import
+		source =
+				let
+				    Fonte = PostgreSQL.Database("10.250.50.151:6433", "db"),
+				    cmc_hospital_tbl_tempos_laboratorio = Fonte{[Schema="cmc_hospital",Item="tbl_tempos_laboratorio"]}[Data],
+				    #"Tipo Alterado" = Table.TransformColumnTypes(#"cmc_hospital_tbl_tempos_laboratorio",{{"CD_ESTABELECIMENTO", Int64.Type}, {"UNIDADE", type text}, {"NR_ATENDIMENTO", Int64.Type}, {"PACIENTE", type text}, {"DS_PROC_EXAME", type text}, {"DT_SOLICITACAO", type datetime}, {"DT_EXAME", type datetime}})
+				in
+				    #"Tipo Alterado"
+
+	annotation PBI_NavigationStepName = Navegação
+
+	annotation PBI_ResultType = Table
+

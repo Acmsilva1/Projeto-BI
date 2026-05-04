@@ -1,0 +1,98 @@
+table EixoMes
+	lineageTag: 2e97bc5f-97a9-4bd8-9af1-068c2e31ab5e
+
+	column InicioMes
+		formatString: Short Date
+		lineageTag: 46f9e64f-4b5e-4678-8f57-8bd0b5e0bfb4
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: [InicioMes]
+		sortByColumn: AnoMesSort
+
+		variation Variation
+			isDefault
+			relationship: 5b466bee-497c-49d0-baa7-83e92bc5cc85
+			defaultHierarchy: LocalDateTable_45ee5a9c-1fb0-41e4-82fd-d73ff3b8be5c.'Hierarquia de datas'
+
+		annotation SummarizationSetBy = Automatic
+
+	column Ano
+		formatString: 0
+		lineageTag: c272a969-2e97-4189-8cd1-e34fad1cc4e4
+		summarizeBy: sum
+		isNameInferred
+		sourceColumn: [Ano]
+
+		annotation SummarizationSetBy = Automatic
+
+	column MesNum
+		formatString: 0
+		lineageTag: 0b9a7704-2198-415d-9466-232bdcf30e1f
+		summarizeBy: sum
+		isNameInferred
+		sourceColumn: [MesNum]
+
+		annotation SummarizationSetBy = Automatic
+
+	column MesNome
+		lineageTag: d320eb99-0b95-45b5-945b-c2d523b6666f
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: [MesNome]
+		sortByColumn: MesNum
+
+		annotation SummarizationSetBy = Automatic
+
+	column AnoMesSort
+		formatString: 0
+		lineageTag: 35f6003c-a0ab-48a5-b00e-e694e43d4f30
+		summarizeBy: sum
+		isNameInferred
+		sourceColumn: [AnoMesSort]
+
+		annotation SummarizationSetBy = Automatic
+
+	column Value
+		formatString: 0
+		lineageTag: 460ef7ae-e417-4a21-b400-f0310f74ee86
+		summarizeBy: sum
+		isNameInferred
+		sourceColumn: [Value]
+
+		annotation SummarizationSetBy = Automatic
+
+	column MesAno = FORMAT ( 'EixoMes'[InicioMes], "[$-pt-BR]mmm/yy" )
+		lineageTag: 1393b53c-eb17-4c86-8896-7517a646e206
+		summarizeBy: none
+		sortByColumn: AnoMesSort
+
+		annotation SummarizationSetBy = Automatic
+
+	partition EixoMes = calculated
+		mode: import
+		source = ```
+				
+				VAR MinData =
+				    CALCULATE ( MIN ( 'Calendario'[Data] ), ALL ( 'Calendario' ) )
+				VAR MaxData =
+				    CALCULATE ( MAX ( 'Calendario'[Data] ), ALL ( 'Calendario' ) )
+				VAR MinMes =
+				    DATE ( YEAR ( MinData ), MONTH ( MinData ), 1 )
+				VAR MaxMes =
+				    DATE ( YEAR ( MaxData ), MONTH ( MaxData ), 1 )
+				VAR QtdeMeses =
+				    DATEDIFF ( MinMes, MaxMes, MONTH )
+				RETURN
+				ADDCOLUMNS (
+				    GENERATESERIES ( 0, QtdeMeses, 1 ),
+				    "InicioMes", EDATE ( MinMes, [Value] ),
+				    "Ano", YEAR ( EDATE ( MinMes, [Value] ) ),
+				    "MesNum", MONTH ( EDATE ( MinMes, [Value] ) ),
+				    "MesNome", FORMAT ( EDATE ( MinMes, [Value] ), "mmmm" ),
+				    "AnoMesSort", YEAR ( EDATE ( MinMes, [Value] ) ) * 100 + MONTH ( EDATE ( MinMes, [Value] ) )
+				)
+				
+				```
+
+	annotation PBI_Id = b1a5d66e2d304a3a8e74f39a4570633d
+

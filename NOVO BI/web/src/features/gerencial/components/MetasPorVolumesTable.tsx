@@ -184,6 +184,8 @@ export function MetasPorVolumesTable(props: MetasPorVolumesTableProps): ReactEle
   });
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [drillByKey, setDrillByKey] = useState<Record<string, DrillRow[] | "loading" | "error">>({});
+  const drillByKeyRef = useRef(drillByKey);
+  drillByKeyRef.current = drillByKey;
 
   /** Refetch só com unidade (master) ou mês civil deste bloco; regional/período do master não disparam nova carga. */
   const loadMatrix = useCallback(() => {
@@ -265,7 +267,12 @@ export function MetasPorVolumesTable(props: MetasPorVolumesTableProps): ReactEle
 
   const fetchDrill = useCallback(
     (key: string) => {
-      setDrillByKey((prev) => ({ ...prev, [key]: "loading" }));
+      if (Array.isArray(drillByKeyRef.current[key])) return;
+      setDrillByKey((prev) => {
+        if (Array.isArray(prev[key])) return prev;
+        if (prev[key] === "loading") return prev;
+        return { ...prev, [key]: "loading" };
+      });
       const regionalParam = unidadeAll ? undefined : regional === "ALL" ? undefined : regional;
       const unidadeParam = unidadeAll ? undefined : unidade;
       fetchDashboardJson("gerencial-metas-por-volumes-drill", {
@@ -283,14 +290,72 @@ export function MetasPorVolumesTable(props: MetasPorVolumesTableProps): ReactEle
             months: r.months as MonthCell[],
             ytd: r.ytd === null || r.ytd === undefined ? null : Number(r.ytd)
           }));
-          setDrillByKey((prev) => ({ ...prev, [key]: drill }));
+          setDrillByKey((prev) => {
+            if (Array.isArray(prev[key])) return prev;
+            return { ...prev, [key]: drill };
+          });
         })
         .catch(() => {
-          setDrillByKey((prev) => ({ ...prev, [key]: "error" }));
+          setDrillByKey((prev) => {
+            if (Array.isArray(prev[key])) return prev;
+            return { ...prev, [key]: "error" };
+          });
         });
     },
     [unidade, selectedMonth] // eslint-disable-line react-hooks/exhaustive-deps -- alinhado à matriz
   );
+
+  /**
+   * Pré-carrega drills na ordem dos indicadores (1º → último), um pedido de cada vez.
+   * Alinha-se a apresentação indicador a indicador: ao chegar ao N, os anteriores já tendem a estar prontos.
+   */
+  useEffect(() => {
+    if (state.status !== "ready" || state.matrix.months.length === 0) return;
+    const keys = state.matrix.indicators.map((ind) => ind.key);
+    let cancelled = false;
+    const regionalParam = unidadeAll ? undefined : regional === "ALL" ? undefined : regional;
+    const unidadeParam = unidadeAll ? undefined : unidade;
+
+    const applyPayload = (key: string, payload: Awaited<ReturnType<typeof fetchDashboardJson>>): void => {
+      const rows = payload.rows as Record<string, unknown>[];
+      const drill: DrillRow[] = rows.map((r) => ({
+        cd: Number(r.cd ?? 0),
+        unidade: String(r.unidade ?? ""),
+        months: r.months as MonthCell[],
+        ytd: r.ytd === null || r.ytd === undefined ? null : Number(r.ytd)
+      }));
+      setDrillByKey((prev) => {
+        if (Array.isArray(prev[key])) return prev;
+        if (prev[key] === "error") return prev;
+        if (prev[key] === "loading") return { ...prev, [key]: drill };
+        return { ...prev, [key]: drill };
+      });
+    };
+
+    const loadSequential = async (): Promise<void> => {
+      for (const key of keys) {
+        if (cancelled) return;
+        try {
+          const payload = await fetchDashboardJson("gerencial-metas-por-volumes-drill", {
+            indicador: key,
+            mes: selectedMonth === "ALL" ? undefined : toYearMonthParam(selectedMonth),
+            period,
+            regional: regionalParam,
+            unidade: unidadeParam
+          });
+          if (cancelled) return;
+          applyPayload(key, payload);
+        } catch {
+          /* utilizador pode repetir com fetchDrill */
+        }
+      }
+    };
+
+    void loadSequential();
+    return () => {
+      cancelled = true;
+    };
+  }, [state.status, state.matrix, selectedMonth, unidade, unidadeAll, regional, period]);
 
   const toggleDrill = (key: string): void => {
     setExpanded((prev) => {

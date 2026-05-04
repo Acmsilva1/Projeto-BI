@@ -1,0 +1,110 @@
+table 'Resumo Gerencial Cache Mês Unidade'
+	lineageTag: 71f740d2-54aa-4643-94b6-83cc147a3d27
+
+	column 'Ano Mes Num'
+		formatString: 0
+		lineageTag: 2de69cff-9da8-44dc-84a3-4bb6ae460b1c
+		summarizeBy: sum
+		isNameInferred
+		sourceColumn: Calendario[Ano Mes Num]
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Mes e Ano'
+		lineageTag: 5253e7d1-843a-49ee-b956-916c4abeb006
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: Calendario[Mes e Ano]
+
+		annotation SummarizationSetBy = Automatic
+
+	column Indicador
+		lineageTag: eebfdbf3-d56a-4ffa-a860-4939585ef347
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: Dim Indicadores Volume[Indicador]
+
+		annotation SummarizationSetBy = Automatic
+
+	column UNIDADE
+		lineageTag: 4dc893b9-8988-44c9-8c07-42c35bffed96
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: [UNIDADE]
+
+		annotation SummarizationSetBy = Automatic
+
+	column Valor
+		formatString: 0.0
+		lineageTag: fb131c0e-55ce-4198-a028-95b5e8f392dd
+		summarizeBy: sum
+		isNameInferred
+		sourceColumn: [Valor]
+
+		annotation SummarizationSetBy = Automatic
+
+	partition 'Resumo Gerencial Cache Mês Unidade' = calculated
+		mode: import
+		source = ```
+				
+				VAR DataRef =
+				    CALCULATE ( MAX ( fluxo[DT_ENTRADA] ), ALL ( fluxo ) )
+				VAR DataInicio =
+				    DATE ( YEAR ( EDATE ( DataRef, -24 ) ), MONTH ( EDATE ( DataRef, -24 ) ), 1 )
+				VAR Meses =
+				    SUMMARIZE (
+				        FILTER (
+				            ALL ( 'Calendario' ),
+				            'Calendario'[Data] >= DataInicio
+				                && 'Calendario'[Data] <= DataRef
+				        ),
+				        'Calendario'[Ano Mes Num],
+				        'Calendario'[Mes e Ano]
+				    )
+				VAR Indicadores =
+				    FILTER (
+				        VALUES ( 'Dim Indicadores Volume'[Indicador] ),
+				        NOT ISBLANK ( 'Dim Indicadores Volume'[Indicador] )
+				    )
+				VAR Unidades =
+				    UNION (
+				        ROW ( "UNIDADE", "__TOTAL__" ),
+				        DISTINCT (
+				            SELECTCOLUMNS (
+				                FILTER ( ALL ( fluxo ), NOT ISBLANK ( fluxo[UNIDADE] ) ),
+				                "UNIDADE", fluxo[UNIDADE]
+				            )
+				        )
+				    )
+				RETURN
+				    FILTER (
+				        ADDCOLUMNS (
+				            CROSSJOIN ( Meses, Indicadores, Unidades ),
+				            "Valor",
+				                VAR _Ym = [Ano Mes Num]
+				                VAR _Ind = [Indicador]
+				                VAR _Un = [UNIDADE]
+				                RETURN
+				                    IF (
+				                        _Un = "__TOTAL__",
+				                        CALCULATE (
+				                            [Valor Indicador Volume],
+				                            TREATAS ( { _Ind }, 'Dim Indicadores Volume'[Indicador] ),
+				                            TREATAS ( { _Ym }, 'Calendario'[Ano Mes Num] ),
+				                            REMOVEFILTERS ( fluxo[UNIDADE] )
+				                        ),
+				                        CALCULATE (
+				                            [Valor Indicador Volume],
+				                            TREATAS ( { _Ind }, 'Dim Indicadores Volume'[Indicador] ),
+				                            TREATAS ( { _Ym }, 'Calendario'[Ano Mes Num] ),
+				                            TREATAS ( { _Un }, fluxo[UNIDADE] )
+				                        )
+				                    )
+				        ),
+				        NOT ISBLANK ( [Valor] )
+				    )
+				
+				```
+
+	annotation PBI_Id = 9a9f10decf544d41a6e946e1dd9d6810
+

@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import duckdb from "duckdb";
+import { env } from "../../core/config/env.js";
 
 export type ResolvedTable = { fullPath: string; kind: "parquet" | "csv" };
 
@@ -67,7 +68,59 @@ function buildFromClause(resolved: ResolvedTable): string {
   if (resolved.kind === "parquet") {
     return `read_parquet('${esc}')`;
   }
-  return `read_csv_auto('${esc}', HEADER=true, ALL_VARCHAR=true, SAMPLE_SIZE=-1, IGNORE_ERRORS=true)`;
+  const sample = env.csvReadSampleSize;
+  const sampleArg = sample < 0 ? "SAMPLE_SIZE=-1" : `SAMPLE_SIZE=${sample}`;
+  return `read_csv_auto('${esc}', HEADER=true, ALL_VARCHAR=true, ${sampleArg}, IGNORE_ERRORS=true)`;
+}
+
+function closeConn(conn: duckdb.Connection): Promise<void> {
+  return new Promise((resolve, reject) => {
+    conn.close((err: Error | null | undefined) => {
+      if (err) reject(err);
+      else resolve();
+    });
+  });
+}
+
+/**
+ * Carrega várias tabelas em paralelo (várias conexões DuckDB no mesmo DB em memória).
+ * Reduz tempo de parede vs. um `await` por tabela em sequência.
+ */
+export async function loadDatasetBasesInParallel(
+  db: duckdb.Database,
+  dataDir: string,
+  bases: readonly string[],
+  concurrency: number
+): Promise<Record<string, string>[][]> {
+  const results: Record<string, string>[][] = new Array(bases.length);
+  let next = 0;
+
+  async function loadIndex(i: number): Promise<void> {
+    const base = bases[i]!;
+    const r = resolveDatasetTableByBase(dataDir, base);
+    if (!r) {
+      results[i] = [];
+      return;
+    }
+    const c = db.connect();
+    try {
+      results[i] = await loadFullTableAsStringRowsConn(c, r);
+    } finally {
+      await closeConn(c);
+    }
+  }
+
+  async function worker(): Promise<void> {
+    for (;;) {
+      const i = next++;
+      if (i >= bases.length) return;
+      await loadIndex(i);
+    }
+  }
+
+  const workers = Math.min(Math.max(1, concurrency), bases.length);
+  await Promise.all(Array.from({ length: workers }, () => worker()));
+  return results;
 }
 
 /** Carrega tabela completa como strings (uma query na conexão fornecida). */

@@ -15,7 +15,9 @@ async function bootstrap(): Promise<void> {
       console.error(`[data] DuckDB indisponivel, fallback para CSV-memory: ${message}`);
     }
   } else {
-    console.log("[data] CSV memory gateway pronto.");
+    console.log(
+      `[data] CSV memory gateway pronto (carga store: conc=${env.storeLoadConcurrency}, CSV_READ_SAMPLE_SIZE=${env.csvReadSampleSize}, GERENCIAL_STORE_RETENTION_DAYS=${env.gerencialStoreRetentionDays}).`
+    );
   }
 
   const prewarmStarted = Date.now();

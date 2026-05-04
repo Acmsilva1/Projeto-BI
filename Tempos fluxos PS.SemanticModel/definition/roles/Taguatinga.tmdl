@@ -1,0 +1,7 @@
+role Taguatinga
+	modelPermission: read
+
+	tablePermission fluxo = [CD_ESTABELECIMENTO] == 39
+
+	annotation PBI_Id = cf6b7b6be511469c84d93ed25a47c4cf
+

@@ -1,0 +1,179 @@
+table 'RG Cache Mes Unidade'
+	lineageTag: 91ae07e7-be30-40a1-bed9-7e4c1c763172
+
+	column AnoMesNum
+		formatString: 0
+		lineageTag: 91d96ce9-b601-4806-9dcb-45617c848565
+		summarizeBy: sum
+		isNameInferred
+		sourceColumn: [AnoMesNum]
+
+		annotation SummarizationSetBy = Automatic
+
+	column Indicador
+		lineageTag: 27d44444-014a-4c51-8a80-b1253f9dedaa
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: [Indicador]
+
+		annotation SummarizationSetBy = Automatic
+
+	column Unidade
+		lineageTag: 9b9e4c47-575f-463a-a039-c1241f33ad6d
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: [Unidade]
+
+		annotation SummarizationSetBy = Automatic
+
+	column Valor
+		lineageTag: 3b5a3077-6c5f-4f90-97ea-da6667745cf5
+		summarizeBy: sum
+		isNameInferred
+		sourceColumn: [Valor]
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column ValorAnterior
+		lineageTag: 15505246-2bed-41c7-b334-47191d601ae1
+		summarizeBy: sum
+		isNameInferred
+		sourceColumn: [ValorAnterior]
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column YTD
+		lineageTag: de8305b5-f22d-4edb-8c90-93dc647cef1e
+		summarizeBy: sum
+		isNameInferred
+		sourceColumn: [YTD]
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	partition 'RG Cache Mes Unidade' = calculated
+		mode: import
+		source = ```
+				
+				VAR DataRef =
+				    CALCULATE ( MAX ( fluxo[DT_ENTRADA] ), ALL ( fluxo ) )
+				VAR DataInicio =
+				    DATE ( YEAR ( EDATE ( DataRef, -24 ) ), MONTH ( EDATE ( DataRef, -24 ) ), 1 )
+				VAR Meses =
+				    SELECTCOLUMNS (
+				        SUMMARIZE (
+				            FILTER (
+				                ALL ( 'Calendario' ),
+				                'Calendario'[Data] >= DataInicio
+				                    && 'Calendario'[Data] <= DataRef
+				            ),
+				            'Calendario'[Ano Mes Num]
+				        ),
+				        "AnoMesNum", 'Calendario'[Ano Mes Num]
+				    )
+				VAR Indicadores =
+				    SELECTCOLUMNS (
+				        FILTER (
+				            VALUES ( 'Dim Indicadores Volume'[Indicador] ),
+				            NOT ISBLANK ( 'Dim Indicadores Volume'[Indicador] )
+				        ),
+				        "Indicador", 'Dim Indicadores Volume'[Indicador]
+				    )
+				VAR Unidades =
+				    UNION (
+				        ROW ( "Unidade", "__TOTAL__" ),
+				        SELECTCOLUMNS (
+				            FILTER ( VALUES ( fluxo[UNIDADE] ), NOT ISBLANK ( fluxo[UNIDADE] ) ),
+				            "Unidade", fluxo[UNIDADE]
+				        )
+				    )
+				VAR Base =
+				    FILTER (
+				        ADDCOLUMNS (
+				            CROSSJOIN ( Meses, Indicadores, Unidades ),
+				            "Valor",
+				                VAR _Ym = [AnoMesNum]
+				                VAR _Ind = [Indicador]
+				                VAR _Un = [Unidade]
+				                RETURN
+				                    IF (
+				                        _Un = "__TOTAL__",
+				                        CALCULATE (
+				                            [Valor Indicador Volume RG Base],
+				                            TREATAS ( { _Ind }, 'Dim Indicadores Volume'[Indicador] ),
+				                            TREATAS ( { _Ym }, 'Calendario'[Ano Mes Num] ),
+				                            REMOVEFILTERS ( fluxo[UNIDADE] )
+				                        ),
+				                        CALCULATE (
+				                            [Valor Indicador Volume RG Base],
+				                            TREATAS ( { _Ind }, 'Dim Indicadores Volume'[Indicador] ),
+				                            TREATAS ( { _Ym }, 'Calendario'[Ano Mes Num] ),
+				                            TREATAS ( { _Un }, fluxo[UNIDADE] )
+				                        )
+				                    )
+				        ),
+				        NOT ISBLANK ( [Valor] )
+				    )
+				RETURN
+				    ADDCOLUMNS (
+				        Base,
+				        "ValorAnterior",
+				            VAR _Ind = [Indicador]
+				            VAR _Un = [Unidade]
+				            VAR _Ym = [AnoMesNum]
+				            VAR _Y = INT ( _Ym / 100 )
+				            VAR _M = MOD ( _Ym, 100 )
+				            VAR _YmPrev = IF ( _M = 1, ( _Y - 1 ) * 100 + 12, _Ym - 1 )
+				            RETURN
+				                MAXX (
+				                    FILTER (
+				                        Base,
+				                        [Indicador] = _Ind
+				                            && [Unidade] = _Un
+				                            && [AnoMesNum] = _YmPrev
+				                    ),
+				                    [Valor]
+				                ),
+				        "YTD",
+				            VAR _Ind = [Indicador]
+				            VAR _Un = [Unidade]
+				            VAR _Ym = [AnoMesNum]
+				            VAR _Ano = INT ( _Ym / 100 )
+				            VAR _YmIni = _Ano * 100 + 1
+				            VAR _VAtual =
+				                MAXX (
+				                    FILTER (
+				                        Base,
+				                        [Indicador] = _Ind
+				                            && [Unidade] = _Un
+				                            && [AnoMesNum] = _Ym
+				                    ),
+				                    [Valor]
+				                )
+				            VAR _VIni =
+				                MAXX (
+				                    FILTER (
+				                        Base,
+				                        [Indicador] = _Ind
+				                            && [Unidade] = _Un
+				                            && [AnoMesNum] = _YmIni
+				                    ),
+				                    [Valor]
+				                )
+				            RETURN
+				                IF (
+				                    ISBLANK ( _VAtual ) || ISBLANK ( _VIni ),
+				                    BLANK (),
+				                    _VAtual - _VIni
+				                )
+				    )
+				
+				```
+
+	annotation PBI_Id = 85e6bc756d8d41e492997acb68a0930c
+

@@ -1,0 +1,236 @@
+table medicacao
+	lineageTag: 265cd6fa-a81d-494b-85e6-508795429b1e
+
+	measure Icone_Atendimentos =
+			
+			VAR DataRef = MAXX ( ALL ( fluxo ), fluxo[DATA] ) - 1
+			VAR Dias    = SELECTEDVALUE ( Qtde_dias[Qtde_dias], 30 )
+			VAR DataIni = DataRef - Dias
+			
+			-- contexto atual (linha/coluna da matriz)
+			VAR CtxMin  = MIN ( 'Calendario'[Data] )
+			VAR CtxMax  = MAX ( 'Calendario'[Data] )
+			
+			-- interseção janela x contexto
+			VAR EffIni  = MAX ( DataIni, CtxMin )
+			VAR EffFim  = MIN ( DataRef, CtxMax )
+			
+			VAR Limite  = SELECTEDVALUE ( Qtde_atd[Qtde_atd], 0 )
+			
+			-- atendimentos apenas na interseção de datas
+			VAR Valor   =
+			    CALCULATE (
+			        COUNTROWS ( fluxo ),                       -- troque por SUM(fluxo[Qtd]) se existir
+			        KEEPFILTERS ( fluxo[DATA] >= EffIni ),
+			        KEEPFILTERS ( fluxo[DATA] <= EffFim )
+			    )
+			RETURN
+			IF (
+			    Limite <= 0 || EffIni > EffFim,               -- sem limite ou sem sobreposição
+			    BLANK (),
+			    IF ( Valor >= Limite, 1, 0 )
+			)
+		formatString: 0
+		lineageTag: 560b174b-8d22-4eea-ad70-cc84e50c4517
+
+	column UNIDADE
+		dataType: string
+		lineageTag: ad9acd10-4aad-42a2-a783-b54b56e6d7bd
+		summarizeBy: none
+		sourceColumn: UNIDADE
+
+		annotation SummarizationSetBy = Automatic
+
+	column NR_ATENDIMENTO
+		dataType: int64
+		formatString: 0
+		lineageTag: 0bd7d695-559f-4a00-9791-672996b54c8b
+		summarizeBy: none
+		sourceColumn: NR_ATENDIMENTO
+
+		annotation SummarizationSetBy = Automatic
+
+	column PACIENTE
+		dataType: string
+		lineageTag: 913df047-c835-4422-a1e0-f4d9fe2855dc
+		summarizeBy: none
+		sourceColumn: PACIENTE
+
+		annotation SummarizationSetBy = Automatic
+
+	column DT_PRESCRICAO
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: d600c8ef-dbbb-4971-83b6-bf4453cfd277
+		summarizeBy: none
+		sourceColumn: DT_PRESCRICAO
+
+		variation Variation
+			isDefault
+			relationship: af6ef4de-1194-4a29-9d8a-280933ee11c7
+			defaultHierarchy: LocalDateTable_6cc5baf6-b7cf-4c53-9115-54b7a74e97e4.'Hierarquia de datas'
+
+		annotation SummarizationSetBy = Automatic
+
+	column DT_ADMINISTRACAO
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: c7309e60-27d0-4960-8b0c-46210df8b680
+		summarizeBy: none
+		sourceColumn: DT_ADMINISTRACAO
+
+		variation Variation
+			isDefault
+			relationship: edd3d10c-6796-462e-95fc-461a475552be
+			defaultHierarchy: LocalDateTable_5a5cce42-dfb8-4143-b40f-1e007d62d2db.'Hierarquia de datas'
+
+		annotation SummarizationSetBy = Automatic
+
+	column MINUTOS
+		dataType: double
+		lineageTag: 23939f32-9b6f-45eb-8f3d-f737617606ee
+		summarizeBy: sum
+		sourceColumn: MINUTOS
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column HORAS
+		dataType: double
+		lineageTag: 869fedda-fd9f-4dd7-bbd5-012ce963cb83
+		summarizeBy: sum
+		sourceColumn: HORAS
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column DATA
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: 5839ccfa-31da-4d16-aabc-e39f3eb82e04
+		summarizeBy: none
+		sourceColumn: DATA
+
+		variation Variation
+			isDefault
+			relationship: 37bf0e1f-1100-4a80-94b0-6fb13337980f
+			defaultHierarchy: LocalDateTable_0afbfa7a-d933-4253-8f80-3e31e81c7c33.'Hierarquia de datas'
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column HR_MEDICACAO = FORMAT(medicacao[DT_PRESCRICAO],"HH:00")
+		lineageTag: 6d3fa66d-169f-4b35-9198-eb113f80009a
+		summarizeBy: none
+
+		annotation SummarizationSetBy = Automatic
+
+	column MEDICO
+		dataType: string
+		lineageTag: 2976b62b-5781-43a3-b2ef-e96883c29626
+		summarizeBy: none
+		sourceColumn: MEDICO
+
+		annotation SummarizationSetBy = Automatic
+
+	column CD_ESTABELECIMENTO
+		dataType: double
+		lineageTag: c90397aa-a373-4b13-a488-8deff6cffb2f
+		summarizeBy: sum
+		sourceColumn: CD_ESTABELECIMENTO
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Diferença Minutos presc_realizacao' =
+			
+			VAR Exame = medicacao[DT_ADMINISTRACAO]
+			VAR Solic = medicacao[DT_PRESCRICAO]
+			RETURN
+			IF(
+			    ISBLANK(Exame) || ISBLANK(Solic),
+			    BLANK(),                          // sem uma das datas => nulo
+			    INT( (Exame - Solic) * 1440 )     // minutos (1440 = 24*60); INT para inteiro
+			)
+		formatString: 0
+		lineageTag: cc861c46-b9c6-480d-9b68-c9555b016578
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+	column DT_DISPENSACAO
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: 57677eea-00f3-40f8-bcfa-2c21140ddf26
+		summarizeBy: none
+		sourceColumn: DT_DISPENSACAO
+
+		variation Variation
+			isDefault
+			relationship: 763d8692-e8dd-4c57-ab37-effe9ecb31a8
+			defaultHierarchy: LocalDateTable_de178a12-0561-4a35-be65-0000ec4195e2.'Hierarquia de datas'
+
+		annotation SummarizationSetBy = Automatic
+
+	column USUARIO_ADMINISTRACAO
+		dataType: string
+		lineageTag: 0bd0dcb2-e336-443f-aa20-4d41a6b0522d
+		summarizeBy: none
+		sourceColumn: USUARIO_ADMINISTRACAO
+
+		annotation SummarizationSetBy = Automatic
+
+	column MIN_SOLIC_X_DISPENSACAO
+		dataType: double
+		lineageTag: 90fc162a-3364-4c52-84b0-345a550ada8e
+		summarizeBy: sum
+		sourceColumn: MIN_SOLIC_X_DISPENSACAO
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column MIN_DISP_X_CHECAGEM
+		dataType: double
+		lineageTag: 187a21a5-93c1-4483-b90f-f6435dfc6bd1
+		summarizeBy: sum
+		sourceColumn: MIN_DISP_X_CHECAGEM
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column GERA_LOTE
+		dataType: string
+		lineageTag: ed1c5987-359b-451b-a749-87e2fafbfe19
+		summarizeBy: none
+		sourceColumn: GERA_LOTE
+
+		annotation SummarizationSetBy = Automatic
+
+	column INTERVALO
+		dataType: string
+		lineageTag: fa823f94-e467-42af-9caf-25d93bb08693
+		summarizeBy: none
+		sourceColumn: INTERVALO
+
+		annotation SummarizationSetBy = Automatic
+
+	partition medicacao = m
+		mode: import
+		source =
+				let
+				    Fonte = PostgreSQL.Database("10.250.50.151:6433", "db"),
+				    cmc_hospital_tbl_tempos_medicacao = Fonte{[Schema="cmc_hospital",Item="tbl_tempos_medicacao"]}[Data],
+				    #"Tipo Alterado" = Table.TransformColumnTypes(cmc_hospital_tbl_tempos_medicacao,{{"UNIDADE", type text}, {"NR_ATENDIMENTO", Int64.Type}, {"PACIENTE", type text}, {"DT_PRESCRICAO", type datetime}, {"DT_ADMINISTRACAO", type datetime}, {"MINUTOS", type number}, {"HORAS", type number}, {"DATA", type date}, {"MIN_SOLIC_X_DISPENSACAO", type number}, {"MIN_DISP_X_CHECAGEM", type number}})
+				in
+				    #"Tipo Alterado"
+
+	annotation PBI_ResultType = Table
+
+	annotation PBI_NavigationStepName = Navegação
+

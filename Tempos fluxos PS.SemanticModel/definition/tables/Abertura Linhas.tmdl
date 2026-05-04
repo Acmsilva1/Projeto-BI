@@ -1,0 +1,56 @@
+table 'Abertura Linhas'
+	lineageTag: daea9b1f-3dc0-42b6-acea-a69b2167c2b2
+
+	column 'Abertura Linhas'
+		lineageTag: d9d4e8ea-71b9-47ec-9d84-70d108dfb7cc
+		summarizeBy: none
+		sourceColumn: [Value1]
+		sortByColumn: 'Abertura Linhas Pedido'
+
+		relatedColumnDetails
+			groupByColumn: 'Abertura Linhas Campos'
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Abertura Linhas Campos'
+		isHidden
+		lineageTag: 4906d31a-9709-421b-add2-f6f288e957b0
+		summarizeBy: none
+		sourceColumn: [Value2]
+		sortByColumn: 'Abertura Linhas Pedido'
+
+		extendedProperty ParameterMetadata =
+				{
+				  "version": 3,
+				  "kind": 2
+				}
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Abertura Linhas Pedido'
+		isHidden
+		formatString: 0
+		lineageTag: 5fdb55a1-db0d-426a-a4c1-ee38d88f0157
+		summarizeBy: sum
+		sourceColumn: [Value3]
+
+		annotation SummarizationSetBy = Automatic
+
+	partition 'Abertura Linhas' = calculated
+		mode: import
+		source =
+				{
+				    ("Unidade", NAMEOF('fluxo'[UNIDADE]), 0),
+				    ("Mês", NAMEOF('Calendario'[Data].[Mês]), 1),
+				    ("Semanas", NAMEOF('Calendario'[Semana (rótulo)]), 2),
+				    ("Dia", NAMEOF('Calendario'[Data]), 3),
+				    ("Dia da semana", NAMEOF('Calendario'[Nome Dia Semana]), 4),
+				    ("Médico", NAMEOF('DimMedico'[Medico]), 5),
+				    ("Cor de classificação", NAMEOF(CorClassificacao[Cor]), 6),
+				    ("Atend.", NAMEOF('fluxo'[NR_ATENDIMENTO]), 7)
+				   -- ("Turno 6h", NAMEOF(Horas[Plantao_6h(10h-16h)]), 8)
+				   -- ("Turno", NAMEOF(DimTurno[Turno]), 8)
+				}
+
+	annotation PBI_Id = 7b80c5ab7f3e4407af3e649eebd9372d
+

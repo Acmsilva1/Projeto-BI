@@ -1,0 +1,27 @@
+table 'Meta dinâm volume pacs TC'
+	lineageTag: b1200931-c390-4b31-8d22-94d523bc821d
+
+	measure 'Valor Meta dinâm volume pacs TC' = SELECTEDVALUE('Meta dinâm volume pacs TC'[Meta dinâm volume pacs TC])
+		formatString: 0.00%;-0.00%;0.00%
+		lineageTag: e4f3e7de-8c36-4f40-8d19-98939c2c8eed
+
+	column 'Meta dinâm volume pacs TC'
+		lineageTag: b443eb74-4f1c-425f-9116-e0a4ce25ad04
+		summarizeBy: none
+		sourceColumn: [Value]
+
+		extendedProperty ParameterMetadata =
+				{
+				  "version": 0
+				}
+
+		annotation SummarizationSetBy = User
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	partition 'Meta dinâm volume pacs TC' = calculated
+		mode: import
+		source = GENERATESERIES(0, 1.01, 0.001)
+
+	annotation PBI_Id = 4707a1c4c2144ad895d9d9e74cd70dba
+

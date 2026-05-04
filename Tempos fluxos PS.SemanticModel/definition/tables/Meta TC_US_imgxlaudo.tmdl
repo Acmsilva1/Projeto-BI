@@ -1,0 +1,26 @@
+table 'Meta TC_US_imgxlaudo'
+	lineageTag: 57ed094c-7969-45e7-b5c9-e09d0bedf802
+
+	measure 'Valor Meta TC_US_imgxlaudo' = SELECTEDVALUE('Meta TC_US_imgxlaudo'[Meta TC_US_imgxlaudo])
+		formatString: 0
+		lineageTag: 4af92e3f-91ca-4753-abee-bcb9263a145f
+
+	column 'Meta TC_US_imgxlaudo'
+		formatString: 0
+		lineageTag: 6ef73f11-c97a-4782-bf7c-bd3f1e2e6b89
+		summarizeBy: none
+		sourceColumn: [Value]
+
+		extendedProperty ParameterMetadata =
+				{
+				  "version": 0
+				}
+
+		annotation SummarizationSetBy = User
+
+	partition 'Meta TC_US_imgxlaudo' = calculated
+		mode: import
+		source = GENERATESERIES(0, 300, 1)
+
+	annotation PBI_Id = 6d55e444d1e94246ad9b3ee20dcfa50a
+

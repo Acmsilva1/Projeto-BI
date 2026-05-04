@@ -1,0 +1,28 @@
+table 'Meta dinâm volume desfecho do médico do atend.'
+	lineageTag: 9de08c68-8c89-41b5-a2e7-c9f4c0bb0b9c
+
+	measure 'Valor Meta dinâm volume desfecho do médico do atend.' = SELECTEDVALUE('Meta dinâm volume desfecho do médico do atend.'[Meta dinâm volume desfecho do médico do atend.])
+		lineageTag: 47503aae-d523-41c1-8f7f-a41bfdf29ffa
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Meta dinâm volume desfecho do médico do atend.'
+		lineageTag: 75b40073-709a-4fef-bc39-36107d901235
+		summarizeBy: none
+		sourceColumn: [Value]
+
+		extendedProperty ParameterMetadata =
+				{
+				  "version": 0
+				}
+
+		annotation SummarizationSetBy = User
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	partition 'Meta dinâm volume desfecho do médico do atend.' = calculated
+		mode: import
+		source = GENERATESERIES(0, 1.01, 0.001)
+
+	annotation PBI_Id = 521823ab05e641879fc999ca6946c08b
+

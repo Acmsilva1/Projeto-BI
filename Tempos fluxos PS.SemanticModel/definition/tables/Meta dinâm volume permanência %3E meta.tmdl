@@ -1,0 +1,27 @@
+table 'Meta dinâm volume permanência > meta'
+	lineageTag: 742f7a76-f19a-4dbe-8022-dd4a320f7ee3
+
+	measure 'Valor Meta dinâm volume permanência > meta' = SELECTEDVALUE('Meta dinâm volume permanência > meta'[Meta dinâm volume permanência > meta])
+		formatString: 0.00%;-0.00%;0.00%
+		lineageTag: 93406b34-f006-4f85-92f7-f8cf0331f89e
+
+	column 'Meta dinâm volume permanência > meta'
+		lineageTag: ea5ab31a-8009-4cd9-b6ac-7233ad12d977
+		summarizeBy: none
+		sourceColumn: [Value]
+
+		extendedProperty ParameterMetadata =
+				{
+				  "version": 0
+				}
+
+		annotation SummarizationSetBy = User
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	partition 'Meta dinâm volume permanência > meta' = calculated
+		mode: import
+		source = GENERATESERIES(0, 1.01, 0.001)
+
+	annotation PBI_Id = a2ba4374b85c4b0fac08ce19e01c324a
+

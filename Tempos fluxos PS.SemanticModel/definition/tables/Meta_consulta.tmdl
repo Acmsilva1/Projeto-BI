@@ -1,0 +1,26 @@
+table Meta_consulta
+	lineageTag: 9b3ec383-8e88-408d-bd0c-aaf7d26e620b
+
+	measure 'Valor Meta_consulta' = SELECTEDVALUE('Meta_consulta'[Tempo minutos])
+		formatString: 0
+		lineageTag: 565f9c29-114f-47ba-a9c1-6c98d1cb3ce9
+
+	column 'Tempo minutos'
+		formatString: 0
+		lineageTag: 769822ac-c405-4620-bb5c-26eaf7e6d88f
+		summarizeBy: none
+		sourceColumn: [Value]
+
+		extendedProperty ParameterMetadata =
+				{
+				  "version": 0
+				}
+
+		annotation SummarizationSetBy = User
+
+	partition Meta_consulta = calculated
+		mode: import
+		source = GENERATESERIES(0, 240, 1)
+
+	annotation PBI_Id = d5c0674dac924dd49ccda736c5af6fed
+

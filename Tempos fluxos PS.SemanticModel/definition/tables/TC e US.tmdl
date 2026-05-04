@@ -1,0 +1,346 @@
+table 'TC e US'
+	lineageTag: f2cbbb9c-32d7-4bd9-a977-73a4687ec91d
+
+	measure 'Qtd Atend > Meta Selecionada' =
+			
+			VAR Limite = [Valor Meta_TC_US]
+			VAR Escolha = VALUE( SELECTEDVALUE( 'Parametro meta exames imagem'[Value2] ) )   -- força para número
+			RETURN
+			CALCULATE(
+			    COUNT( 'TC e US'[NR_PRESCRICAO] ),
+			    FILTER(
+			        'TC e US',
+			        SWITCH(
+			            Escolha,
+			            0, 'TC e US'[Diferença minutos TC_US Solic/chec],
+			            1, 'TC e US'[diferença minutos tc_us]
+			        ) > Limite
+			    )
+			)
+		formatString: 0
+		lineageTag: 49a5ca3e-1e13-4c57-bc1f-7d8e488d01c4
+
+	measure 'Qtd Atend > Meta solicXimagem' =
+			
+			VAR Limite = [Valor Meta TC_US_imagem]
+			VAR Escolha = VALUE( SELECTEDVALUE( 'Parametro meta exames imagem'[Value2] ) )   -- força para número
+			RETURN
+			CALCULATE(
+			    COUNT( 'TC e US'[NR_PRESCRICAO] ),
+			    FILTER(
+			        'TC e US',
+			        SWITCH(
+			            Escolha,
+			            0, 'TC e US'[Diferença minutos TC_US Solic/checXimag],
+			            1, 'TC e US'[Diferença minutos TC_US solicXimagem]
+			        ) > Limite
+			    )
+			)
+		formatString: 0
+		lineageTag: 9ade5ea5-faf0-4241-b35a-72be710eb44e
+
+	column UNIDADE
+		dataType: string
+		lineageTag: 8b545694-d8fa-4724-8d3f-32029990735f
+		summarizeBy: none
+		sourceColumn: UNIDADE
+
+		annotation SummarizationSetBy = Automatic
+
+	column NR_ATENDIMENTO
+		dataType: int64
+		formatString: 0
+		lineageTag: 60810476-4859-4a06-9cdb-12de74f53c4a
+		summarizeBy: none
+		sourceColumn: NR_ATENDIMENTO
+
+		annotation SummarizationSetBy = Automatic
+
+	column PACIENTE
+		dataType: string
+		lineageTag: 3460da22-d101-4a8d-8e6a-13bafbc86965
+		summarizeBy: none
+		sourceColumn: PACIENTE
+
+		annotation SummarizationSetBy = Automatic
+
+	column TIPO
+		dataType: string
+		lineageTag: 711f04ea-d717-418a-bea7-1795ca554151
+		summarizeBy: none
+		sourceColumn: TIPO
+
+		annotation SummarizationSetBy = Automatic
+
+	column EXAME
+		dataType: string
+		lineageTag: e0732840-e784-4f82-9993-5c3b8550dcb4
+		summarizeBy: none
+		sourceColumn: EXAME
+
+		annotation SummarizationSetBy = Automatic
+
+	column DATA
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: 0c511479-b709-439f-9514-e4e3afebdc68
+		summarizeBy: none
+		sourceColumn: DATA
+
+		variation Variation
+			isDefault
+			relationship: c54ceb7d-19bd-4589-b4c0-34e457306b64
+			defaultHierarchy: LocalDateTable_2691775a-9b37-463e-b353-b1bde12717e4.'Hierarquia de datas'
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column DT_REALIZADO
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: d5c888ba-ab0e-4aa8-8f3c-f32fe8d2b722
+		summarizeBy: none
+		sourceColumn: DT_REALIZADO
+
+		variation Variation
+			isDefault
+			relationship: 7bcfa397-b859-4959-b14c-f55334399593
+			defaultHierarchy: LocalDateTable_cd1651f2-d322-47c1-9743-0a16a8f54f9d.'Hierarquia de datas'
+
+		annotation SummarizationSetBy = Automatic
+
+	column DT_LAUDO
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: ba2d8f2c-5aa2-4d34-b9fd-9c1625923d5b
+		summarizeBy: none
+		sourceColumn: DT_LAUDO
+
+		variation Variation
+			isDefault
+			relationship: 5c18c80e-e1c2-4968-bdcd-4cb7f3a868b1
+			defaultHierarchy: LocalDateTable_fcb6468a-7b1b-4611-a7cf-29d045aa9b77.'Hierarquia de datas'
+
+		annotation SummarizationSetBy = Automatic
+
+	column MES
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: 5d85854c-448c-417d-aa47-b3cac8ecfd3a
+		summarizeBy: none
+		sourceColumn: MES
+
+		variation Variation
+			isDefault
+			relationship: 98dd7400-71e0-4662-bdec-7c4190736f43
+			defaultHierarchy: LocalDateTable_da428845-0d64-45c8-b27e-ca12572fdb00.'Hierarquia de datas'
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column TEMPO
+		dataType: int64
+		formatString: 0
+		lineageTag: 88544419-9c89-483e-a1ec-ad3aa721f903
+		summarizeBy: sum
+		sourceColumn: TEMPO
+
+		annotation SummarizationSetBy = Automatic
+
+	column HORAS
+		dataType: double
+		lineageTag: d044722a-487d-4ce5-bf1a-228a79dd187b
+		summarizeBy: sum
+		sourceColumn: HORAS
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column NR_PRESCRICAO
+		dataType: int64
+		formatString: 0
+		lineageTag: 81d951ad-72bf-49b3-987f-79fda0e0308b
+		summarizeBy: sum
+		sourceColumn: NR_PRESCRICAO
+
+		annotation SummarizationSetBy = Automatic
+
+	column STATUS
+		dataType: string
+		lineageTag: 40820b5c-04ba-4ab5-8e21-fbb1365010d9
+		summarizeBy: none
+		sourceColumn: STATUS
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Diferença minutos TC_US' =
+			
+			('TC e US'[DT_LAUDO] - 'TC e US'[DT_LIBERACAO]) * 24 * 60
+		lineageTag: b45251c8-e9f3-4acc-ba9d-c25b1a6df37c
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column DT_LIBERACAO
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: 2a9cff29-88ad-41bb-b9f1-59198db71113
+		summarizeBy: none
+		sourceColumn: DT_LIBERACAO
+
+		variation Variation
+			isDefault
+			relationship: 811c969c-2337-4e21-9501-056bfde05ca2
+			defaultHierarchy: LocalDateTable_26a7afa4-ddd6-461f-adef-fcaaf4e2858a.'Hierarquia de datas'
+
+		annotation SummarizationSetBy = Automatic
+
+	column HR_TC_US = FORMAT('TC e US'[DT_LIBERACAO],"HH:00")
+		lineageTag: 5a168fac-7ffd-4b49-b059-6f8ad4cc9b92
+		summarizeBy: none
+
+		annotation SummarizationSetBy = Automatic
+
+	column MINUTOS
+		dataType: double
+		lineageTag: efb07e81-944e-42ee-9788-766b5e538a77
+		summarizeBy: sum
+		sourceColumn: MINUTOS
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column MEDICO
+		dataType: string
+		lineageTag: 62608192-cafd-4e4a-84e2-fe05de576b6c
+		summarizeBy: none
+		sourceColumn: MEDICO
+
+		annotation SummarizationSetBy = Automatic
+
+	column CD_ESTABELECIMENTO
+		dataType: double
+		lineageTag: 1cb9e67e-991a-4356-9938-943788de451d
+		summarizeBy: sum
+		sourceColumn: CD_ESTABELECIMENTO
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column DT_EXAME
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: e278e6b2-a3a0-4910-93de-b080d381948d
+		summarizeBy: none
+		sourceColumn: DT_EXAME
+
+		variation Variation
+			isDefault
+			relationship: 7d232230-d68f-4f9d-ac86-d1d2f6525f52
+			defaultHierarchy: LocalDateTable_e36a23e6-2a62-46da-88fa-b6b40e2e650e.'Hierarquia de datas'
+
+		annotation SummarizationSetBy = Automatic
+
+	column DT_CHECAGEM
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: ac5cb93f-660a-4223-bd60-b2976587a73b
+		summarizeBy: none
+		sourceColumn: DT_CHECAGEM
+
+		variation Variation
+			isDefault
+			relationship: 86c3ea4d-9ec3-411c-bd12-078acb487d29
+			defaultHierarchy: LocalDateTable_5fafa5f0-d704-4339-ac5a-560735bb57b2.'Hierarquia de datas'
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Diferença minutos TC_US Solic/chec' =
+			
+			VAR Laudo = 'TC e US'[DT_LAUDO]
+			VAR Chec  = 'TC e US'[DT_CHECAGEM]
+			VAR Solic = 'TC e US'[DT_LIBERACAO]
+			VAR DataBase =
+			    IF(
+			        ISBLANK(Chec),
+			        Solic,     -- se não tem checagem, usa solicitação
+			        Chec       -- senão, usa checagem
+			    )
+			RETURN
+			IF(
+			    ISBLANK(Laudo) || ISBLANK(DataBase),
+			    BLANK(),               -- se faltar uma das duas datas => BLANK
+			    (Laudo - DataBase) * 1440
+			)
+		lineageTag: 29174fb4-43f4-49f6-8ba8-9858207554f4
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Diferença minutos TC_US imagemXlaudo' =
+			
+			('TC e US'[DT_LAUDO] - 'TC e US'[DT_EXAME]) * 24 * 60
+		lineageTag: b8f15d21-09e3-4e28-b92f-0ea7cf58e0a5
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Diferença minutos TC_US Solic/checXimag' =
+			
+			VAR Exame = 'TC e US'[DT_EXAME]
+			VAR Chec  = 'TC e US'[DT_CHECAGEM]
+			VAR Solic = 'TC e US'[DT_LIBERACAO]
+			VAR DataBase =
+			    IF(
+			        ISBLANK(Chec),
+			        Solic,     -- se não tem checagem, usa solicitação
+			        Chec       -- senão, usa checagem
+			    )
+			RETURN
+			IF(
+			    ISBLANK(Exame) || ISBLANK(DataBase),
+			    BLANK(),               -- se faltar uma das duas datas => BLANK
+			    (Exame - DataBase) * 1440
+			)
+		lineageTag: 60fd5ace-30c2-4084-a34e-4520ba8c8d43
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Diferença minutos TC_US solicXimagem' =
+			
+			('TC e US'[DT_EXAME] - 'TC e US'[DT_LIBERACAO]) * 24 * 60
+		lineageTag: 1a2caec0-cd8a-4190-9056-c70211e41162
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	partition 'TC e US' = m
+		mode: import
+		source =
+				let
+				    Fonte = PostgreSQL.Database("10.250.50.151:6433", "db"),
+				    cmc_hospital_tbl_tempos_tc_e_us = Fonte{[Schema="cmc_hospital",Item="tbl_tempos_tc_e_us"]}[Data],
+				    #"Tipo Alterado" = Table.TransformColumnTypes(cmc_hospital_tbl_tempos_tc_e_us,{{"UNIDADE", type text}, {"NR_ATENDIMENTO", Int64.Type}, {"PACIENTE", type text}, {"TIPO", type text}, {"EXAME", type text}, {"DATA", type date}, {"DT_LIBERACAO", type datetime}, {"DT_REALIZADO", type datetime}, {"DT_LAUDO", type datetime}, {"MES", type date}, {"TEMPO", Int64.Type}, {"HORAS", type number}, {"NR_PRESCRICAO", Int64.Type}, {"STATUS", type text}, {"MINUTOS", type number}})
+				in
+				    #"Tipo Alterado"
+
+	annotation PBI_NavigationStepName = Navegação
+
+	annotation PBI_ResultType = Table
+

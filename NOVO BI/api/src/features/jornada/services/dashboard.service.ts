@@ -1,9 +1,6 @@
 import { env } from "../../../core/config/env.js";
-import {
-  loadFullTableAsStringRowsConn,
-  resolveDatasetTableByBase,
-  withMemoryDatasetDb
-} from "../../../data/utils/datasetTableLoader.js";
+import { loadDatasetBasesInParallel, withMemoryDatasetDb } from "../../../data/utils/datasetTableLoader.js";
+import { PS_DASHBOARD_RETENTION_DAYS } from "../config/psDashboardRetention.js";
 import { listDashboardQueryCatalog } from "../domain/dashboard/dashboardQueryCatalog.js";
 import { queryDuckDb } from "../../../data/services/duckdb.service.js";
 import {
@@ -234,7 +231,16 @@ const META_DEFINITIONS: Array<{
 let storeCache: DataStore | null = null;
 /** Evita N cargas completas em paralelo (Promise.all no front → vários GETs ao mesmo tempo → risco de OOM / 500). */
 let storeLoadPromise: Promise<DataStore> | null = null;
+/** Dias de facts efetivamente materializados no último `loadDataStoreIntoCache` (90 → 180 → 365 conforme pills). */
+let storeCommittedRetentionDays = 0;
 const queryCache = new Map<string, ComputedContext>();
+
+type GerencialPeriodDays = 1 | 7 | 15 | 30 | 60 | 90 | 180 | 365;
+
+/** 1d–60d usam bootstrap 90d; 90/180/365 pedem pelo menos esse recorte no store (cortado pelo teto env). */
+function storeRetentionDaysForPeriod(periodDays: GerencialPeriodDays): number {
+  return Math.min(env.gerencialStoreRetentionDays, Math.max(90, periodDays));
+}
 
 function pick(row: Record<string, string>, ...keys: string[]): string | undefined {
   for (const key of keys) {
@@ -310,36 +316,130 @@ function accumulateMetaCounter(
   counter.ok += 1;
 }
 
-async function ensureStore(): Promise<DataStore> {
-  if (storeCache) return storeCache;
-  if (!storeLoadPromise) {
-    storeLoadPromise = loadDataStoreIntoCache().finally(() => {
+async function ensureStore(periodDays: GerencialPeriodDays = 1): Promise<DataStore> {
+  const needed = storeRetentionDaysForPeriod(periodDays);
+
+  for (;;) {
+    if (storeCache !== null && storeCommittedRetentionDays >= needed) {
+      return storeCache;
+    }
+
+    if (storeLoadPromise !== null) {
+      await storeLoadPromise;
+      continue;
+    }
+
+    if (storeCache !== null && storeCommittedRetentionDays < needed) {
+      console.log(
+        `[data] store: expandindo recorte de ${storeCommittedRetentionDays}d para ${needed}d (pill/periodo ${periodDays}d).`
+      );
+      storeCache = null;
+      queryCache.clear();
+      storeCommittedRetentionDays = 0;
+    }
+
+    storeLoadPromise = loadDataStoreIntoCache(needed).finally(() => {
       storeLoadPromise = null;
     });
+    const store = await storeLoadPromise;
+    storeCommittedRetentionDays = needed;
+    return store;
   }
-  return storeLoadPromise;
 }
 
-async function loadDataStoreIntoCache(): Promise<DataStore> {
-  return withMemoryDatasetDb(async (_db, conn) => {
-    const load = async (base: string): Promise<Record<string, string>[]> => {
-      const r = resolveDatasetTableByBase(env.csvDataDir, base);
-      if (!r) return [];
-      return loadFullTableAsStringRowsConn(conn, r);
-    };
+const MS_PER_DAY = 86_400_000;
 
-    const unidadesRows = await load("tbl_unidades");
-    const snapshotRows = await load("ps_resumo_unidades_snapshot_prod");
-    const temposRows = await load("tbl_tempos_entrada_consulta_saida");
-    const internRows = await load("tbl_intern_conversoes");
-    const examesRxRows = await load("tbl_tempos_rx_e_ecg");
-    const examesTcRows = await load("tbl_tempos_tc_e_us");
-    const altasRows = await load("tbl_altas_ps");
-    const metasRows = await load("meta_tempos");
-    const medicacaoRows = await load("tbl_tempos_medicacao");
-    const laboratorioRows = await load("tbl_tempos_laboratorio");
-    const reavaliacaoRows = await load("tbl_tempos_reavaliacao");
-    const viasRows = await load("tbl_vias_medicamentos");
+/** Maior timestamp encontrado nos facts brutos (antes do recorte) — ancora para janela rolante. */
+function computePsFactsAnchorMs(
+  temposRows: Record<string, string>[],
+  internRows: Record<string, string>[],
+  examesRxRows: Record<string, string>[],
+  examesTcRows: Record<string, string>[],
+  altasRows: Record<string, string>[],
+  medicacaoRows: Record<string, string>[],
+  laboratorioRows: Record<string, string>[],
+  reavaliacaoRows: Record<string, string>[],
+  viasRows: Record<string, string>[]
+): number {
+  let m = 0;
+  const bump = (ms: number): void => {
+    if (Number.isFinite(ms) && ms > m) m = ms;
+  };
+
+  for (const row of temposRows) {
+    bump(parseDateMs(pick(row, "DT_ENTRADA", "dt_entrada")));
+    bump(parseDateMs(pick(row, "DATA", "data")));
+  }
+  for (const row of internRows) {
+    bump(parseDateMs(pick(row, "DT_ENTRADA", "dt_entrada")));
+  }
+
+  const bumpExam = (row: Record<string, string>): void => {
+    bump(parseDateMs(pick(row, "DT_EXAME", "dt_exame", "DT_REALIZADO", "dt_realizado")));
+  };
+  for (const row of examesRxRows) bumpExam(row);
+  for (const row of examesTcRows) bumpExam(row);
+
+  for (const row of altasRows) {
+    bump(parseDateMs(pick(row, "DT_ALTA", "dt_alta", "DT_ENTRADA", "dt_entrada")));
+  }
+
+  for (const row of medicacaoRows) {
+    const tAdm = parseDateMs(pick(row, "DT_ADMINISTRACAO", "dt_administracao"));
+    const tPre = parseDateMs(pick(row, "DT_PRESCRICAO", "dt_prescricao"));
+    const tData = parseDateMs(pick(row, "DATA", "data"));
+    bump(Number.isFinite(tAdm) ? tAdm : Number.isFinite(tPre) ? tPre : tData);
+  }
+
+  for (const row of laboratorioRows) {
+    const tEx = parseDateMs(pick(row, "DT_EXAME", "dt_exame"));
+    const tSol = parseDateMs(pick(row, "DT_SOLICITACAO", "dt_solicitacao"));
+    const tData = parseDateMs(pick(row, "DATA", "data"));
+    bump(Number.isFinite(tEx) ? tEx : Number.isFinite(tSol) ? tSol : tData);
+  }
+
+  for (const row of reavaliacaoRows) {
+    bump(parseDateMs(pick(row, "DATA", "data")));
+  }
+
+  for (const row of viasRows) {
+    bump(parseDateMs(pick(row, "DATA", "data")));
+  }
+
+  return m;
+}
+
+/** Ordem fixa: índices usados ao descompactar `loadDatasetBasesInParallel`. */
+const GERENCIAL_STORE_TABLE_BASES = [
+  "tbl_unidades",
+  "ps_resumo_unidades_snapshot_prod",
+  "tbl_tempos_entrada_consulta_saida",
+  "tbl_intern_conversoes",
+  "tbl_tempos_rx_e_ecg",
+  "tbl_tempos_tc_e_us",
+  "tbl_altas_ps",
+  "meta_tempos",
+  "tbl_tempos_medicacao",
+  "tbl_tempos_laboratorio",
+  "tbl_tempos_reavaliacao",
+  "tbl_vias_medicamentos"
+] as const;
+
+async function loadDataStoreIntoCache(factsRetentionDays: number): Promise<DataStore> {
+  return withMemoryDatasetDb(async (db, _conn) => {
+    const loaded = await loadDatasetBasesInParallel(db, env.csvDataDir, GERENCIAL_STORE_TABLE_BASES, env.storeLoadConcurrency);
+    const unidadesRows = loaded[0] ?? [];
+    const snapshotRows = loaded[1] ?? [];
+    const temposRows = loaded[2] ?? [];
+    const internRows = loaded[3] ?? [];
+    const examesRxRows = loaded[4] ?? [];
+    const examesTcRows = loaded[5] ?? [];
+    const altasRows = loaded[6] ?? [];
+    const metasRows = loaded[7] ?? [];
+    const medicacaoRows = loaded[8] ?? [];
+    const laboratorioRows = loaded[9] ?? [];
+    const reavaliacaoRows = loaded[10] ?? [];
+    const viasRows = loaded[11] ?? [];
 
   const unidades = unidadesRows
     .filter((row) => ["true", "1", "t"].includes((pick(row, "ps") ?? "").toLowerCase()))
@@ -388,6 +488,21 @@ async function loadDataStoreIntoCache(): Promise<DataStore> {
     });
   }
 
+  const anchorMs = computePsFactsAnchorMs(
+    temposRows,
+    internRows,
+    examesRxRows,
+    examesTcRows,
+    altasRows,
+    medicacaoRows,
+    laboratorioRows,
+    reavaliacaoRows,
+    viasRows
+  );
+  const retentionDays = factsRetentionDays;
+  const cutoffMs =
+    anchorMs > 0 && retentionDays > 0 ? anchorMs - retentionDays * MS_PER_DAY : Number.NEGATIVE_INFINITY;
+
   const tempos: TempoEvent[] = [];
   const internacoes: InternEvent[] = [];
   const exames: ExamEvent[] = [];
@@ -404,6 +519,7 @@ async function loadDataStoreIntoCache(): Promise<DataStore> {
     if (!cd) continue;
     const dtMs = parseDateMs(pick(row, "DT_ENTRADA", "dt_entrada"));
     if (!Number.isFinite(dtMs)) continue;
+    if (dtMs < cutoffMs) continue;
     if (dtMs > maxEventMs) maxEventMs = dtMs;
     updateUnitMax(cd, dtMs);
 
@@ -423,6 +539,7 @@ async function loadDataStoreIntoCache(): Promise<DataStore> {
     if (!cd) continue;
     const dtMs = parseDateMs(pick(row, "DT_ENTRADA", "dt_entrada"));
     if (!Number.isFinite(dtMs)) continue;
+    if (dtMs < cutoffMs) continue;
     if (dtMs > maxEventMs) maxEventMs = dtMs;
     updateUnitMax(cd, dtMs);
     internacoes.push({ cd, dtMs });
@@ -433,6 +550,7 @@ async function loadDataStoreIntoCache(): Promise<DataStore> {
     if (!cd) return;
     const dtMs = parseDateMs(pick(row, "DT_EXAME", "dt_exame", "DT_REALIZADO", "dt_realizado"));
     if (!Number.isFinite(dtMs)) return;
+    if (dtMs < cutoffMs) return;
     if (dtMs > maxEventMs) maxEventMs = dtMs;
     updateUnitMax(cd, dtMs);
     exames.push({
@@ -450,6 +568,7 @@ async function loadDataStoreIntoCache(): Promise<DataStore> {
     if (!cd) continue;
     const dtMs = parseDateMs(pick(row, "DT_ALTA", "dt_alta", "DT_ENTRADA", "dt_entrada"));
     if (!Number.isFinite(dtMs)) continue;
+    if (dtMs < cutoffMs) continue;
     if (dtMs > maxEventMs) maxEventMs = dtMs;
     updateUnitMax(cd, dtMs);
 
@@ -477,6 +596,7 @@ async function loadDataStoreIntoCache(): Promise<DataStore> {
     if (!cd) continue;
     const dataMs = parseDateMs(pick(row, "DATA", "data"));
     if (!Number.isFinite(dataMs)) continue;
+    if (dataMs < cutoffMs) continue;
     const di = parseDateMs(pick(row, "DT_INTERNACAO", "dt_internacao"));
     const dd = parseDateMs(pick(row, "DT_DESFECHO", "dt_desfecho"));
     fluxoVolume.push({
@@ -503,6 +623,7 @@ async function loadDataStoreIntoCache(): Promise<DataStore> {
     const tData = parseDateMs(pick(row, "DATA", "data"));
     const dtMs = Number.isFinite(tAdm) ? tAdm : Number.isFinite(tPre) ? tPre : tData;
     if (!Number.isFinite(dtMs)) continue;
+    if (dtMs < cutoffMs) continue;
     medicacaoVolume.push({
       cd,
       nr: pick(row, "NR_ATENDIMENTO", "nr_atendimento") ?? "",
@@ -521,6 +642,7 @@ async function loadDataStoreIntoCache(): Promise<DataStore> {
     const tData = parseDateMs(pick(row, "DATA", "data"));
     const dtMs = Number.isFinite(tEx) ? tEx : Number.isFinite(tSol) ? tSol : tData;
     if (!Number.isFinite(dtMs)) continue;
+    if (dtMs < cutoffMs) continue;
     laboratorioVolume.push({
       cd,
       nr: pick(row, "NR_ATENDIMENTO", "nr_atendimento") ?? "",
@@ -537,6 +659,7 @@ async function loadDataStoreIntoCache(): Promise<DataStore> {
     const tRe = parseDateMs(pick(row, "DT_REALIZADO", "dt_realizado"));
     const dtMs = Number.isFinite(tEx) ? tEx : tRe;
     if (!Number.isFinite(dtMs)) continue;
+    if (dtMs < cutoffMs) continue;
     tcUsVolume.push({
       cd,
       nr: pick(row, "NR_ATENDIMENTO", "nr_atendimento") ?? "",
@@ -552,6 +675,7 @@ async function loadDataStoreIntoCache(): Promise<DataStore> {
     const tSol = parseDateMs(pick(row, "DT_SOLICITACAO", "dt_solicitacao"));
     const dtMs = Number.isFinite(tEx) ? tEx : tSol;
     if (!Number.isFinite(dtMs)) continue;
+    if (dtMs < cutoffMs) continue;
     tcUsVolume.push({
       cd,
       nr: pick(row, "NR_ATENDIMENTO", "nr_atendimento") ?? "",
@@ -567,6 +691,7 @@ async function loadDataStoreIntoCache(): Promise<DataStore> {
     if (!cd) continue;
     const dtAxis = parseDateMs(pick(row, "DATA", "data"));
     if (!Number.isFinite(dtAxis)) continue;
+    if (dtAxis < cutoffMs) continue;
     const ds = parseDateMs(pick(row, "DT_SOLIC_REAVALIACAO", "dt_solic_reavaliacao"));
     const ev = parseDateMs(pick(row, "DT_EVO_PRESC", "dt_evo_presc"));
     const fi = parseDateMs(pick(row, "DT_FIM_REAVALIACAO", "dt_fim_reavaliacao"));
@@ -586,6 +711,7 @@ async function loadDataStoreIntoCache(): Promise<DataStore> {
     if (!cd) continue;
     const dataMs = parseDateMs(pick(row, "DATA", "data"));
     if (!Number.isFinite(dataMs)) continue;
+    if (dataMs < cutoffMs) continue;
     viasMedicamentos.push({
       cd,
       nr: pick(row, "NR_ATENDIMENTO", "nr_atendimento") ?? "",
@@ -613,6 +739,17 @@ async function loadDataStoreIntoCache(): Promise<DataStore> {
     viasMedicamentos
   };
   queryCache.clear();
+  const maxEvtHint =
+    maxEventMs > 0 ? new Date(maxEventMs).toISOString().replace("T", " ").slice(0, 16) + "Z" : "n/d";
+  const anchorHint =
+    anchorMs > 0 ? new Date(anchorMs).toISOString().replace("T", " ").slice(0, 16) + "Z" : "n/d";
+  const cutoffHint =
+    anchorMs > 0 && Number.isFinite(cutoffMs) && cutoffMs > Number.NEGATIVE_INFINITY
+      ? new Date(cutoffMs).toISOString().replace("T", " ").slice(0, 16) + "Z"
+      : "n/d";
+  console.log(
+    `[data] store em RAM: unidades=${unidades.length} tempos=${tempos.length} fluxo=${fluxoVolume.length} intern=${internacoes.length} exames=${exames.length} altas=${altas.length} med=${medicacaoVolume.length} lab=${laboratorioVolume.length} tcUs=${tcUsVolume.length} reav=${reavaliacaoVolume.length} vias=${viasMedicamentos.length} | maior=${maxEvtHint}. Recorte facts desta carga=${retentionDays}d (env GERENCIAL_STORE_RETENTION_DAYS=${env.gerencialStoreRetentionDays} é teto opcional; pills 1–60d usam bootstrap 90d; 180/365 expandem). ref. pill≤${PS_DASHBOARD_RETENTION_DAYS.gerencialResumoPillMax}d metas≤${PS_DASHBOARD_RETENTION_DAYS.metasPorVolumes}d heatmap≤${PS_DASHBOARD_RETENTION_DAYS.mapaCalorPs}d | ancora≈${anchorHint} minRetido≈${cutoffHint}. DuckDB lê ficheiros inteiros; fora da janela descarta-se ao montar o store.`
+  );
   return storeCache;
   });
 }
@@ -1212,7 +1349,7 @@ async function buildGerencialKpisTopoDuckDbPayload(options: {
   regional?: string;
   unidade?: string;
 }): Promise<DashboardQueryPayload> {
-  const store = await ensureStore();
+  const store = await ensureStore(options.periodDays);
   const context = computeContext(store, options);
   const row = buildGerencialKpisTopoRow(store, context, options.periodDays) as Record<string, unknown>;
   const unitsFilterSql = buildUnitsFilterSql(options);
@@ -1616,7 +1753,7 @@ export async function getDashboardQueryPayload(
     }
   }
 
-  const store = await ensureStore();
+  const store = await ensureStore(options.periodDays);
   const context = computeContext(store, options);
   const safeLimit = Math.max(1, Math.min(options.limit || 200, 5000));
   let rows: Record<string, unknown>[] = [];
@@ -1882,7 +2019,7 @@ export async function getPsChegadasHeatmapPayload(options: {
     }
   }
 
-  const store = await ensureStore();
+  const store = await ensureStore(90);
   const rows = buildPsChegadasHeatmapRowsForMonth(store, mes, regional, unidade, safeLimit);
   return {
     ok: true,
@@ -1897,6 +2034,7 @@ export function clearDashboardCsvCache(): void {
   /* nome histórico: cache do store em memória (Parquet/CSV via DuckDB read) */
   storeCache = null;
   storeLoadPromise = null;
+  storeCommittedRetentionDays = 0;
   queryCache.clear();
 }
 
@@ -1907,7 +2045,7 @@ const GERENCIAL_PERIOD_DAYS: Array<1 | 7 | 15 | 30 | 60 | 90 | 180 | 365> = [1, 
  * Os demais periodos rodam em background para troca rapida de pill sem bloquear "servidor pronto".
  */
 export async function prewarmDashboardStore(): Promise<void> {
-  const store = await ensureStore();
+  const store = await ensureStore(1);
   computeContext(store, { periodDays: 1 });
   setImmediate(() => {
     for (const periodDays of GERENCIAL_PERIOD_DAYS) {
@@ -1926,7 +2064,7 @@ export function scheduleGerencialContextPrewarm(options: {
   regional?: string;
   unidade?: string;
 }): void {
-  void ensureStore().then((store) => {
+  void ensureStore(options.activePeriodDays).then((store) => {
     setImmediate(() => {
       for (const periodDays of GERENCIAL_PERIOD_DAYS) {
         if (periodDays === options.activePeriodDays) continue;

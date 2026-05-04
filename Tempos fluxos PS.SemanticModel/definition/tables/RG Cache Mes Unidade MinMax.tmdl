@@ -1,0 +1,126 @@
+table 'RG Cache Mes Unidade MinMax'
+	lineageTag: db93b34e-519e-48ae-a8a1-aa51b2e92d5d
+
+	column AnoMesNum
+		formatString: 0
+		lineageTag: 7fd153e4-d220-4935-8e1b-26964c5a90b6
+		summarizeBy: sum
+		isNameInferred
+		sourceColumn: RG Cache Mes Unidade[AnoMesNum]
+
+		annotation SummarizationSetBy = Automatic
+
+	column Indicador
+		lineageTag: 8c76bcdb-fc55-4ec5-be17-40cde0b6dedd
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: RG Cache Mes Unidade[Indicador]
+
+		annotation SummarizationSetBy = Automatic
+
+	column Unidade
+		lineageTag: 6417a164-0063-4f15-adc4-f946b3ddb177
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: RG Cache Mes Unidade[Unidade]
+
+		annotation SummarizationSetBy = Automatic
+
+	column Valor
+		lineageTag: c3596a19-ff9f-42df-b3c1-3bf460f7f70e
+		summarizeBy: sum
+		isNameInferred
+		sourceColumn: RG Cache Mes Unidade[Valor]
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column Min12
+		lineageTag: 6d09820f-16a5-4ce0-b337-27e3165b2afc
+		summarizeBy: sum
+		isNameInferred
+		sourceColumn: [Min12]
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column Max12
+		lineageTag: 4943b07e-741e-4b3d-9956-1d02a440800a
+		summarizeBy: sum
+		isNameInferred
+		sourceColumn: [Max12]
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column ValorAnterior
+		lineageTag: 4567b63c-10bc-4cf2-b5e2-dab88104c4f8
+		summarizeBy: sum
+		isNameInferred
+		sourceColumn: RG Cache Mes Unidade[ValorAnterior]
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column YTD
+		lineageTag: 8da90887-05df-40a1-b866-473f94b81d82
+		summarizeBy: sum
+		isNameInferred
+		sourceColumn: RG Cache Mes Unidade[YTD]
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	partition 'RG Cache Mes Unidade MinMax' = calculated
+		mode: import
+		source = ```
+				
+				ADDCOLUMNS (
+				    'RG Cache Mes Unidade',
+				    "Min12",
+				        VAR _Ind = [Indicador]
+				        VAR _Un = [Unidade]
+				        VAR _Ym = [AnoMesNum]
+				        VAR _NumFim = INT ( _Ym / 100 ) * 12 + MOD ( _Ym, 100 )
+				        VAR _NumIni = _NumFim - 11
+				        RETURN
+				            MINX (
+				                FILTER (
+				                    'RG Cache Mes Unidade',
+				                    [Indicador] = _Ind
+				                        && [Unidade] = _Un
+				                        && INT ( [AnoMesNum] / 100 ) * 12 + MOD ( [AnoMesNum], 100 ) >= _NumIni
+				                        && INT ( [AnoMesNum] / 100 ) * 12 + MOD ( [AnoMesNum], 100 ) <= _NumFim
+				                        && NOT ISBLANK ( [Valor] )
+				                ),
+				                [Valor]
+				            ),
+				    "Max12",
+				        VAR _Ind = [Indicador]
+				        VAR _Un = [Unidade]
+				        VAR _Ym = [AnoMesNum]
+				        VAR _NumFim = INT ( _Ym / 100 ) * 12 + MOD ( _Ym, 100 )
+				        VAR _NumIni = _NumFim - 11
+				        RETURN
+				            MAXX (
+				                FILTER (
+				                    'RG Cache Mes Unidade',
+				                    [Indicador] = _Ind
+				                        && [Unidade] = _Un
+				                        && INT ( [AnoMesNum] / 100 ) * 12 + MOD ( [AnoMesNum], 100 ) >= _NumIni
+				                        && INT ( [AnoMesNum] / 100 ) * 12 + MOD ( [AnoMesNum], 100 ) <= _NumFim
+				                        && NOT ISBLANK ( [Valor] )
+				                ),
+				                [Valor]
+				            )
+				)
+				
+				```
+
+	annotation PBI_Id = 378bbcdfb0864d7dbcef798e4e3b6a7e
+

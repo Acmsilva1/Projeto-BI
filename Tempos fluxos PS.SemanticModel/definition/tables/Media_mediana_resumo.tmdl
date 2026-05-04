@@ -1,0 +1,21 @@
+table Media_mediana_resumo
+	lineageTag: 066cf0cf-165e-423a-bef2-f549b48bc254
+
+	column Agregacao
+		lineageTag: 7744c2d1-bb79-4d8f-b58e-4f1ee64a376e
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: [Agregacao]
+
+		annotation SummarizationSetBy = Automatic
+
+	partition Media_mediana_resumo = calculated
+		mode: import
+		source =
+				DATATABLE(
+				    "Agregacao", STRING,
+				    { { "Média" }, { "Mediana" } }
+				)
+
+	annotation PBI_Id = 94d60f07fcdf4d64b104a953f71d1cb1
+

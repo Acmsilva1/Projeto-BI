@@ -1,0 +1,11 @@
+{
+  "name": "projeto-bi",
+  "private": true,
+  "description": "Encaminha comandos npm para NOVO BI (api + web).",
+  "scripts": {
+    "dev": "npm run dev --prefix \"NOVO BI\"",
+    "build": "npm run build --prefix \"NOVO BI\"",
+    "start": "npm run start --prefix \"NOVO BI\"",
+    "postinstall": "npm install --prefix \"NOVO BI\""
+  }
+}

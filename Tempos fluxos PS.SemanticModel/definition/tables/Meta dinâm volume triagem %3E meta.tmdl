@@ -1,0 +1,28 @@
+table 'Meta dinâm volume triagem > meta'
+	lineageTag: 1da0c5a8-0cb5-4f64-a0cb-52cd552c9b21
+
+	measure 'Valor Meta dinâm volume triagem > meta' = SELECTEDVALUE('Meta dinâm volume triagem > meta'[Meta dinâm volume triagem > meta])
+		lineageTag: 0bffda78-3bad-493f-be88-2e84a24897b5
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Meta dinâm volume triagem > meta'
+		lineageTag: f8e75c82-a241-401e-bb4d-ad9fc8e16ef9
+		summarizeBy: none
+		sourceColumn: [Value]
+
+		extendedProperty ParameterMetadata =
+				{
+				  "version": 0
+				}
+
+		annotation SummarizationSetBy = User
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	partition 'Meta dinâm volume triagem > meta' = calculated
+		mode: import
+		source = GENERATESERIES(0, 1.01, 0.001)
+
+	annotation PBI_Id = 55ab725b65df47d6b9f4b64c8585d5f1
+

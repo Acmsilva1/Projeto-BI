@@ -1,0 +1,26 @@
+table Qtde_atd
+	lineageTag: e33998ae-b77a-4465-b959-e4c756ad92ca
+
+	measure 'Valor Qtde_atd' = SELECTEDVALUE('Qtde_atd'[Qtde_atd])
+		formatString: 0
+		lineageTag: 081e7baa-d7f5-4700-941e-2a06528456a9
+
+	column Qtde_atd
+		formatString: 0
+		lineageTag: 1fdbe3b1-172a-4771-a02d-8563276809bd
+		summarizeBy: none
+		sourceColumn: [Value]
+
+		extendedProperty ParameterMetadata =
+				{
+				  "version": 0
+				}
+
+		annotation SummarizationSetBy = User
+
+	partition Qtde_atd = calculated
+		mode: import
+		source = GENERATESERIES(1, 50, 1)
+
+	annotation PBI_Id = 68accc771c904184b9e26f4372e94b0f
+

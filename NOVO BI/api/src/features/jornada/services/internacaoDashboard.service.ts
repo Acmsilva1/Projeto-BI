@@ -114,6 +114,11 @@ function buildUnitsFilterSql(options: InternacaoOptions): string {
   return clauses.join(" AND ");
 }
 
+/** Alinhado ao PS: bootstrap 90d; 180/365 expandem até ao teto `GERENCIAL_STORE_RETENTION_DAYS`. */
+function internacaoFactsRetentionDays(periodDays: InternacaoOptions["periodDays"]): number {
+  return Math.min(env.gerencialStoreRetentionDays, Math.max(90, periodDays));
+}
+
 function duckPeriodWhere(col: string, periodDays: InternacaoOptions["periodDays"]): string {
   if (periodDays === 1) {
     return `${col} IS NOT NULL AND cast(${col} AS DATE) = cast(CURRENT_DATE AS DATE) - INTERVAL 1 DAY`;
@@ -239,6 +244,45 @@ function resolvePeriodBounds(dates: number[], periodDays: InternacaoOptions["per
   return { startMs, endMs: maxMs };
 }
 
+const INTERNACAO_RETENTION_MS_PER_DAY = 86_400_000;
+
+/** Maior entre entrada e alta (quando existem) — ancora por linha para recorte 90d. */
+function internInternacaoRowActivityMs(row: Record<string, string>): number {
+  const e = parseDateMs(pickField(row, "dt_entrada"));
+  const a = parseDateMs(pickField(row, "dt_alta"));
+  const parts = [e, a].filter((x): x is number => x !== null && Number.isFinite(x));
+  return parts.length === 0 ? 0 : Math.max(...parts);
+}
+
+function internConversoesRowActivityMs(row: Record<string, string>): number {
+  const e = parseDateMs(pickField(row, "dt_entrada"));
+  const a = parseDateMs(pickField(row, "dt_alta"));
+  const parts = [e, a].filter((x): x is number => x !== null && Number.isFinite(x));
+  return parts.length === 0 ? 0 : Math.max(...parts);
+}
+
+/** Recorte temporal dos facts (dias) após leitura do ficheiro — alinhado ao pill da internação / PS. */
+function filterInternFactRowsByGerencialRetention(
+  rows: Record<string, string>[],
+  activityMs: (row: Record<string, string>) => number,
+  retentionDays: number
+): Record<string, string>[] {
+  let anchor = 0;
+  for (const row of rows) {
+    const v = activityMs(row);
+    if (v > anchor) anchor = v;
+  }
+  if (anchor <= 0) return rows;
+  const days = retentionDays;
+  if (!Number.isFinite(days) || days <= 0) return rows;
+  const cutoff = anchor - days * INTERNACAO_RETENTION_MS_PER_DAY;
+  return rows.filter((row) => {
+    const v = activityMs(row);
+    if (v <= 0) return true;
+    return v >= cutoff;
+  });
+}
+
 async function loadInternacaoSupplementByUnit(options: InternacaoOptions, targetUnits: string[]): Promise<Map<string, InternacaoSupplement>> {
   return withMemoryDatasetDb(async (_db, conn) => {
     const output = new Map<string, InternacaoSupplement>();
@@ -286,7 +330,12 @@ async function loadInternacaoSupplementByUnit(options: InternacaoOptions, target
     if (targetCodes.size === 0) return output;
 
     if (internResolved) {
-      const rows = await loadFullTableAsStringRowsConn(conn, internResolved);
+      const rowsRaw = await loadFullTableAsStringRowsConn(conn, internResolved);
+      const rows = filterInternFactRowsByGerencialRetention(
+        rowsRaw,
+        internInternacaoRowActivityMs,
+        internacaoFactsRetentionDays(options.periodDays)
+      );
       const perUnit: Record<string, Array<{ entrada: number | null; alta: number | null; obito: boolean }>> = {};
       for (const [key] of targetCodes) perUnit[key] = [];
       for (const row of rows) {
@@ -342,7 +391,12 @@ async function loadInternacaoSupplementByUnit(options: InternacaoOptions, target
     }
 
     if (convResolved) {
-      const rows = await loadFullTableAsStringRowsConn(conn, convResolved);
+      const rowsRaw = await loadFullTableAsStringRowsConn(conn, convResolved);
+      const rows = filterInternFactRowsByGerencialRetention(
+        rowsRaw,
+        internConversoesRowActivityMs,
+        internacaoFactsRetentionDays(options.periodDays)
+      );
       const byUnitPerson = new Map<string, Map<string, Array<{ entrada: number; alta: number | null }>>>();
       for (const [key] of targetCodes) byUnitPerson.set(key, new Map());
       for (const row of rows) {
@@ -1266,7 +1320,12 @@ export async function getInternacaoVariadosPayload(options: InternacaoOptions): 
         };
       }
 
-      const internRows = await loadFullTableAsStringRowsConn(conn, internResolved);
+      const internRowsRaw = await loadFullTableAsStringRowsConn(conn, internResolved);
+      const internRows = filterInternFactRowsByGerencialRetention(
+        internRowsRaw,
+        internInternacaoRowActivityMs,
+        internacaoFactsRetentionDays(options.periodDays)
+      );
       const filtered = internRows
         .filter((row) => {
           const code = Number.parseInt(pickField(row, "cd_estabelecimento"), 10);

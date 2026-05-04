@@ -1,0 +1,28 @@
+table 'Meta dinâm volume lab'
+	lineageTag: 50f21aeb-8772-4be3-a65d-87de361cb177
+
+	measure 'Valor Meta dinâm volume lab' = SELECTEDVALUE('Meta dinâm volume lab'[Meta dinâm volume lab])
+		lineageTag: e0d02c09-b8a3-4a4f-9590-3b61b70f5e2a
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Meta dinâm volume lab'
+		lineageTag: 9ca4ac45-0c71-48d9-b5bc-17639a3f8663
+		summarizeBy: none
+		sourceColumn: [Value]
+
+		extendedProperty ParameterMetadata =
+				{
+				  "version": 0
+				}
+
+		annotation SummarizationSetBy = User
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	partition 'Meta dinâm volume lab' = calculated
+		mode: import
+		source = GENERATESERIES(0, 1.01, 0.001)
+
+	annotation PBI_Id = 8e807c7f89ed48deb7a5c47ba82d2221
+

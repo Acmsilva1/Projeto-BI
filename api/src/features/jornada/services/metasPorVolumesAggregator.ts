@@ -55,6 +55,10 @@ export type ViasVolumeRow = {
   dataMs: number;
   nrPrescricao: string;
   cdMaterial: number;
+  dsMaterial: string;
+  ieViaAplicacao: string;
+  ieAplicBolus: string;
+  ieAplicLenta: string;
 };
 
 export type VolumeMetaDefinition = {
@@ -87,7 +91,7 @@ export const VOLUME_META_DEFINITIONS: VolumeMetaDefinition[] = [
   { key: "desfecho", label: "Desfecho do médico do atend.", targetDisplay: "(90%)", targetValue: 0.9, format: "percent", direction: ">" }
 ];
 
-const EXCLUDED_MATERIAL_IDS = new Set([84278, 84288, 84153, 84271]);
+export const EXCLUDED_MATERIAL_IDS = new Set([84278, 84288, 84153, 84271]);
 
 const RG_TRIAGEM_MIN = 12;
 const RG_CONSULTA_MIN = 90;

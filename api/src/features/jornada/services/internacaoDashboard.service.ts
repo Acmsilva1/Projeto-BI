@@ -143,12 +143,11 @@ export function duckSqlFlexTimestamp(expr: string): string {
   )`;
 }
 
-/** Datas em `tbl_intern_internacoes` (alias `i.`): **iguais** ao `getInternacaoTopoPayload`. */
-export const SQL_INTERN_I_DT_ENTRADA = "try_cast(replace(i.dt_entrada, ' ', 'T') AS TIMESTAMP)";
-export const SQL_INTERN_I_DT_ALTA = "try_cast(replace(i.dt_alta, ' ', 'T') AS TIMESTAMP)";
-/** Parquet do modelo expõe `DT_ALTA_MEDICO` (maiúsculas). Identificador sem aspas falha no DuckDB. */
-export const SQL_INTERN_I_DT_ALTA_MEDICO =
-  "try_cast(replace(trim(cast(i.\"DT_ALTA_MEDICO\" AS VARCHAR)), ' ', 'T') AS TIMESTAMP)";
+/** Datas em `tbl_intern_internacoes` (alias `i.`), tolerando colunas TIMESTAMP ou VARCHAR. */
+export const SQL_INTERN_I_DT_ENTRADA = duckSqlFlexTimestamp('i."DT_ENTRADA"');
+export const SQL_INTERN_I_DT_ALTA = duckSqlFlexTimestamp('i."DT_ALTA"');
+/** Parquet do modelo expõe `DT_ALTA_MEDICO` (maiúsculas); aceitar TIMESTAMP/VARCHAR. */
+export const SQL_INTERN_I_DT_ALTA_MEDICO = duckSqlFlexTimestamp('i."DT_ALTA_MEDICO"');
 
 /** Dias do calendário do mesmo recorte do topo (para Paciente-dia no período, alinhado ao Power BI). */
 export function duckTopoPeriodDaysCTE(periodDays: InternacaoOptions["periodDays"]): string {
@@ -969,8 +968,8 @@ export async function getInternacaoTopoPayload(options: InternacaoOptions): Prom
     const unitsFilterSql = buildUnitsFilterSql(options);
     const dtIntern = SQL_INTERN_I_DT_ENTRADA;
     const dtAlta = SQL_INTERN_I_DT_ALTA;
-    const dtConvEnt = "try_cast(replace(c.dt_entrada, ' ', 'T') AS TIMESTAMP)";
-    const dtConvAlta = "try_cast(replace(c.dt_alta, ' ', 'T') AS TIMESTAMP)";
+    const dtConvEnt = duckSqlFlexTimestamp('c."DT_ENTRADA"');
+    const dtConvAlta = duckSqlFlexTimestamp('c."DT_ALTA"');
     const periodDaysCTE = duckTopoPeriodDaysCTE(options.periodDays);
 
     const rows = await queryDuckDb(`
@@ -1009,8 +1008,8 @@ export async function getInternacaoTopoPayload(options: InternacaoOptions): Prom
         SELECT
           try_cast(cd_estabelecimento AS BIGINT) AS cd,
           trim(cast(nr_atendimento AS VARCHAR)) AS nr_atendimento,
-          try_cast(replace(dt_historico, ' ', 'T') AS TIMESTAMP) AS dt_hist,
-          try_cast(replace(dt_fim_historico, ' ', 'T') AS TIMESTAMP) AS dt_fim
+          ${duckSqlFlexTimestamp('m."DT_HISTORICO"')} AS dt_hist,
+          ${duckSqlFlexTimestamp('m."DT_FIM_HISTORICO"')} AS dt_fim
         FROM tbl_intern_movimentacoes m
         WHERE try_cast(cd_estabelecimento AS BIGINT) IN (SELECT cd FROM unidades)
           AND nr_atendimento IS NOT NULL
@@ -1483,7 +1482,7 @@ export async function getInternacaoVariadosPayload(options: InternacaoOptions): 
   const unitsFilterSql = buildUnitsFilterSql(options);
   const safeLimit = Math.max(1, Math.min(options.limit || 50000, 200000));
   try {
-    const dtIntern = "try_cast(replace(i.dt_entrada, ' ', 'T') AS TIMESTAMP)";
+    const dtIntern = duckSqlFlexTimestamp('i."DT_ENTRADA"');
     const rows = await queryDuckDb(`
       WITH unidades AS (
         SELECT try_cast(cd_estabelecimento AS BIGINT) AS cd

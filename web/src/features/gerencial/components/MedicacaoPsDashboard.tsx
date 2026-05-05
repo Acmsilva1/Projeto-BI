@@ -1,4 +1,3 @@
-import { Bell, Loader2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import {
   Bar,
@@ -6,7 +5,6 @@ import {
   CartesianGrid,
   Cell,
   LabelList,
-  Legend,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -16,7 +14,7 @@ import {
 } from "recharts";
 import { fetchPsMedicacaoDashboard, type PsMedicacaoResponse } from "../../jornada/api";
 import type { PeriodDays } from "../../../lib/gerencialFiltersStorage";
-import { useRotatingGerencialLoadPhrases } from "../../../lib/gerencialLoadPhrases";
+import { useDashboardLoadBar } from "../../../lib/useDashboardLoadBar";
 import { GerencialLoadPanel } from "../../gerencial/components/GerencialLoadPanel";
 import { motion } from "framer-motion";
 
@@ -29,16 +27,14 @@ type MedicacaoPsDashboardProps = {
 type MedicacaoData = PsMedicacaoResponse["data"];
 
 type MedicacaoState =
-  | { status: "loading"; loadSession: number; progress: number }
+  | { status: "loading"; loadSession: number }
   | { status: "error"; message: string }
-  | { status: "ready"; data: MedicacaoData; isStale?: boolean; pendingData?: MedicacaoData };
+  | { status: "ready"; data: MedicacaoData };
 
 const COLORS = {
   LENTA: '#22c55e', // green-500
   RAPIDA: '#ef4444', // red-500
 };
-
-const CHART_HEIGHT = 320;
 
 function formatInt(value: number): string {
   return Math.round(value).toLocaleString("pt-BR");
@@ -49,27 +45,46 @@ function formatPercent(value: number): string {
   return `${value.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`;
 }
 
+/** Recharts omite LabelList em barras com altura 0 — força rótulo (ex.: "0") alinhado à categoria. */
+function MedicacaoPieLegend(props: { entries: Array<{ name: string; fill: string }> }): ReactElement {
+  const { entries } = props;
+  return (
+    <div className="medicacao-pie-legend" role="list" aria-label="Legenda">
+      {entries.map((e) => (
+        <span key={e.name} className="medicacao-pie-legend__item" role="listitem">
+          <span className="medicacao-pie-legend__swatch" style={{ backgroundColor: e.fill }} aria-hidden />
+          <span>{e.name}</span>
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function NaoPadraoRankingBarLabel(props: Record<string, unknown>): ReactElement | null {
+  const x = Number(props.x);
+  const y = Number(props.y);
+  const width = Number(props.width);
+  const raw = props.value;
+  const n = typeof raw === "number" ? raw : Number(raw);
+  if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(width) || !Number.isFinite(n)) return null;
+  const cx = x + width / 2;
+  const cy = n > 0 ? y - 8 : y + 14;
+  return (
+    <text x={cx} y={cy} fill="#ef4444" fontSize={12} fontWeight={800} textAnchor="middle">
+      {formatInt(n)}
+    </text>
+  );
+}
+
 export function MedicacaoPsDashboard(props: MedicacaoPsDashboardProps): ReactElement {
   const { period, regional, unidade } = props;
   const loadSessionRef = useRef(0);
-  const [state, setState] = useState<MedicacaoState>(() => {
-    const cacheKey = `ps-medicacao-cache-${period}-${regional}-${unidade}`;
-    const cached = localStorage.getItem(cacheKey);
-    if (cached) {
-      try {
-        return { status: "ready", data: JSON.parse(cached), isStale: true };
-      } catch { /* skip */ }
-    }
-    return { status: "loading", loadSession: 0, progress: 10 };
-  });
+  const [state, setState] = useState<MedicacaoState>({ status: "loading", loadSession: 0 });
 
   const loadData = useCallback(() => {
     const controller = new AbortController();
     const loadSession = ++loadSessionRef.current;
-    
-    if (state.status !== "ready") {
-      setState({ status: "loading", loadSession, progress: 12 });
-    }
+    setState({ status: "loading", loadSession });
 
     fetchPsMedicacaoDashboard({
       period,
@@ -79,16 +94,7 @@ export function MedicacaoPsDashboard(props: MedicacaoPsDashboardProps): ReactEle
     })
       .then((res) => {
         if (loadSession !== loadSessionRef.current) return;
-        
-        const cacheKey = `ps-medicacao-cache-${period}-${regional}-${unidade}`;
-        localStorage.setItem(cacheKey, JSON.stringify(res.data));
-
-        setState((prev) => {
-          if (prev.status === "ready" && prev.isStale) {
-            return { ...prev, pendingData: res.data };
-          }
-          return { status: "ready", data: res.data, isStale: false };
-        });
+        setState({ status: "ready", data: res.data });
       })
       .catch((error: unknown) => {
         if (error instanceof Error && error.name === "AbortError") return;
@@ -104,9 +110,11 @@ export function MedicacaoPsDashboard(props: MedicacaoPsDashboardProps): ReactEle
     return loadData();
   }, [loadData]);
 
-  const rotatingLoadMessage = useRotatingGerencialLoadPhrases(
-    state.status === "loading",
-    state.status === "loading" ? `ps-medicacao-${state.loadSession}` : "ps-medicacao-idle"
+  const medicacaoLoading = state.status === "loading";
+  const medicacaoLoadWaveKey = medicacaoLoading ? `ps-medicacao-${state.loadSession}` : "ps-medicacao-idle";
+  const { progress: medicacaoLoadProgress, message: medicacaoLoadMessage } = useDashboardLoadBar(
+    medicacaoLoading,
+    medicacaoLoadWaveKey
   );
 
   const infusaoData = useMemo(() => {
@@ -132,62 +140,37 @@ export function MedicacaoPsDashboard(props: MedicacaoPsDashboardProps): ReactEle
 
   if (state.status === "loading") {
     return (
-      <div className="mb-8">
-        <GerencialLoadPanel progress={state.progress} message={rotatingLoadMessage} />
+      <div className="py-2">
+        <GerencialLoadPanel progress={medicacaoLoadProgress} message={medicacaoLoadMessage} />
       </div>
     );
   }
 
   if (state.status === "error") {
     return (
-      <div className="mb-8 rounded-xl border border-[var(--dash-critical)]/40 bg-[color-mix(in_srgb,var(--dash-critical)_10%,transparent)] p-4 text-[var(--dash-critical)]">
+      <div className="rounded-xl border border-[var(--dash-critical)]/40 bg-[color-mix(in_srgb,var(--dash-critical)_10%,transparent)] p-4 text-[var(--dash-critical)]">
         {state.message}
       </div>
     );
   }
 
   if (state.status === "ready" && state.data.totalMedicacoes === 0) {
-    return <p className="mb-8 text-sm text-[var(--app-muted)]">Sem dados de medicação no período.</p>;
+    return <p className="py-6 text-sm text-[var(--app-muted)]">Sem dados de medicação no período.</p>;
   }
 
   const data = state.data;
 
   return (
-    <motion.section 
-      initial={{ opacity: 0, y: 20 }}
+    <motion.section
+      initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      className="mb-10"
+      transition={{ duration: 0.45 }}
+      className="min-w-0"
       aria-label="Dashboard de Medicação PS"
     >
-      <header className="mb-6 flex flex-wrap items-center gap-4">
-        <h2 className="text-2xl font-black tracking-tight text-white">
-          Medicação - Pronto Socorro
-        </h2>
-        
-        {state.status === "ready" && state.pendingData && (
-          <button
-            type="button"
-            className="flex items-center gap-2 rounded-full border border-[var(--dash-live)] bg-[color-mix(in_srgb,var(--dash-live)_15%,transparent)] px-4 py-1.5 text-[11px] font-bold uppercase tracking-tight text-[var(--dash-live)] shadow-[0_0_15px_rgba(45,224,185,0.3)] transition-all hover:bg-[var(--dash-live)] hover:text-white active:scale-95 animate-bounce-subtle z-30 ml-4"
-            onClick={() => {
-              setState(prev => prev.status === "ready" && prev.pendingData ? { ...prev, data: prev.pendingData, pendingData: undefined, isStale: false } : prev);
-            }}
-          >
-            <Bell size={13} className="animate-bell-shake" />
-            Novos dados disponíveis
-          </button>
-        )}
-
-        <div className="h-px flex-1 bg-white/10" />
-        
-        {state.status === "ready" && state.isStale && !state.pendingData && (
-          <div className="flex items-center gap-2 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-white/40 animate-pulse">
-            <Loader2 size={10} className="animate-spin" />
-            <span>Sincronizando...</span>
-          </div>
-        )}
-
-        <div className="rounded-full bg-white/5 px-4 py-1 text-xs font-bold text-white/60 backdrop-blur-md">
-          {formatInt(data.totalMedicacoes)} ADMINISTRAÇÕES
+      <header className="mb-5 flex flex-wrap items-center justify-end gap-3">
+        <div className="rounded-full border border-[var(--table-grid)] bg-[color-mix(in_srgb,var(--app-elevated)_88%,transparent)] px-4 py-1.5 text-xs font-bold text-[var(--app-muted)]">
+          {formatInt(data.totalMedicacoes)} administrações
         </div>
       </header>
 
@@ -195,69 +178,94 @@ export function MedicacaoPsDashboard(props: MedicacaoPsDashboardProps): ReactEle
         {/* Gráfico 1: Tipo de Infusão (Donut) */}
         <article className="internacao-var-card">
           <h3 className="internacao-var-title mb-2 text-center">Tipo de Infusão</h3>
-          <div className="internacao-var-chart-tall mt-4">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart margin={{ top: 30, bottom: 20 }}>
-                <Pie
-                  data={infusaoData}
-                  dataKey="value"
-                  nameKey="name"
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={80}
-                  paddingAngle={5}
-                  labelLine={false}
-                  label={({ percent, name }) => `${name} - ${formatPercent(percent)}`}
-                >
-                  {infusaoData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.fill} />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(v: number) => formatInt(v)} />
-                <Legend verticalAlign="bottom" height={36}/>
-              </PieChart>
-            </ResponsiveContainer>
+          <div className="medicacao-donut-stack mt-4">
+            <div className="medicacao-donut-stack__chart">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={240}>
+                <PieChart margin={{ top: 26, right: 36, bottom: 8, left: 36 }}>
+                  <Pie
+                    data={infusaoData}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={80}
+                    paddingAngle={5}
+                    labelLine={{ stroke: "#64748b", strokeWidth: 1 }}
+                    label={(props: {
+                      x?: number;
+                      y?: number;
+                      textAnchor?: string;
+                      name?: string;
+                      percent?: number;
+                      fill?: string;
+                    }) => {
+                      const x = Number(props.x);
+                      const y = Number(props.y);
+                      if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+                      const text = `${String(props.name ?? "")} - ${formatPercent(Number(props.percent ?? 0))}`;
+                      return (
+                        <text
+                          x={x}
+                          y={y}
+                          fill={String(props.fill ?? "#0f172a")}
+                          textAnchor={(props.textAnchor as "start" | "end" | "middle") || "middle"}
+                          dominantBaseline="central"
+                          style={{ fontSize: 12, fontWeight: 800 }}
+                        >
+                          {text}
+                        </text>
+                      );
+                    }}
+                  >
+                    {infusaoData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.fill} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(v) => formatInt(Number(v ?? 0))} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <MedicacaoPieLegend entries={infusaoData.map((d) => ({ name: d.name, fill: d.fill }))} />
           </div>
         </article>
 
         {/* Gráfico 2: Vias de Aplicação (Donut) */}
         <article className="internacao-var-card">
           <h3 className="internacao-var-title mb-2 text-center">Vias de Aplicação</h3>
-          <div className="internacao-var-chart-tall mt-4">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart margin={{ top: 30, bottom: 20 }}>
-                <Pie
-                  data={viasData}
-                  dataKey="value"
-                  nameKey="name"
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={80}
-                  paddingAngle={2}
-                  labelLine
-                  label={({ name, percent }) => {
-                    const mainVias = ["EV", "IM", "VO", "EV BOLUS", "IN", "SC", "OUTROS"];
-                    if (mainVias.includes(name) || percent > 10) {
-                      return `${name} - ${formatPercent(percent)}`;
-                    }
-                    return "";
-                  }}
-                >
-                  {viasData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.fill} />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(v: number) => formatInt(v)} />
-                <Legend 
-                  verticalAlign="bottom" 
-                  height={80} 
-                  iconType="circle" 
-                  wrapperStyle={{ fontSize: 9, paddingTop: 15 }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
+          <div className="medicacao-donut-stack mt-4">
+            <div className="medicacao-donut-stack__chart">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={240}>
+                <PieChart margin={{ top: 26, right: 28, bottom: 8, left: 28 }}>
+                  <Pie
+                    data={viasData}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={80}
+                    paddingAngle={2}
+                    labelLine
+                    label={({ name, percent }) => {
+                      const mainVias = ["EV", "IM", "VO", "EV BOLUS", "IN", "SC", "OUTROS"];
+                      const pct = Number(percent ?? 0);
+                      const nm = String(name ?? "");
+                      if (mainVias.includes(nm) || pct > 10) {
+                        return `${nm} - ${formatPercent(pct)}`;
+                      }
+                      return "";
+                    }}
+                  >
+                    {viasData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.fill} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(v) => formatInt(Number(v ?? 0))} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <MedicacaoPieLegend entries={viasData.map((d) => ({ name: d.name, fill: d.fill }))} />
           </div>
         </article>
 
@@ -265,7 +273,7 @@ export function MedicacaoPsDashboard(props: MedicacaoPsDashboardProps): ReactEle
         <article className="internacao-var-card">
           <h3 className="internacao-var-title mb-6">Top 10 - Infusão Lenta</h3>
           <div className="internacao-var-chart-tall">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={240}>
               <BarChart
                 layout="vertical"
                 data={data.topLenta}
@@ -296,7 +304,7 @@ export function MedicacaoPsDashboard(props: MedicacaoPsDashboardProps): ReactEle
         <article className="internacao-var-card">
           <h3 className="internacao-var-title mb-6">Top 10 - Infusão Rápida</h3>
           <div className="internacao-var-chart-tall">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={240}>
               <BarChart
                 layout="vertical"
                 data={data.topRapida}
@@ -332,10 +340,10 @@ export function MedicacaoPsDashboard(props: MedicacaoPsDashboardProps): ReactEle
                 Nenhum dado não padrão no período
               </div>
             ) : (
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={240}>
                 <BarChart
                   data={data.rankingNaoPadrao || []}
-                  margin={{ top: 20, right: 30, left: 20, bottom: 70 }}
+                  margin={{ top: 22, right: 30, left: 8, bottom: 70 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#94a3b8" />
                   <XAxis 
@@ -348,13 +356,22 @@ export function MedicacaoPsDashboard(props: MedicacaoPsDashboardProps): ReactEle
                     height={80}
                     tick={{ fill: "#475569" }}
                   />
-                  <YAxis hide />
+                  <YAxis
+                    width={36}
+                    tick={{ fontSize: 10, fill: "#64748b" }}
+                    tickFormatter={(v) => formatInt(Number(v))}
+                    axisLine={false}
+                    tickLine={false}
+                  />
                   <Tooltip 
                     cursor={{ fill: 'rgba(0,0,0,0.05)' }}
                     contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                   />
                   <Bar dataKey="qtd" fill="#ef4444" radius={[4, 4, 0, 0]} barSize={40}>
-                    <LabelList dataKey="qtd" position="top" fontSize={12} fontWeight={800} fill="#ef4444" offset={10} />
+                    <LabelList
+                      dataKey="qtd"
+                      content={(p) => NaoPadraoRankingBarLabel(p as unknown as Record<string, unknown>)}
+                    />
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>

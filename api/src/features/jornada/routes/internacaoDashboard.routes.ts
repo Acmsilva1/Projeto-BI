@@ -12,4 +12,3 @@ internacaoDashboardRoutes.get("/filtros", internacaoFiltrosController);
 internacaoDashboardRoutes.get("/topo", internacaoTopoController);
 internacaoDashboardRoutes.get("/metas", internacaoMetasController);
 internacaoDashboardRoutes.get("/variados", internacaoVariadosController);
-

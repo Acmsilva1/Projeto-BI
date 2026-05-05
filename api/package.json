@@ -5,10 +5,13 @@
   "type": "module",
   "description": "Novo BI API - MVC TypeScript base",
   "scripts": {
+    "prebuild": "npm run dataset:movimentacoes-parquet",
     "dev": "tsx watch src/server.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
-    "test:parity-metas": "tsx scripts/parity-metas-volumes.ts"
+    "test:parity-metas": "tsx scripts/parity-metas-volumes.ts",
+    "test:medicacao-ps-aggregator": "tsx scripts/verify-medicacao-ps-aggregator.ts",
+    "dataset:movimentacoes-parquet": "node scripts/rebuild-movimentacoes-parquet-from-csv.mjs"
   },
   "dependencies": {
     "apache-arrow": "^21.1.0",

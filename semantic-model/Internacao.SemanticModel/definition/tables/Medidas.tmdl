@@ -1,0 +1,1281 @@
+table Medidas
+	lineageTag: 71847c61-e914-4fbd-9849-8f29a04f2eec
+
+	measure 'Dia D-1' = ```
+			
+			VAR MaxDataAll =
+			    CALCULATE ( MAX ( Internacao[DATA] ), ALL (Internacao) )
+			VAR DataAnteriorDisponivel =
+			    CALCULATE (
+			        MAX (Internacao[DATA]),
+			        FILTER (ALL(Internacao), Internacao[DATA] < MaxDataAll )
+			    )
+			RETURN
+			    IF (
+			        MaxDataAll = TODAY (),
+			        DataAnteriorDisponivel,   -- se a última data é hoje, traz o D-1 disponível
+			        MaxDataAll                -- se a última data é ontem (ou antes), traz normalmente
+			    )
+			
+			```
+		formatString: Short Date
+		displayFolder: Outros
+		lineageTag: 8fc5773c-5df4-48da-9ec9-c6068c576a6e
+
+	measure 'Qtd de altas' =
+			
+			CALCULATE(
+			    DISTINCTCOUNT(Internacao[NR_ATENDIMENTO]),
+			    NOT ISBLANK(Internacao[DT_ALTA]),
+			    USERELATIONSHIP(Internacao[DT_ALTA_DATA], Calendario[Data])
+			)
+		formatString: 0
+		displayFolder: Altas
+		lineageTag: 3966cd79-6819-468b-8e10-6447f4e066ac
+
+	measure 'Qtd reinternacoes 30d' =
+			
+			CALCULATE (
+			    DISTINCTCOUNT ( Internacao[NR_ATENDIMENTO] ),
+			    FILTER (
+			        Internacao,
+			        NOT ISBLANK ( Internacao[Dias Desde Alta Anterior] )
+			            && Internacao[Dias Desde Alta Anterior] > 0
+			            && Internacao[Dias Desde Alta Anterior] <= 30
+			    )
+			)
+		formatString: 0
+		displayFolder: Reinternação
+		lineageTag: 4b82bc4a-3b76-4206-9ee6-187baf1aa8ae
+
+	measure '% reinternacao 30d' = ```
+			
+			DIVIDE (
+			    [Qtd reinternacoes 30d],
+			    [Qtd de altas]
+			)
+			
+			```
+		formatString: 0.00%;-0.00%;0.00%
+		displayFolder: Reinternação
+		lineageTag: 0b87127d-0760-47fa-bf9d-b7a3f26d0798
+
+	measure 'Total dias internacao (Altas)' = ```
+			
+			SUMX (
+			    FILTER ( Internacao, NOT ISBLANK ( Internacao[DT_ALTA] ) ),
+			    DATEDIFF ( Internacao[DT_ENTRADA], Internacao[DT_ALTA], DAY )
+			)
+			
+			```
+		formatString: 0
+		displayFolder: Internação
+		lineageTag: c86f9517-be96-4e2e-8b9f-b220643a0873
+
+	measure 'TMP (dias) (0)' = ```
+			
+			DIVIDE (
+			    [Paciente-dia no período],
+			    [Qtd de altas]
+			) + 0
+			
+			```
+		displayFolder: Outros
+		lineageTag: 52762040-25e4-44db-8647-2cdd7d7ff2f5
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'Qtd internacoes' =
+			
+			DISTINCTCOUNT ( Internacao[NR_ATENDIMENTO] )
+		formatString: 0
+		displayFolder: Internação
+		lineageTag: 622390ac-ab40-4983-9b86-37250a82e87d
+
+	measure 'Qtd internacoes - Regional' = ```
+			
+			VAR NumUF = [Qtd UF sel (global)]
+			RETURN
+			IF (
+			    NumUF > 1,  // várias UFs selecionadas (ou ALL)
+			    [Qtd Internacoes],
+			    BLANK ()
+			)
+			
+			```
+		formatString: 0
+		displayFolder: Internação
+		lineageTag: 1e7c21a6-7355-4768-b693-c06336a1a6e9
+
+	measure 'Qtd internacoes - Unidade' = ```
+			
+			VAR NumUF = [Qtd UF sel (global)]
+			RETURN
+			IF (
+			    NumUF = 1,          -- exatamente 1 UF selecionada
+			    [Qtd internacoes], 
+			    BLANK ()
+			)
+			
+			```
+		formatString: 0
+		displayFolder: Internação
+		lineageTag: 958b8cb4-5505-4fbb-8d1f-3f11b15f2f65
+
+	measure 'Qtd reinternacoes 7d' =
+			
+			CALCULATE (
+			    DISTINCTCOUNT ( Internacao[NR_ATENDIMENTO] ),
+			    FILTER (
+			        Internacao,
+			        NOT ISBLANK ( Internacao[Dias Desde Alta Anterior] )
+			            && Internacao[Dias Desde Alta Anterior] > 0
+			            && Internacao[Dias Desde Alta Anterior] <= 7
+			    )
+			)
+		formatString: 0
+		displayFolder: Reinternação
+		lineageTag: 49590e94-fb13-498c-93e6-cd7084af4b38
+
+	measure '% reinternacao 7d' = ```
+			
+			VAR Altas = [Qtd de altas]
+			VAR Reint = COALESCE( [Qtd reinternacoes 7d], 0 )
+			RETURN
+			IF(
+			    Altas > 0,
+			    DIVIDE( Reint, Altas ),
+			    BLANK()
+			)
+			
+			```
+		formatString: 0.00%;-0.00%;0.00%
+		displayFolder: Reinternação
+		lineageTag: 569a86db-a246-45c5-b4e4-cf190705c57e
+
+	measure 'Qtd UF sel (global)' = ```
+			
+			COUNTROWS (
+			    ALLSELECTED ( Internacao[UF unidade] )
+			)
+			
+			```
+		formatString: 0
+		displayFolder: Outros
+		lineageTag: 20537d4b-1e7c-4331-b212-93c25bdd6675
+
+	measure 'Qtd de altas - Regional' =
+			
+			VAR NumUF = [Qtd UF sel (global)]
+			RETURN
+			IF (
+			    NumUF > 1,  // várias UFs selecionadas (ou ALL)
+			    [Qtd de altas],
+			    BLANK ()
+			)
+		formatString: 0
+		displayFolder: Altas
+		lineageTag: 88ba69ee-f4e0-4f9d-8c95-3005ab2bf4ce
+
+	measure 'Qtd de altas - Unidade' = ```
+			
+			VAR NumUF = [Qtd UF sel (global)]
+			RETURN
+			IF (
+			    NumUF = 1,          -- exatamente 1 UF selecionada
+			    [Qtd de altas], 
+			    BLANK ()
+			)
+			```
+		formatString: 0
+		displayFolder: Altas
+		lineageTag: 11caca4a-a7d8-4475-bab6-e742df9c8b21
+
+	measure 'Qtd reinternacoes 7d - Regional' =
+			
+			VAR NumUF = [Qtd UF sel (global)]
+			RETURN
+			IF (
+			    NumUF > 1,  // várias UFs selecionadas (ou ALL)
+			    [Qtd reinternacoes 7d],
+			    BLANK ()
+			)
+		formatString: 0
+		displayFolder: Reinternação
+		lineageTag: 3c32eee9-34c3-4bab-ba68-ffb1dcc46273
+
+	measure 'Qtd reinternacoes 7d - Unidade' = ```
+			
+			VAR NumUF = [Qtd UF sel (global)]
+			RETURN
+			IF (
+			    NumUF = 1,          -- exatamente 1 UF selecionada
+			    [Qtd reinternacoes 7d], 
+			    BLANK ()
+			)
+			```
+		formatString: 0
+		displayFolder: Reinternação
+		lineageTag: d46e60ff-02de-4c5f-91af-4284e8bb2add
+
+	measure 'Qtd internacoes (UF x Unid)' = ```
+			
+			VAR NumUF = [Qtd UF sel (global)]
+			RETURN
+			SWITCH(
+			    TRUE(),
+			    
+			    -- Caso 1: mais de 1 UF selecionada -> gráfico de REGIONAL (UF)
+			    NumUF > 1
+			        && ISINSCOPE( Internacao[UF unidade] ),
+			        [Qtd internacoes - Regional],
+			    
+			    -- Caso 2: exatamente 1 UF -> gráfico de UNIDADE
+			    NumUF = 1
+			        && ISINSCOPE( Internacao[UNIDADE] ),
+			        [Qtd internacoes - Unidade],
+			    
+			    -- Qualquer outro caso: não mostra nada
+			    BLANK()
+			)
+			
+			```
+		formatString: 0
+		displayFolder: Internação
+		lineageTag: c0fbeb9b-ddff-433e-9f5e-60da3116ca47
+
+	measure 'Qtd de altas (UF x Unidade)' = ```
+			
+			VAR NumUF = [Qtd UF sel (global)]
+			RETURN
+			SWITCH(
+			    TRUE(),
+			    
+			    -- Mais de 1 UF selecionada → mostrar por REGIONAL (UF)
+			    NumUF > 1
+			        && ISINSCOPE( Internacao[UF unidade] ),
+			        [Qtd de altas],
+			    
+			    -- Exatamente 1 UF selecionada → mostrar por UNIDADE
+			    NumUF = 1
+			        && ISINSCOPE( Internacao[UNIDADE] ),
+			        [Qtd de altas],
+			    
+			    -- Caso contrário, some do visual
+			    BLANK()
+			)
+			
+			```
+		formatString: 0
+		displayFolder: Altas
+		lineageTag: 11769d8b-4351-4fc9-8565-e42fd4c79dba
+
+	measure 'Qtd reinternacoes 7d (UF x Unidade)' = ```
+			
+			VAR NumUF = [Qtd UF sel (global)]
+			RETURN
+			SWITCH(
+			    TRUE(),
+			    
+			    -- Mais de 1 UF selecionada → mostrar por REGIONAL (UF)
+			    NumUF > 1
+			        && ISINSCOPE( Internacao[UF unidade] ),
+			        [Qtd reinternacoes 7d],
+			    
+			    -- Exatamente 1 UF selecionada → mostrar por UNIDADE
+			    NumUF = 1
+			        && ISINSCOPE( Internacao[UNIDADE] ),
+			        [Qtd reinternacoes 7d],
+			    
+			    -- Caso contrário, some do visual
+			    BLANK()
+			)
+			
+			```
+		formatString: 0
+		displayFolder: Reinternação
+		lineageTag: 5493b9f9-93c9-4f8b-8961-f017acc309c7
+
+	measure 'Qtd pacs atendidos' = ```
+			
+			DISTINCTCOUNT( Internacao[CD_PESSOA_FISICA] )
+			
+			```
+		formatString: 0
+		displayFolder: Internação
+		lineageTag: 69867454-159f-4356-9db6-2d4e54b45269
+
+	measure 'Qtd altas médicas até 10h' = ```
+			
+			CALCULATE(
+			    DISTINCTCOUNT(Internacao[NR_ATENDIMENTO]),
+			    NOT ISBLANK(Internacao[DT_ALTA_MEDICA_CONDIC]),
+			    TIMEVALUE(Internacao[DT_ALTA_MEDICA_CONDIC]) <= TIME(10,0,0),
+			    Internacao[MOTIVO_ALTA_HOSPITALAR] <> "Óbito",
+			    USERELATIONSHIP(Internacao[DT_ALTA_DATA], Calendario[Data])
+			)
+			
+			```
+		formatString: 0
+		displayFolder: Altas
+		lineageTag: 26eb8d50-9006-480d-93ff-e1124a344155
+
+	measure '% altas médicas até 10h' = ```
+			
+			DIVIDE(
+			    [Qtd altas médicas até 10h],
+			    CALCULATE(
+			    DISTINCTCOUNT( Internacao[NR_ATENDIMENTO] ),
+			    NOT ISBLANK( Internacao[DT_ALTA_MEDICO] ),
+			    Internacao[MOTIVO_ALTA_HOSPITALAR] <> "Óbito",
+			    USERELATIONSHIP(Internacao[DT_ALTA_DATA], Calendario[Data])
+			    ) -- qtd de altas médicas
+			)
+			
+			```
+		formatString: 0.00%;-0.00%;0.00%
+		displayFolder: Altas
+		lineageTag: 518acdc3-9999-4942-ae6a-9e5f193c33e6
+
+	measure 'Qtd altas hosp com alta médica' =
+			
+			CALCULATE(
+			    DISTINCTCOUNT(Internacao[NR_ATENDIMENTO]),
+			    NOT ISBLANK(Internacao[DT_ALTA_MEDICO]),
+			    NOT ISBLANK(Internacao[DT_ALTA]),
+			    USERELATIONSHIP(Internacao[DT_ALTA_DATA], Calendario[Data])
+			)
+		formatString: 0
+		displayFolder: Altas
+		lineageTag: 35ce282d-093c-4b7c-84f0-70c9380482ff
+
+	measure 'Qtd altas hosp até 2h (dt entrada)' =
+			-- para as páginas com slicer com dt_entrada
+			VAR DatasSelecionadas =
+			    VALUES ( Calendario[Data] )
+			
+			VAR BaseSemFiltroEntrada =
+			    CALCULATETABLE(
+			        Internacao,
+			        REMOVEFILTERS ( Calendario ),
+			        REMOVEFILTERS (
+			            Internacao[DATA],
+			            Internacao[DT_ENTRADA],
+			            Internacao[DATA]
+			        )
+			    )
+			
+			RETURN
+			COUNTROWS (
+			    SUMMARIZE (
+			        FILTER (
+			            BaseSemFiltroEntrada,
+			            NOT ISBLANK ( Internacao[DT_ALTA_MEDICA_CONDIC] ) &&
+			            NOT ISBLANK ( Internacao[DT_ALTA] ) &&
+			            Internacao[DT_ALTA] <= Internacao[DT_ALTA_MEDICA_CONDIC] + TIME ( 2, 0, 0 ) &&
+			            Internacao[DT_ALTA_DATA] IN DatasSelecionadas
+			        ),
+			        Internacao[NR_ATENDIMENTO]
+			    )
+			)
+		formatString: 0
+		displayFolder: Altas
+		lineageTag: ff0b3251-b022-4ef0-bcfe-05595eccc177
+
+	measure '% altas hosp até 2h' = ```
+			
+			DIVIDE(
+			    [Qtd altas hosp até 2h (dt entrada)],
+			    [Qtd altas hosp com alta médica]
+			)
+			
+			```
+		formatString: 0.00%;-0.00%;0.00%
+		displayFolder: Altas
+		lineageTag: 0f7da93b-11c5-4338-943e-e1c9bbf44d51
+
+	measure 'Qtd de altas - evasao' =
+			
+			CALCULATE(
+			    COUNTROWS ( Internacao ),
+			    ( Internacao[MOTIVO_ALTA_HOSPITALAR] = "Evadiu-se"
+			     ),
+			    NOT ( ISBLANK ( Internacao[DT_ALTA_DATA] ) ),
+			    USERELATIONSHIP ( Internacao[DT_ALTA_DATA], Calendario[Data])
+			) + 0
+		formatString: 0
+		displayFolder: Altas
+		lineageTag: 44eca799-f12f-4bce-8a56-f8ef9f9b95d5
+
+	measure 'Qtd de altas casa' =
+			
+			CALCULATE(
+			    COUNTROWS ( Internacao ),
+			    NOT ( Internacao[MOTIVO_ALTA_HOSPITALAR] IN {
+			        "Óbito",
+			        "Evadiu-se",
+			        "Transferência Inter-Hospitalar"
+			    } ),
+			    NOT ( ISBLANK ( Internacao[DT_ALTA_DATA] ) ),
+			    USERELATIONSHIP ( Internacao[DT_ALTA_DATA], Calendario[Data] )
+			) + 0
+		formatString: 0
+		displayFolder: Altas
+		lineageTag: d5855815-8d7e-4100-9ef1-8a7932a69347
+
+	measure 'Qtd de altas transferência' =
+			
+			CALCULATE(
+			    COUNTROWS(Internacao),
+			    (Internacao[MOTIVO_ALTA_HOSPITALAR] = "Transferência Inter-Hospitalar"),
+			    NOT ( ISBLANK ( Internacao[DT_ALTA_DATA] ) ),
+			    USERELATIONSHIP ( Internacao[DT_ALTA_DATA], Calendario[Data])
+			) + 0
+		formatString: 0
+		displayFolder: Altas
+		lineageTag: 491475e9-a347-44ca-a78c-072695163b92
+
+	measure 'Qtd óbitos' =
+			
+			CALCULATE(
+			    COUNTROWS(Internacao),
+			    (Internacao[MOTIVO_ALTA_HOSPITALAR] = "Óbito"),
+			    NOT ( ISBLANK ( Internacao[DT_ALTA_DATA] ) ),
+			    USERELATIONSHIP ( Internacao[DT_ALTA_DATA], Calendario[Data])
+			) + 0
+		formatString: 0
+		displayFolder: Altas
+		lineageTag: bceaaead-0f5f-4482-af50-5b4c470e6838
+
+	measure 'TMP (dias)' =
+			
+			DIVIDE(
+			    [Paciente-dia no período],
+			    [Qtd de altas]  -- altas + óbitos
+			)
+		displayFolder: Outros
+		lineageTag: bdcb72c2-fed7-4fc2-861d-d534796ad26e
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'Ranking internações UF' =
+			
+			VAR TabelaUF =
+			    ADDCOLUMNS(
+			        ALLSELECTED( Internacao[UF unidade] ),   -- todas as UFs visíveis no contexto (mês, filtros, etc.)
+			        "Qtd", CALCULATE( [Qtd internacoes] )    -- quantidade de internações por UF dentro do contexto atual
+			    )
+			VAR MaxQtd = MAXX( TabelaUF, [Qtd] )
+			VAR MinQtd = MINX( TabelaUF, [Qtd] )
+			VAR QtdAtual = [Qtd internacoes]
+			RETURN
+			SWITCH(
+			    TRUE(),
+			    -- Se todas as UFs têm o mesmo valor, não destaca ninguém
+			    MaxQtd = MinQtd, BLANK(),
+			
+			    -- Maior valor entre as UFs visíveis -> seta pra cima
+			    QtdAtual = MaxQtd, UNICHAR(9650),   -- ▲
+			
+			    -- Menor valor entre as UFs visíveis -> seta pra baixo
+			    QtdAtual = MinQtd, UNICHAR(9660),   -- ▼
+			
+			    -- Demais UFs, sem ícone
+			    BLANK()
+			)
+		displayFolder: Internação
+		lineageTag: 8f98e8d4-e7df-490c-8003-e70997746504
+
+	measure 'Ranking altas UF' =
+			
+			VAR TabelaUF =
+			    ADDCOLUMNS(
+			        ALLSELECTED( Internacao[UF unidade] ),   -- todas as UFs visíveis no contexto (mês, filtros, etc.)
+			        "Qtd", CALCULATE( [Qtd de altas] )    -- quantidade de altas por UF dentro do contexto atual
+			    )
+			VAR MaxQtd = MAXX( TabelaUF, [Qtd] )
+			VAR MinQtd = MINX( TabelaUF, [Qtd] )
+			VAR QtdAtual = [Qtd de altas]
+			RETURN
+			SWITCH(
+			    TRUE(),
+			    -- Se todas as UFs têm o mesmo valor, não destaca ninguém
+			    MaxQtd = MinQtd, BLANK(),
+			
+			    -- Maior valor entre as UFs visíveis -> seta pra cima
+			    QtdAtual = MaxQtd, UNICHAR(9650),   -- ▲
+			
+			    -- Menor valor entre as UFs visíveis -> seta pra baixo
+			    QtdAtual = MinQtd, UNICHAR(9660),   -- ▼
+			
+			    -- Demais UFs, sem ícone
+			    BLANK()
+			)
+		displayFolder: Altas
+		lineageTag: 9e484e0c-0a28-4c1e-bc78-43c3327f1544
+
+	measure 'Ranking % reinternacoes 7d UF' = ```
+			
+			VAR TabelaUFBase =
+			    ADDCOLUMNS(
+			        ALLSELECTED( Internacao[UF unidade] ),        
+			        "QtdAltas", CALCULATE( [Qtd de altas] ),
+			        "Taxa",     CALCULATE( [% reinternacao 7d] )
+			    )
+			-- considera só UFs que tiveram pelo menos 1 alta no período
+			VAR TabelaUF =
+			    FILTER(
+			        TabelaUFBase,
+			        [QtdAltas] > 0
+			    )
+			VAR MaxTaxa = MAXX( TabelaUF, [Taxa] )
+			VAR MinTaxa = MINX( TabelaUF, [Taxa] )
+			VAR TaxaAtual  = [% reinternacao 7d]
+			VAR AltasAtual = [Qtd de altas]
+			RETURN
+			IF (
+			    AltasAtual > 0,   -- só mostra ícone se essa UF teve alta no período
+			    SWITCH(
+			        TRUE(),
+			        MaxTaxa = MinTaxa, BLANK(),          -- todo mundo igual → não destaca ninguém
+			        TaxaAtual = MaxTaxa, UNICHAR(9650),  -- ▲ maior taxa (pior)
+			        TaxaAtual = MinTaxa, UNICHAR(9660),  -- ▼ menor taxa (melhor)
+			        BLANK()
+			    ),
+			    BLANK()
+			)
+			
+			```
+		displayFolder: Reinternação
+		lineageTag: 97654a3d-7e2c-4593-a228-a800ebba2db4
+
+	measure 'Ranking TMP (dias) UF' = ```
+			
+			VAR TabelaUFBase =
+			    ADDCOLUMNS(
+			        ALLSELECTED( Internacao[UF unidade] ),
+			        "Altas", CALCULATE( [Qtd de altas] ),
+			        "TMP",   CALCULATE( [TMP (dias)] )
+			    )
+			-- só UFs que tiveram alta no período
+			VAR TabelaUF =
+			    FILTER(
+			        TabelaUFBase,
+			        [Altas] > 0
+			            && NOT ISBLANK( [TMP] )
+			    )
+			VAR MaxTMP   = MAXX( TabelaUF, [TMP] )
+			VAR MinTMP   = MINX( TabelaUF, [TMP] )
+			VAR TMPAtual = [TMP (dias)]
+			VAR AltasAtual = [Qtd de altas]
+			RETURN
+			IF(
+			    AltasAtual > 0           -- só mostra ícone se essa UF teve alta
+			        && MaxTMP > MinTMP,  -- evita setas se todo mundo tiver o mesmo TMP
+			    SWITCH(
+			        TRUE(),
+			        TMPAtual = MaxTMP, UNICHAR(9650),  -- ▲ maior TMP (pior desempenho)
+			        TMPAtual = MinTMP, UNICHAR(9660),  -- ▼ menor TMP (melhor desempenho)
+			        BLANK()
+			    ),
+			    BLANK()
+			)
+			
+			```
+		displayFolder: Outros
+		lineageTag: b44a655c-ebe1-4e21-a39e-d3f423791ce5
+
+	measure 'Ranking internações' = ```
+			
+			VAR Tabela =
+			    ADDCOLUMNS(
+			        ALLSELECTED( Internacao[UNIDADE] ), 
+			        "Qtd", CALCULATE( [Qtd internacoes] )
+			    )
+			VAR MaxQtd = MAXX( Tabela, [Qtd] )
+			VAR MinQtd = MINX( Tabela, [Qtd] )
+			VAR QtdAtual = [Qtd internacoes]
+			RETURN
+			SWITCH(
+			    TRUE(),
+			    -- Se todas as UFs têm o mesmo valor, não destaca ninguém
+			    MaxQtd = MinQtd, BLANK(),
+			
+			    -- Maior valor entre as UFs visíveis -> seta pra cima
+			    QtdAtual = MaxQtd, UNICHAR(9650),   -- ▲
+			
+			    -- Menor valor entre as UFs visíveis -> seta pra baixo
+			    QtdAtual = MinQtd, UNICHAR(9660),   -- ▼
+			
+			    -- Demais UFs, sem ícone
+			    BLANK()
+			)
+			```
+		displayFolder: Internação
+		lineageTag: 99940a21-1cdb-4090-a579-24d561dd3e8b
+
+	measure 'Qtd reinternacoes 7d mesmo CID' = ```
+			
+			SUM( Internacao[Reinternacao 7d mesmo CID] )
+			
+			```
+		formatString: 0
+		displayFolder: Reinternação
+		lineageTag: 32342d3d-89cf-45e7-a0eb-9448172655b8
+
+	measure '% reinternacao 7d mesmo CID' = ```
+			
+			VAR Altas   = [Qtd de altas]
+			VAR ReintSC = COALESCE( [Qtd reinternacoes 7d mesmo CID], 0 )
+			RETURN
+			IF(
+			    Altas > 0,
+			    DIVIDE(ReintSC, Altas ),
+			    BLANK()
+			)
+			
+			```
+		formatString: 0.00%;-0.00%;0.00%
+		displayFolder: Reinternação
+		lineageTag: c317b7a7-45b9-4687-8337-cc7c4fbc5cc0
+
+	measure 'Qtd reinternacoes 30d mesmo CID' = ```
+			
+			SUM( Internacao[Reinternacao 30d mesmo CID] )
+			
+			```
+		formatString: 0
+		displayFolder: Reinternação
+		lineageTag: af131335-3b31-403f-93cd-5ab2494f81d3
+
+	measure '% reinternacao 30d mesmo CID' =
+			
+			VAR Altas   = [Qtd de altas]
+			VAR Reint30 = COALESCE( [Qtd reinternacoes 30d mesmo CID], 0 )
+			RETURN
+			IF(
+			    Altas > 0,
+			    DIVIDE( Reint30, Altas ),
+			    BLANK()
+			)
+		formatString: 0.00%;-0.00%;0.00%
+		displayFolder: Reinternação
+		lineageTag: dafffd64-be6a-4187-a39e-3724914f1caa
+
+	measure 'Qtd leitos ativos' = ```
+			-- leitos ativos até o fim do dia
+			VAR Dia = MAX ( Calendario[Data] )   -- Data (sem hora)
+			VAR FimDia = Dia + 1                -- D+1 00:00:00
+			RETURN
+			CALCULATE (
+			    DISTINCTCOUNT ( Leitos[LEITO] ),
+			    REMOVEFILTERS ( Leitos[DT_CRIACAO] ),
+			    FILTER (
+			        Leitos,
+			        Leitos[DT_CRIACAO] < FimDia
+			            &&
+			        (
+			            Leitos[IE_SITUACAO] = "A"
+			            || ISBLANK ( Leitos[DT_ATUALIZACAO] )
+			            || Leitos[DT_ATUALIZACAO] >= FimDia
+			        )
+			    )
+			)
+			
+			```
+		formatString: 0
+		displayFolder: Outros
+		lineageTag: 20569ab1-5834-4d04-9336-eea485446f5a
+
+	measure 'Qtd obitos > 24h' =
+			-- institucionais, somente por data de alta
+			VAR DatasSelecionadas =
+			    VALUES ( Calendario[Data] )
+			
+			VAR BaseSemFiltroEntrada =
+			    CALCULATETABLE(
+			        Internacao,
+			        REMOVEFILTERS ( Calendario ),
+			        REMOVEFILTERS (
+			            Internacao[DATA],
+			            Internacao[DT_ENTRADA],
+			            Internacao[DATA]
+			        )
+			    )
+			
+			RETURN
+			COUNTROWS (
+			    SUMMARIZE (
+			        FILTER (
+			            BaseSemFiltroEntrada,
+			            Internacao[MOTIVO_ALTA_HOSPITALAR] = "ÓBITO" &&
+			            NOT ISBLANK ( Internacao[DT_ALTA] ) &&
+			            Internacao[DT_ALTA_DATA] IN DatasSelecionadas &&
+			            VAR DataAdm =
+			                COALESCE (
+			                    Internacao[DT_ENTRADA_URGENCIA],
+			                    Internacao[DT_ENTRADA]
+			                )
+			            RETURN
+			                NOT ISBLANK ( DataAdm ) &&
+			                DATEDIFF (
+			                    DataAdm,
+			                    Internacao[DT_ALTA],
+			                    HOUR
+			                ) >= 24
+			        ),
+			        Internacao[NR_ATENDIMENTO]
+			    )
+			)
+		formatString: 0
+		displayFolder: Altas
+		lineageTag: 9b5e864f-247e-4fa7-b673-5f4cf62ebe7f
+
+	measure 'Tx mortalidade hospitalar' = ```
+			
+			VAR Altas = [Qtd de altas]
+			VAR Obitos = [Qtd óbitos]
+			RETURN
+			IF(
+			    Altas > 0,
+			    DIVIDE( Obitos, Altas ),
+			    BLANK()
+			)
+			
+			```
+		formatString: 0.00%;-0.00%;0.00%
+		displayFolder: Altas
+		lineageTag: 6fa739e1-af9b-45fb-8357-94eab62d8e4d
+
+	measure 'Tx mortalidade institucional' = ```
+			-- >24h
+			VAR Altas = [Qtd de altas]
+			VAR ObitosInst = [Qtd obitos > 24h]
+			RETURN
+			IF(
+			    Altas > 0,
+			    DIVIDE( ObitosInst, Altas ),
+			    BLANK()
+			)
+			
+			```
+		formatString: 0.00%;-0.00%;0.00%
+		displayFolder: Altas
+		lineageTag: ea83f002-6468-468b-99b8-725db79e0e14
+
+	measure 'Qtd altas UTI' =
+			
+			VAR DatasSelecionadas =
+			    VALUES ( Calendario[Data] )
+			VAR UnidadesSelecionadas =
+			    VALUES ( Internacao[UNIDADE] )
+			RETURN
+			COUNTROWS (
+			    FILTER (
+			        CALCULATETABLE (
+			            UTI_Episodios,
+			            REMOVEFILTERS ( Calendario ),
+			            REMOVEFILTERS ( Internacao ),
+			            TREATAS ( UnidadesSelecionadas, UTI_Episodios[UNIDADE] )
+			        ),
+			        NOT ISBLANK ( UTI_Episodios[DT_SAIDA_UTI] ) &&
+			        INT ( UTI_Episodios[DT_SAIDA_UTI] ) IN DatasSelecionadas
+			    )
+			)
+		formatString: 0
+		displayFolder: UTI
+		lineageTag: 088b5336-43d7-4e2b-9df4-e191056c4cf3
+
+	measure 'Qtd reinternacoes UTI 48h' =
+			
+			CALCULATE(
+			    COUNTROWS(Movimentacao_pac),
+			    Movimentacao_pac[ReinternouUTI_48h] = 1
+			)
+		formatString: 0
+		displayFolder: UTI
+		lineageTag: 6a7f4670-ec2f-495a-a705-28fc4f9a4291
+
+	measure '% reinternacao UTI 48h' =
+			
+			DIVIDE([Qtd reinternacoes UTI 48h], [Qtd altas UTI])
+		formatString: 0.00%;-0.00%;0.00%
+		displayFolder: UTI
+		lineageTag: 09094f27-da86-4f6a-b0f8-3f9f2f054095
+
+	measure 'Paciente-dia no período' =
+			
+			SUMX(
+			    VALUES(Calendario[Data]),
+			    [Pacientes internados no dia]
+			)
+		formatString: 0
+		displayFolder: Internação
+		lineageTag: 680d16cd-bef0-45d5-aeb7-6299476a4238
+
+	measure 'Pacientes UTI censo 0h' =
+			
+			VAR d =
+			    SELECTEDVALUE ( Calendario[Data] )
+			
+			VAR UnidadesSelecionadas =
+			    CALCULATETABLE(
+			        VALUES ( Internacao[UNIDADE] ),
+			        REMOVEFILTERS ( Calendario )
+			    )
+			
+			VAR BaseEpisodios =
+			    CALCULATETABLE(
+			        UTI_Episodios,
+			        REMOVEFILTERS ( Calendario ),
+			        REMOVEFILTERS ( Internacao ),
+			        TREATAS ( UnidadesSelecionadas, UTI_Episodios[UNIDADE] )
+			    )
+			
+			RETURN
+			IF (
+			    ISBLANK ( d ),
+			    BLANK(),
+			    COUNTROWS (
+			        FILTER (
+			            BaseEpisodios,
+			            UTI_Episodios[DT_ENTRADA_UTI] < d &&
+			            (
+			                ISBLANK ( UTI_Episodios[DT_SAIDA_UTI] ) ||
+			                UTI_Episodios[DT_SAIDA_UTI] >= d
+			            )
+			        )
+			    )
+			)
+		formatString: 0
+		displayFolder: UTI
+		lineageTag: 72c8518c-c146-4b35-a1cc-9552fd80c362
+
+	measure 'Paciente-dia UTI censo' =
+			
+			SUMX(
+			    VALUES('Calendario'[Data]),
+			    CALCULATE([Pacientes UTI censo 0h])
+			)
+		formatString: 0
+		displayFolder: UTI
+		lineageTag: f00038d5-7075-4a1e-bf40-5653463c75ed
+
+	measure 'TMP UTI' =
+			
+			DIVIDE(
+			    [Paciente-dia UTI censo],
+			    [Qtd altas UTI]
+			)
+		displayFolder: UTI
+		lineageTag: d430ef28-5b5f-4362-868d-b5b197fec6bf
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'Qtd óbitos UTI' =
+			
+			VAR v =
+			    CALCULATE(
+			        [Qtd Óbitos],
+			        KEEPFILTERS( Internacao[classif_setor] IN { "UTI", "UPC", "UTI EXTRA" } ),
+			        USERELATIONSHIP( Internacao[DT_ALTA_DATA], Calendario[Data] )
+			    )
+			RETURN
+			IF( v = 0, BLANK(), v )
+		formatString: 0
+		displayFolder: UTI
+		lineageTag: 946432e9-5bde-434b-8a86-dce4e6ec580a
+
+	measure '% mortalidade UTI' =
+			
+			VAR Altas  = [Qtd altas UTI]
+			VAR Obitos = [Qtd óbitos UTI]   -- ou [Qtd Óbitos UTI] se já estiver ok
+			RETURN
+			IF(Altas > 0, DIVIDE(Obitos, Altas), BLANK())
+		formatString: 0.00%;-0.00%;0.00%
+		displayFolder: UTI
+		lineageTag: 28ba6ae4-df5a-48d1-b258-5ebeebf0d4b1
+
+	measure 'Meta TMP' =
+			
+			VAR PerfilSel = SELECTEDVALUE(Internacao[PERFIL], "Clínica Médica")  -- padrão
+			RETURN
+			SWITCH(
+			    PerfilSel,
+			    "Clínica Médica", 5,
+			    "Clínica Cirurgica", 2
+			)
+		formatString: 0
+		displayFolder: Outros
+		lineageTag: 960f3a39-7f36-4517-baee-a3daefbc9410
+
+	measure 'Cor meta TMP' =
+			
+			VAR Tmp  = [TMP (dias)]        -- sua medida do TMP
+			VAR Meta = [Meta TMP]   -- a medida da meta que você já criou
+			RETURN
+			IF(
+			    NOT ISBLANK(Tmp) && NOT ISBLANK(Meta) && Tmp <= Meta,
+			    "#25522B",   -- verde
+			    "#BE0C02"    -- vermelho
+			)
+		displayFolder: Outros
+		lineageTag: d78b7ab4-06b6-4247-900f-6a556fdeb137
+
+	measure 'Data última atualização' = ```
+			
+			    CALCULATE ( MAX ( Internacao[DT_ENTRADA] ), ALL (Internacao) )
+			```
+		formatString: General Date
+		displayFolder: Outros
+		lineageTag: 69a85636-c961-4618-b595-8a3b7c6f8eff
+
+	measure 'Paciente internado no período' =
+			
+			VAR DataIni = MIN(Calendario[Data])
+			VAR DataFim = MAX(Calendario[Data])
+			VAR Entrada = INT(SELECTEDVALUE(Internacao[DT_ENTRADA]))
+			VAR Alta =
+			    IF(
+			        ISBLANK(SELECTEDVALUE(Internacao[DT_ALTA])),
+			        DataFim,
+			        INT(SELECTEDVALUE(Internacao[DT_ALTA]))
+			    )
+			RETURN
+			IF(
+			    NOT ISBLANK(Entrada) &&
+			    Entrada <= DataFim &&
+			    Alta >= DataIni,
+			    1,
+			    0
+			)
+		formatString: 0
+		displayFolder: Internação
+		lineageTag: 55488177-d486-45ad-9cea-941f6acf3bc4
+
+	measure 'Pacientes internados no dia' =
+			
+			VAR DataRef =
+			    SELECTEDVALUE ( Calendario[Data] )
+			
+			VAR BaseSemFiltroData =
+			    CALCULATETABLE (
+			        Movimentacao_pac,
+			        REMOVEFILTERS ( Calendario ),
+			        REMOVEFILTERS (
+			            Movimentacao_pac[DATA],
+			            Movimentacao_pac[DT_HISTORICO],
+			            Movimentacao_pac[DT_FIM_HISTORICO]
+			        )
+			    )
+			
+			RETURN
+			IF (
+			    ISBLANK ( DataRef ),
+			    BLANK(),
+			    COUNTROWS (
+			        SUMMARIZE (
+			            FILTER (
+			                BaseSemFiltroData,
+			                NOT ISBLANK ( Movimentacao_pac[NR_ATENDIMENTO] ) &&
+			                NOT ISBLANK ( Movimentacao_pac[DT_HISTORICO] ) &&
+			                Movimentacao_pac[DT_HISTORICO] < DataRef &&
+			                COALESCE ( Movimentacao_pac[DT_FIM_HISTORICO], NOW() ) >= DataRef
+			            ),
+			            Movimentacao_pac[NR_ATENDIMENTO]
+			        )
+			    )
+			)
+		formatString: 0
+		displayFolder: Internação
+		lineageTag: ae4b9a9d-87a8-4a33-8d2d-a8cbc278361f
+
+	measure 'Paciente entra TMP' =
+			
+			VAR DataIni =
+			    MIN ( Calendario_TMP[Date] )
+			VAR DataFim =
+			    MAX ( Calendario_TMP[Date] )
+			VAR AtendimentoAtual =
+			    SELECTEDVALUE ( Internacao[NR_ATENDIMENTO] )
+			
+			VAR BaseSemFiltroEntrada =
+			    CALCULATETABLE(
+			        Internacao,
+			        REMOVEFILTERS ( Calendario ),
+			        REMOVEFILTERS (
+			            Internacao[DATA],
+			            Internacao[DT_ENTRADA]
+			        )
+			    )
+			
+			VAR TemTMP =
+			    COUNTROWS (
+			        FILTER (
+			            BaseSemFiltroEntrada,
+			            Internacao[NR_ATENDIMENTO] = AtendimentoAtual &&
+			            NOT ISBLANK ( Internacao[DT_ENTRADA] ) &&
+			            Internacao[DT_ENTRADA] < DataFim &&
+			            (
+			                ISBLANK ( Internacao[DT_ALTA] ) ||
+			                Internacao[DT_ALTA] >= DataIni
+			            )
+			        )
+			    )
+			
+			RETURN
+			IF (
+			    NOT ISBLANK ( AtendimentoAtual ) &&
+			    NOT ISBLANK ( DataIni ) &&
+			    NOT ISBLANK ( DataFim ) &&
+			    TemTMP > 0,
+			    1,
+			    0
+			)
+		formatString: 0
+		displayFolder: Outros
+		lineageTag: cc662a6c-7101-4af8-8a2b-3cb9aa7cc20b
+
+	measure 'Dias permanência TMP' =
+			
+			VAR Entrada = MAX(Internacao[DT_ENTRADA])
+			VAR Alta    = MAX(Internacao[DT_ALTA])
+			VAR DataEntrada = INT(Entrada)
+			VAR DataAlta    = INT(Alta)
+			RETURN
+			IF(
+			    NOT ISBLANK(Entrada) &&
+			    NOT ISBLANK(Alta),
+			    DataAlta - DataEntrada,
+			    BLANK()
+			)
+		formatString: 0
+		displayFolder: Outros
+		lineageTag: 2838bd94-ce5a-4cf3-8a64-1100a79226a7
+
+	measure 'Cor TMP por atendimento' =
+			
+			VAR Meta = [Valor Meta TMP]
+			VAR Valor = [Dias permanência TMP]
+			RETURN
+			IF(
+			    ISBLANK(Valor),
+			    BLANK(),
+			    IF(
+			        Valor > Meta,
+			        "#B6DBBB"    -- verde (fora da meta)
+			    )
+			)
+		displayFolder: Outros
+		lineageTag: 08721228-aa49-4ac5-96bc-1251e5919ffb
+
+	measure 'Flag Óbito UTI (por alta)' =
+			
+			IF(
+			    SELECTEDVALUE(Internacao[MOTIVO_ALTA_HOSPITALAR]) = "Óbito"
+			        && SELECTEDVALUE(Internacao[classif_setor]) IN { "UTI", "UPC", "UTI EXTRA" },
+			    1,
+			    BLANK()
+			)
+		formatString: 0
+		displayFolder: UTI
+		lineageTag: 6a876d61-bd00-4f93-92b6-c806065e0828
+
+	measure 'Dias permanência TMP UTI' =
+			
+			SUMX(
+			    VALUES(Calendario_TMP[Date]),
+			    VAR d =
+			        Calendario_TMP[Date]
+			    VAR DtIni =
+			        MAX(UTI_Episodios[DT_ENTRADA_UTI])
+			    VAR DtFim =
+			        MAX(UTI_Episodios[DT_SAIDA_UTI])
+			    RETURN
+			        IF(
+			            DtIni < d &&
+			            (
+			                ISBLANK(DtFim) ||
+			                DtFim > d
+			            ),
+			            1,
+			            0
+			        )
+			)
+		formatString: 0
+		displayFolder: UTI
+		lineageTag: 6019be01-b1ae-4a28-b9eb-23432be443e0
+
+	measure 'Cor TMP UTI por atend' =
+			
+			VAR Meta = [Valor Meta TMP UTI ]
+			VAR Valor = [Dias permanência TMP UTI]
+			RETURN
+			IF(
+			    ISBLANK(Valor),
+			    BLANK(),
+			    IF(
+			        Valor > Meta,
+			        "#B6DBBB"    -- verde (fora da meta)
+			    )
+			)
+		displayFolder: UTI
+		lineageTag: 14b852f1-ee74-4ad6-a517-c4337ddc3769
+
+	measure 'Qtd altas hosp até 2h (dt alta)' =
+			-- para as páginas com slicer com dt_alta
+			CALCULATE(
+			    DISTINCTCOUNT(Internacao[NR_ATENDIMENTO]),
+			    FILTER(
+			        Internacao,
+			        NOT ISBLANK(Internacao[DT_ALTA_MEDICA_CONDIC]) &&
+			        NOT ISBLANK(Internacao[DT_ALTA]) &&
+			        Internacao[DT_ALTA] <= Internacao[DT_ALTA_MEDICA_CONDIC] + TIME(2,0,0)
+			    )
+			)
+		formatString: 0
+		displayFolder: Altas
+		lineageTag: 4a245cd4-d71a-4eb7-97e9-45b4b8f1b3eb
+
+	measure 'Paciente UTI censo 0h (flag)' =
+			
+			VAR d =
+			    SELECTEDVALUE ( Calendario_TMP[Date] )
+			VAR AtendimentoAtual =
+			    SELECTEDVALUE ( Movimentacao_pac[NR_ATENDIMENTO] )
+			
+			VAR BaseSemFiltroData =
+			    CALCULATETABLE(
+			        Movimentacao_pac,
+			        REMOVEFILTERS ( Calendario ),
+			        REMOVEFILTERS (
+			            Movimentacao_pac[HR_HISTORICO],
+			            Movimentacao_pac[HR_FIM_HISTORICO],
+			            Movimentacao_pac[DT_FIM_HISTORICO]
+			        )
+			    )
+			
+			VAR TemNoDia =
+			    COUNTROWS (
+			        FILTER (
+			            BaseSemFiltroData,
+			            Movimentacao_pac[NR_ATENDIMENTO] = AtendimentoAtual &&
+			            TRIM ( UPPER ( Movimentacao_pac[CLASSIFICACAO] ) ) IN { "UTI", "UPC", "UTI EXTRA" } &&
+			            Movimentacao_pac[HR_HISTORICO] <= d &&
+			            (
+			                ISBLANK ( Movimentacao_pac[HR_FIM_HISTORICO] ) ||
+			                Movimentacao_pac[HR_FIM_HISTORICO] > d
+			            )
+			        )
+			    )
+			
+			RETURN
+			IF (
+			    NOT ISBLANK ( d ) &&
+			    NOT ISBLANK ( AtendimentoAtual ) &&
+			    TemNoDia > 0,
+			    1,
+			    0
+			)
+		formatString: 0
+		displayFolder: UTI
+		lineageTag: 45cf2bda-431c-4905-b6c9-c655e8157d4b
+
+	measure 'Dias UTI no período' =
+			
+			SUMX(
+			    VALUES ( Calendario[Data] ),
+			    [Paciente UTI censo 0h (flag)]
+			)
+		formatString: 0
+		displayFolder: UTI
+		lineageTag: acd7102a-2df8-4aeb-8745-0a49832557f3
+
+	measure 'TMP UTI no período (flag)' =
+			
+			IF(
+			    [Dias permanência TMP UTI] > 0,
+			    1,
+			    0
+			)
+		formatString: 0
+		displayFolder: UTI
+		lineageTag: 4234503b-94fa-4aa4-8f38-5c49d7a505d4
+
+	measure 'Leitos Disponiveis no Dia' =
+			
+			SUMX(
+			    VALUES(Leitos[cd_leito]),
+			    [Leito Disponivel Flag]
+			)
+		formatString: 0
+		displayFolder: Leitos
+		lineageTag: e579ef8d-033a-49f9-b531-5a362a589c36
+
+	measure Leito-Dia =
+			
+			SUMX(
+			    ALLSELECTED(Calendario[Data]),
+			    [Leitos Disponiveis no Dia]
+			)
+		formatString: 0
+		displayFolder: Leitos
+		lineageTag: 41e148dc-b1dc-4331-b14e-af10dcd2abc1
+
+	measure 'Taxa Ocupacao Hospitalar' =
+			
+			DIVIDE([Paciente-dia no período], [Leito-Dia], 0)
+		formatString: 0.00%;-0.00%;0.00%
+		displayFolder: Internação
+		lineageTag: b7b53088-d05d-45d3-9992-f382ac5166d8
+
+	measure 'Leito Disponivel Flag' =
+			
+			VAR vData = MAX(Calendario[Data])
+			VAR vHoje = NOW()
+			
+			VAR DtCriacao = MAX(Leitos[dt_criacao])
+			VAR DtAtualizacao = MAX(Leitos[dt_atualizacao])
+			VAR IeSituacao = MAX(Leitos[ie_situacao])
+			
+			VAR BaseValida =
+			    DtCriacao <= vData &&
+			    vData <=
+			        IF(
+			            IeSituacao = "I",
+			            COALESCE(DtAtualizacao, vHoje),
+			            vHoje
+			        )
+			
+			VAR ForaOperacao =
+			    CALCULATE(
+			        COUNTROWS(Movimentacao_leitos),
+			        REMOVEFILTERS(Movimentacao_leitos[cd_status], Movimentacao_leitos[status]),
+			        FILTER(
+			            Movimentacao_leitos,
+			            Movimentacao_leitos[cd_status] IN {"C","D","E","I","U","M"} && -- C-Manutenção chamado, D-Serviço em pausa, E-Manutenção, I-Interditado, U-Interditado radiação, M-Acompanhante
+			            Movimentacao_leitos[dt_historico] <= vData &&
+			            vData <= COALESCE(Movimentacao_leitos[dt_fim_historico], vHoje)
+			        )
+			    ) > 0
+			
+			RETURN
+			    IF(BaseValida && NOT ForaOperacao, 1, 0)
+		formatString: 0
+		displayFolder: Leitos
+		lineageTag: 0d48153f-6513-4508-8f17-0f24d99a5022
+
+	partition Medidas = m
+		mode: import
+		source =
+				let
+				    Fonte = Table.FromRows(Json.Document(Binary.Decompress(Binary.FromText("i44FAA==", BinaryEncoding.Base64), Compression.Deflate)), let _t = ((type nullable text) meta [Serialized.Text = true]) in type table [#"Coluna 1" = _t]),
+				    #"Tipo Alterado" = Table.TransformColumnTypes(Fonte,{{"Coluna 1", type text}}),
+				    #"Colunas Removidas" = Table.RemoveColumns(#"Tipo Alterado",{"Coluna 1"})
+				in
+				    #"Colunas Removidas"
+
+	annotation PBI_ResultType = Table
+
+	annotation PBI_NavigationStepName = Navegação
+

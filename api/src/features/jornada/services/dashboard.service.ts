@@ -10,6 +10,7 @@ import {
   type MetasWeekSlice,
   rollingWindowForGerencial,
   yesterdayLocalBoundsMs,
+  type FarmaciaRow,
   type FluxoVolumeRow,
   type LabVolumeRow,
   type MedicacaoVolumeRow,

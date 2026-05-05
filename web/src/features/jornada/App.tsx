@@ -86,7 +86,7 @@ export default function App(): ReactElement {
                 whileTap={{ scale: 0.98 }}
               >
                 <span className="module-tab-icon" aria-hidden>
-                  🚑
+                  <span className="module-tab-emoji">🚑</span>
                 </span>
                 <span className="module-tab-label">Pronto Socorro</span>
               </motion.button>
@@ -100,7 +100,7 @@ export default function App(): ReactElement {
                 whileTap={{ scale: 0.98 }}
               >
                 <span className="module-tab-icon" aria-hidden>
-                  🛏️
+                  <span className="module-tab-emoji">🛏️</span>
                 </span>
                 <span className="module-tab-label">Internação</span>
               </motion.button>
@@ -121,7 +121,19 @@ export default function App(): ReactElement {
               />
             </motion.div>
 
-            <MedicacaoPsDashboard period={period} regional={regional} unidade={unidade} />
+            <motion.section
+              className="glass-card module-shell module-shell--medicacao p-4 md:p-6"
+              initial={{ opacity: 0, y: 14 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.55, delay: 0.04 }}
+            >
+              <div className="mb-3">
+                <h2 className="mt-1 text-xl font-black tracking-tight text-[var(--table-header-fg)] md:text-2xl">
+                  Medicação - Pronto Socorro
+                </h2>
+              </div>
+              <MedicacaoPsDashboard period={period} regional={regional} unidade={unidade} />
+            </motion.section>
 
             <motion.section
               className="glass-card module-shell module-shell--metas p-4 md:p-6"
@@ -171,7 +183,7 @@ export default function App(): ReactElement {
               className="glass-card module-shell module-shell--metas p-4 md:p-6"
               initial={{ opacity: 0, y: 14 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.55, delay: 0.08 }}
+              transition={{ duration: 0.55, delay: 0.04 }}
             >
               <div className="mb-3">
                 <h2 className="mt-1 text-xl font-black tracking-tight text-[var(--table-header-fg)] md:text-2xl">

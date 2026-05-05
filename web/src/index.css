@@ -157,14 +157,14 @@ body {
 .module-tab {
   display: inline-flex;
   align-items: center;
-  gap: 0.42rem;
-  min-height: 2.15rem;
+  gap: 0.48rem;
+  min-height: 2.45rem;
   border: 1px solid color-mix(in srgb, var(--app-border) 75%, transparent);
   border-radius: 999px;
-  padding: 0.28rem 0.7rem;
+  padding: 0.32rem 0.78rem;
   background: color-mix(in srgb, var(--app-elevated) 82%, transparent);
   color: var(--table-header-fg);
-  font-size: 0.74rem;
+  font-size: 0.76rem;
   font-weight: 800;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -176,16 +176,33 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.35rem;
-  height: 1.35rem;
+  width: 2.1rem;
+  height: 2.1rem;
   border-radius: 999px;
   border: 1px solid color-mix(in srgb, var(--app-border) 75%, transparent);
   background: color-mix(in srgb, var(--app-surface) 78%, transparent);
-  animation: module-tab-icon-float 2.6s ease-in-out infinite;
+}
+
+.module-tab-emoji {
+  display: inline-block;
+  font-size: 1.28rem;
+  line-height: 1;
+  transform-origin: 55% 75%;
+  animation: module-tab-emoji-play 2.4s ease-in-out infinite;
+  filter: drop-shadow(0 1px 2px rgba(2, 6, 23, 0.35));
+}
+
+.module-switch .module-tab:nth-of-type(1) .module-tab-emoji {
+  animation-delay: 0s;
+}
+
+.module-switch .module-tab:nth-of-type(2) .module-tab-emoji {
+  animation-delay: 0.45s;
 }
 
 .module-tab-label {
   white-space: nowrap;
+  font-size: 0.78rem;
 }
 
 .module-tab:hover {
@@ -210,13 +227,25 @@ body {
   border-color: #8b5cf6;
 }
 
-@keyframes module-tab-icon-float {
+@keyframes module-tab-emoji-play {
   0%,
   100% {
-    transform: translateY(0) scale(1);
+    transform: translateY(0) scale(1) rotate(0deg);
   }
-  50% {
-    transform: translateY(-1px) scale(1.08);
+  18% {
+    transform: translateY(-4px) scale(1.14) rotate(-6deg);
+  }
+  36% {
+    transform: translateY(0) scale(1.08) rotate(4deg);
+  }
+  54% {
+    transform: translateY(-3px) scale(1.12) rotate(-3deg);
+  }
+  72% {
+    transform: translateY(0) scale(1.05) rotate(2deg);
+  }
+  88% {
+    transform: translateY(-2px) scale(1.1) rotate(0deg);
   }
 }
 
@@ -274,8 +303,41 @@ body {
   --kpi-border-accent: #f59e0b;
 }
 
+.internacao-card--altas-med-10h {
+  --kpi-border-accent: #a855f7;
+}
+
+.internacao-card--altas-hosp-2h {
+  --kpi-border-accent: #14b8a6;
+}
+
 .internacao-card--tmp {
   --kpi-border-accent: #22c55e;
+}
+
+.internacao-card--ocupacao {
+  --kpi-border-accent: #0ea5e9;
+}
+
+.internacao-card--obitos {
+  --kpi-border-accent: #fb7185;
+}
+
+.internacao-card--mortalidade {
+  --kpi-border-accent: #fb923c;
+}
+
+.internacao-kpi-lucide {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  animation: none;
+  filter: drop-shadow(0 1px 4px rgba(2, 6, 23, 0.35));
+}
+
+.internacao-kpi-lucide svg {
+  width: 1.32rem;
+  height: 1.32rem;
 }
 
 .kpi-card.internacao-card .kpi-icon {
@@ -284,11 +346,26 @@ body {
   background: color-mix(in srgb, var(--kpi-border-accent, var(--primary)) 16%, var(--app-elevated));
 }
 
+.kpi-card.internacao-card .kpi-head {
+  align-items: flex-start;
+}
+
 .kpi-card.internacao-card .kpi-title {
   color: var(--kpi-border-accent, var(--primary));
+  white-space: normal;
+  line-height: 1.22;
+  min-height: 2.5em;
+  align-self: stretch;
+  overflow: visible;
+  letter-spacing: 0.06em;
+  text-wrap: balance;
+  word-break: break-word;
+  hyphens: auto;
 }
 
 .kpi-card.internacao-card .kpi-chip {
+  margin-top: 0.12rem;
+  align-self: flex-start;
   color: var(--kpi-border-accent, var(--primary));
   border-color: color-mix(in srgb, var(--kpi-border-accent, var(--primary)) 72%, transparent);
   background: color-mix(in srgb, var(--kpi-border-accent, var(--primary)) 18%, var(--app-elevated));
@@ -319,6 +396,10 @@ body {
 
 .module-shell--metas {
   border-color: #f59e0b;
+}
+
+.module-shell--medicacao {
+  border-color: #fb7185;
 }
 
 .module-shell--heatmap {
@@ -385,6 +466,7 @@ body {
 
 .internacao-var-proc-chart {
   width: 100%;
+  min-width: 0;
   min-height: min(320px, 42vh);
   height: 320px;
 }
@@ -436,7 +518,56 @@ body {
 
 .internacao-var-chart-tall {
   width: 100%;
+  min-width: 0;
+  min-height: 220px;
   height: 320px;
+}
+
+/* Donuts medicação PS: legenda fixa ao fundo do card, tipografia uniforme */
+.medicacao-donut-stack {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 320px;
+}
+
+.medicacao-donut-stack__chart {
+  flex: 1 1 auto;
+  min-height: 200px;
+  min-width: 0;
+  width: 100%;
+}
+
+.medicacao-donut-stack .recharts-wrapper {
+  overflow: visible;
+}
+
+.medicacao-pie-legend {
+  flex-shrink: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  column-gap: 0.875rem;
+  row-gap: 0.2rem;
+  padding: 0.15rem 0.5rem 0.2rem;
+  font-size: 0.75rem;
+  line-height: 1.25rem;
+  font-weight: 600;
+  color: #334155;
+}
+
+.medicacao-pie-legend__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.medicacao-pie-legend__swatch {
+  width: 0.5rem;
+  height: 0.5rem;
+  flex-shrink: 0;
+  border-radius: 2px;
 }
 
 /* Rótulos do total acima das colunas (faixa etária) sem clip na borda superior */
@@ -450,15 +581,49 @@ body {
   gap: 0.9rem;
 }
 
+/* Internação: totais + taxas — 5 colunas no desktop (sem “buracos” à esquerda; totais preenchem 3+2 vazios à direita) */
+.internacao-kpi-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.internacao-kpi-grid.card-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 520px) {
+  .internacao-kpi-grid--totais.card-grid,
+  .internacao-kpi-grid--rates.card-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 960px) {
+  .internacao-kpi-grid--totais.card-grid,
+  .internacao-kpi-grid--rates.card-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+.internacao-kpi-slot {
+  box-sizing: border-box;
+  min-height: 204px;
+  border-radius: 1rem;
+  border: 1px dashed color-mix(in srgb, var(--app-border) 78%, transparent);
+  background: color-mix(in srgb, var(--app-elevated) 35%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 5%, transparent);
+}
+
 .kpi-card {
   position: relative;
-  min-height: 182px;
+  min-height: 204px;
   border-radius: 1rem;
   border: 1px solid color-mix(in srgb, var(--app-border) 75%, transparent);
   border-left-width: 3px;
   background:
     linear-gradient(145deg, color-mix(in srgb, var(--app-surface) 92%, transparent), color-mix(in srgb, var(--app-elevated) 70%, transparent));
-  padding: 0.95rem;
+  padding: 1.05rem 1.05rem 1rem;
   box-shadow:
     inset 0 1px 0 color-mix(in srgb, #fff 8%, transparent),
     0 10px 24px rgba(0, 0, 0, 0.24);
@@ -496,8 +661,8 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.95rem;
-  height: 1.95rem;
+  width: 2.2rem;
+  height: 2.2rem;
   border-radius: 0.7rem;
   color: var(--kpi-border-accent, var(--primary));
   background: color-mix(in srgb, var(--kpi-border-accent, var(--primary)) 10%, var(--app-elevated));
@@ -511,19 +676,19 @@ body {
 
 .kpi-emoji {
   display: inline-block;
-  font-size: 1.05rem;
+  font-size: 1.28rem;
   line-height: 1;
-  animation: kpi-emoji-wobble 2.8s ease-in-out infinite;
+  animation: kpi-emoji-wobble 2.2s ease-in-out infinite;
   transform-origin: center;
   filter: drop-shadow(0 1px 3px rgba(2, 6, 23, 0.28));
 }
 
 .kpi-title {
-  font-size: 0.74rem;
-  line-height: 1.25;
+  font-size: 0.84rem;
+  line-height: 1.28;
   text-transform: uppercase;
-  letter-spacing: 0.11em;
-  font-weight: 700;
+  letter-spacing: 0.1em;
+  font-weight: 800;
   color: color-mix(in srgb, var(--kpi-border-accent, var(--primary)) 66%, var(--table-header-fg));
   flex: 1;
   margin-right: 0.3rem;
@@ -531,13 +696,13 @@ body {
 }
 
 .kpi-chip {
-  font-size: 0.64rem;
+  font-size: 0.72rem;
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   border: 1px solid color-mix(in srgb, var(--app-border) 70%, transparent);
   border-radius: 999px;
-  padding: 0.2rem 0.48rem;
+  padding: 0.24rem 0.52rem;
   color: var(--app-muted);
   background: color-mix(in srgb, var(--app-elevated) 74%, transparent);
   white-space: nowrap;
@@ -548,7 +713,7 @@ body {
   position: relative;
   z-index: 1;
   margin: 0.65rem 0 0.2rem;
-  font-size: 1.75rem;
+  font-size: 1.92rem;
   font-weight: 900;
   color: var(--foreground);
 }
@@ -557,7 +722,8 @@ body {
   position: relative;
   z-index: 1;
   margin: 0;
-  font-size: 0.77rem;
+  font-size: 0.86rem;
+  font-weight: 600;
   color: var(--app-muted);
 }
 
@@ -565,9 +731,9 @@ body {
   position: relative;
   z-index: 1;
   margin: 0.4rem 0 0;
-  font-size: 0.72rem;
+  font-size: 0.82rem;
   font-weight: 700;
-  line-height: 1.35;
+  line-height: 1.38;
 }
 
 .kpi-chip.kpi-chip--positivo {
@@ -863,13 +1029,13 @@ body {
     transform: translateY(0) rotate(0deg) scale(1);
   }
   25% {
-    transform: translateY(-1px) rotate(-5deg) scale(1.03);
+    transform: translateY(-3px) rotate(-8deg) scale(1.08);
   }
   50% {
-    transform: translateY(0) rotate(0deg) scale(1.07);
+    transform: translateY(0) rotate(0deg) scale(1.12);
   }
   75% {
-    transform: translateY(-1px) rotate(5deg) scale(1.03);
+    transform: translateY(-3px) rotate(8deg) scale(1.08);
   }
 }
 
@@ -1271,14 +1437,29 @@ body {
   background: color-mix(in srgb, var(--kpi-border-accent, var(--primary)) 16%, var(--app-elevated)) !important;
 }
 
+.kpi-card.internacao-card .kpi-head {
+  align-items: flex-start !important;
+}
+
 .kpi-card.internacao-card .kpi-title {
   color: var(--kpi-border-accent, var(--primary)) !important;
+  white-space: normal !important;
+  line-height: 1.22 !important;
+  min-height: 2.5em !important;
+  align-self: stretch !important;
+  overflow: visible !important;
+  letter-spacing: 0.06em !important;
+  text-wrap: balance !important;
+  word-break: break-word !important;
+  hyphens: auto !important;
 }
 
 .kpi-card.internacao-card .kpi-chip,
 .kpi-card.internacao-card .kpi-chip.kpi-chip--positivo,
 .kpi-card.internacao-card .kpi-chip.kpi-chip--negativo,
 .kpi-card.internacao-card .kpi-chip.kpi-chip--neutro {
+  margin-top: 0.12rem !important;
+  align-self: flex-start !important;
   color: var(--kpi-border-accent, var(--primary)) !important;
   border-color: color-mix(in srgb, var(--kpi-border-accent, var(--primary)) 72%, transparent) !important;
   background: color-mix(in srgb, var(--kpi-border-accent, var(--primary)) 18%, var(--app-elevated)) !important;

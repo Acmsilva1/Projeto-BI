@@ -17,4 +17,3 @@ export function getInternacaoDuckReadPaths(csvDataDir: string, endpoint: Interna
   const tables = getInternacaoDuckTables(endpoint);
   return tables.map((table) => path.resolve(csvDataDir, `${table}.parquet`).replaceAll("\\", "/"));
 }
-

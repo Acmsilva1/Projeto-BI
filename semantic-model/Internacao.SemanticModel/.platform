@@ -1,0 +1,11 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "SemanticModel",
+    "displayName": "Internacao"
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "36ddb182-dfda-465e-823f-1d87b007b57b"
+  }
+}

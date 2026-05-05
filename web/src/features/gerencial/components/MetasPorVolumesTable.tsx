@@ -1,8 +1,8 @@
 import { Bell, Loader2, Minus, Plus } from "lucide-react";
+import { useDashboardLoadBar } from "../../../lib/useDashboardLoadBar";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import { fetchDashboardJson } from "../../jornada/api";
 import type { PeriodDays } from "../../../lib/gerencialFiltersStorage";
-import { useRotatingGerencialLoadPhrases } from "../../../lib/gerencialLoadPhrases";
 import { GerencialLoadPanel } from "./GerencialLoadPanel";
 
 type MonthMeta = { yearMonth: number; label: string };
@@ -53,7 +53,7 @@ type MatrixPayload = {
 type MetaDefinitionLite = { key: string; direction?: string };
 
 type MetasVolumeState =
-  | { status: "loading"; loadSession: number; progress: number }
+  | { status: "loading"; loadSession: number }
   | { status: "error"; message: string }
   | { status: "ready"; matrix: MatrixPayload; isStale?: boolean; pendingMatrix?: MatrixPayload };
 
@@ -179,15 +179,29 @@ export function MetasPorVolumesTable(props: MetasPorVolumesTableProps): ReactEle
   const loadSessionRef = useRef(0);
   const [state, setState] = useState<MetasVolumeState>({
     status: "loading",
-    loadSession: 0,
-    progress: 10
+    loadSession: 0
   });
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [drillByKey, setDrillByKey] = useState<Record<string, DrillRow[] | "loading" | "error">>({});
   const drillByKeyRef = useRef(drillByKey);
   drillByKeyRef.current = drillByKey;
 
-  /** Refetch só com unidade (master) ou mês civil deste bloco; regional/período do master não disparam nova carga. */
+  /** Filtro global (período/regional) não dispara nova matriz — estável para apresentação; pedidos usam valores no momento da carga. */
+  const periodRef = useRef(period);
+  const regionalRef = useRef(regional);
+  periodRef.current = period;
+  regionalRef.current = regional;
+
+  /** Período/regional da última matriz aplicada com sucesso (alinha drill à matriz visível). */
+  const lastMatrixApiContextRef = useRef<{ period: PeriodDays; regional: string | undefined }>({
+    period,
+    regional: unidadeAll ? undefined : regional === "ALL" ? undefined : regional
+  });
+
+  /**
+   * Nova carga só quando mudam unidade (master) ou mês deste bloco.
+   * Período/regional do painel: lidos por ref no instante do fetch; mudá-los sozinhos não refaz a tabela.
+   */
   const loadMatrix = useCallback(() => {
     const controller = new AbortController();
     const loadSession = ++loadSessionRef.current;
@@ -202,18 +216,19 @@ export function MetasPorVolumesTable(props: MetasPorVolumesTableProps): ReactEle
           return { status: "ready", matrix, isStale: true };
         } catch { /* skip */ }
       }
-      return { status: "loading", loadSession, progress: 12 };
+      return { status: "loading", loadSession };
     });
 
     setExpanded({});
     setDrillByKey({});
-    const regionalParam = unidadeAll ? undefined : regional === "ALL" ? undefined : regional;
+    const reqPeriod = periodRef.current;
+    const reqRegional = unidadeAll ? undefined : regionalRef.current === "ALL" ? undefined : regionalRef.current;
     const unidadeParam = unidadeAll ? undefined : unidade;
     
     fetchDashboardJson("gerencial-metas-por-volumes", {
       mes: selectedMonth === "ALL" ? undefined : toYearMonthParam(selectedMonth),
-      period,
-      regional: regionalParam,
+      period: reqPeriod,
+      regional: reqRegional,
       unidade: unidadeParam,
       signal: controller.signal
     })
@@ -231,6 +246,7 @@ export function MetasPorVolumesTable(props: MetasPorVolumesTableProps): ReactEle
           indicators: normalizeIndicators(row.indicators, row.metaDefinitions)
         };
         
+        lastMatrixApiContextRef.current = { period: reqPeriod, regional: reqRegional };
         localStorage.setItem(cacheKey, JSON.stringify(matrix));
         
         setState((prev) => {
@@ -247,36 +263,15 @@ export function MetasPorVolumesTable(props: MetasPorVolumesTableProps): ReactEle
         setState({ status: "error", message });
       });
     return () => controller.abort();
-  }, [unidade, selectedMonth, period, regional, unidadeAll]);
+  }, [unidade, selectedMonth, unidadeAll]);
 
   useEffect(() => {
     return loadMatrix();
   }, [loadMatrix]);
 
-  const loadProgressKey = state.status === "loading" ? state.loadSession : -1;
-  const rotatingLoadMessage = useRotatingGerencialLoadPhrases(
-    state.status === "loading",
-    state.status === "loading" ? `mpv-${state.loadSession}` : "mpv-idle"
-  );
-
-  useEffect(() => {
-    if (state.status !== "loading") return;
-    const session = state.loadSession;
-    const id1 = window.setTimeout(() => {
-      setState((s) =>
-        s.status === "loading" && s.loadSession === session ? { ...s, progress: 46 } : s
-      );
-    }, 340);
-    const id2 = window.setTimeout(() => {
-      setState((s) =>
-        s.status === "loading" && s.loadSession === session ? { ...s, progress: 74 } : s
-      );
-    }, 780);
-    return () => {
-      window.clearTimeout(id1);
-      window.clearTimeout(id2);
-    };
-  }, [loadProgressKey]);
+  const mpvLoading = state.status === "loading";
+  const mpvLoadWaveKey = mpvLoading ? `mpv-${state.loadSession}` : "mpv-idle";
+  const { progress: mpvLoadProgress, message: mpvLoadMessage } = useDashboardLoadBar(mpvLoading, mpvLoadWaveKey);
 
   const monthOptions = useMemo(() => {
     if (state.status !== "ready") return [];
@@ -291,13 +286,13 @@ export function MetasPorVolumesTable(props: MetasPorVolumesTableProps): ReactEle
         if (prev[key] === "loading") return prev;
         return { ...prev, [key]: "loading" };
       });
-      const regionalParam = unidadeAll ? undefined : regional === "ALL" ? undefined : regional;
+      const { period: ctxPeriod, regional: ctxRegional } = lastMatrixApiContextRef.current;
       const unidadeParam = unidadeAll ? undefined : unidade;
       fetchDashboardJson("gerencial-metas-por-volumes-drill", {
         indicador: key,
         mes: selectedMonth === "ALL" ? undefined : toYearMonthParam(selectedMonth),
-        period,
-        regional: regionalParam,
+        period: ctxPeriod,
+        regional: ctxRegional,
         unidade: unidadeParam
       })
         .then((payload) => {
@@ -320,14 +315,16 @@ export function MetasPorVolumesTable(props: MetasPorVolumesTableProps): ReactEle
           });
         });
     },
-    [unidade, selectedMonth, period, regional, unidadeAll]
+    [unidade, selectedMonth, unidadeAll]
   );
 
+  const metasMatrix = state.status === "ready" ? state.matrix : null;
+
   useEffect(() => {
-    if (state.status !== "ready" || state.matrix.months.length === 0) return;
-    const keys = state.matrix.indicators.map((ind) => ind.key);
+    if (!metasMatrix || metasMatrix.months.length === 0) return;
+    const keys = metasMatrix.indicators.map((ind) => ind.key);
     let cancelled = false;
-    const regionalParam = unidadeAll ? undefined : regional === "ALL" ? undefined : regional;
+    const { period: ctxPeriod, regional: ctxRegional } = lastMatrixApiContextRef.current;
     const unidadeParam = unidadeAll ? undefined : unidade;
 
     const applyPayload = (key: string, payload: any): void => {
@@ -356,8 +353,8 @@ export function MetasPorVolumesTable(props: MetasPorVolumesTableProps): ReactEle
               const payload = await fetchDashboardJson("gerencial-metas-por-volumes-drill", {
                 indicador: key,
                 mes: selectedMonth === "ALL" ? undefined : toYearMonthParam(selectedMonth),
-                period,
-                regional: regionalParam,
+                period: ctxPeriod,
+                regional: ctxRegional,
                 unidade: unidadeParam
               });
               if (!cancelled) applyPayload(key, payload);
@@ -369,7 +366,7 @@ export function MetasPorVolumesTable(props: MetasPorVolumesTableProps): ReactEle
 
     void loadInBatches();
     return () => { cancelled = true; };
-  }, [state.status, state.matrix, selectedMonth, unidade, unidadeAll, regional, period]);
+  }, [metasMatrix, selectedMonth, unidade, unidadeAll]);
 
   const toggleDrill = (key: string): void => {
     setExpanded((prev) => {
@@ -428,7 +425,7 @@ export function MetasPorVolumesTable(props: MetasPorVolumesTableProps): ReactEle
 
       {state.status === "loading" && (
         <div className="mt-4 px-3">
-          <GerencialLoadPanel progress={state.progress} message={rotatingLoadMessage} />
+          <GerencialLoadPanel progress={mpvLoadProgress} message={mpvLoadMessage} />
         </div>
       )}
 
@@ -544,6 +541,7 @@ export function MetasPorVolumesTable(props: MetasPorVolumesTableProps): ReactEle
                             format={ind.format}
                             direction={ind.direction}
                             drill={drillByKey[ind.key]}
+                            loadWaveKey={ind.key}
                             monthLabels={state.matrix.months.map((m) => m.label)}
                             indicatorLabel={ind.label}
                             targetDisplay={ind.targetDisplay}
@@ -599,11 +597,17 @@ function DrillPanel(props: {
   format: "percent" | "number";
   direction: DeltaDirection;
   drill: DrillRow[] | "loading" | "error" | undefined;
+  loadWaveKey: string;
   monthLabels: string[];
   indicatorLabel: string;
   targetDisplay: string;
   onCollapse: () => void;
 }): ReactElement {
+  const drillBusy = props.drill === "loading" || props.drill === undefined;
+  const { progress: drillLoadProgress, message: drillLoadMessage } = useDashboardLoadBar(
+    drillBusy,
+    `mpv-drill|${props.loadWaveKey}`
+  );
   const sidebar = (
     <DrillSidebar
       indicatorLabel={props.indicatorLabel}
@@ -616,9 +620,8 @@ function DrillPanel(props: {
     return (
       <div className="mpv-drill-shell">
         {sidebar}
-        <div className="mpv-drill-content flex min-h-[100px] items-center gap-2 rounded-xl border border-[var(--table-grid)] bg-[color-mix(in_srgb,var(--app-elevated)_88%,transparent)] px-4 py-6 text-xs text-[var(--app-muted)]">
-          <Loader2 className="animate-spin shrink-0" size={16} />
-          <span>Carregando unidades…</span>
+        <div className="mpv-drill-content min-w-0">
+          <GerencialLoadPanel progress={drillLoadProgress} message={drillLoadMessage} />
         </div>
       </div>
     );

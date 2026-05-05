@@ -1,0 +1,28 @@
+table 'Meta TMP'
+	lineageTag: 5b3320e2-9baa-418c-a2cf-6a63a8289188
+
+	measure 'Valor Meta TMP' = SELECTEDVALUE('Meta TMP'[Meta TMP])
+		lineageTag: 8fc0f0eb-9e5c-468d-b58e-156f14dcc9cc
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Meta TMP'
+		lineageTag: d7e3a47f-33be-4ada-92c4-3e7ea7951ce5
+		summarizeBy: none
+		sourceColumn: [Value]
+
+		extendedProperty ParameterMetadata =
+				{
+				  "version": 0
+				}
+
+		annotation SummarizationSetBy = User
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	partition 'Meta TMP' = calculated
+		mode: import
+		source = GENERATESERIES(0, 10.01, 0.001)
+
+	annotation PBI_Id = 7363fc08566f4e49af85e420de3a1ec8
+

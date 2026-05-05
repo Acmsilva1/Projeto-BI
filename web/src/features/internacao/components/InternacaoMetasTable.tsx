@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import { fetchInternacaoMetas } from "../../jornada/api";
 import type { PeriodDays } from "../../../lib/gerencialFiltersStorage";
-import { useRotatingGerencialLoadPhrases } from "../../../lib/gerencialLoadPhrases";
+import { useDashboardLoadBar } from "../../../lib/useDashboardLoadBar";
 import { GerencialLoadPanel } from "../../gerencial/components/GerencialLoadPanel";
 
 type InternacaoMetasTableProps = {
@@ -34,7 +34,7 @@ type MetasPayload = {
 };
 
 type MetasState =
-  | { status: "loading"; loadSession: number; progress: number }
+  | { status: "loading"; loadSession: number }
   | { status: "error"; message: string }
   | { status: "ready"; data: MetasPayload };
 
@@ -167,8 +167,7 @@ export function InternacaoMetasTable(props: InternacaoMetasTableProps): ReactEle
   const loadSessionRef = useRef(0);
   const [state, setState] = useState<MetasState>({
     status: "loading",
-    loadSession: 0,
-    progress: 10
+    loadSession: 0
   });
 
   useEffect(() => {
@@ -177,8 +176,7 @@ export function InternacaoMetasTable(props: InternacaoMetasTableProps): ReactEle
     const startedAt = Date.now();
     setState({
       status: "loading",
-      loadSession,
-      progress: 12
+      loadSession
     });
 
     fetchInternacaoMetas({
@@ -216,30 +214,9 @@ export function InternacaoMetasTable(props: InternacaoMetasTableProps): ReactEle
     return () => controller.abort();
   }, [period, regional, unidade]);
 
-  const loadProgressKey = state.status === "loading" ? state.loadSession : -1;
-  const rotatingLoadMessage = useRotatingGerencialLoadPhrases(
-    state.status === "loading",
-    state.status === "loading" ? `internacao-metas-${state.loadSession}` : "internacao-metas-idle"
-  );
-
-  useEffect(() => {
-    if (state.status !== "loading") return;
-    const session = state.loadSession;
-    const id1 = window.setTimeout(() => {
-      setState((s) => (s.status === "loading" && s.loadSession === session ? { ...s, progress: 44 } : s));
-    }, 320);
-    const id2 = window.setTimeout(() => {
-      setState((s) => (s.status === "loading" && s.loadSession === session ? { ...s, progress: 72 } : s));
-    }, 760);
-    const id3 = window.setTimeout(() => {
-      setState((s) => (s.status === "loading" && s.loadSession === session ? { ...s, progress: 90 } : s));
-    }, 1200);
-    return () => {
-      window.clearTimeout(id1);
-      window.clearTimeout(id2);
-      window.clearTimeout(id3);
-    };
-  }, [loadProgressKey]);
+  const metasLoading = state.status === "loading";
+  const metasLoadWaveKey = metasLoading ? `internacao-metas-${state.loadSession}` : "internacao-metas-idle";
+  const { progress: metasLoadProgress, message: metasLoadMessage } = useDashboardLoadBar(metasLoading, metasLoadWaveKey);
 
   const orderedIndicators = useMemo(() => {
     if (state.status !== "ready") return [];
@@ -261,7 +238,7 @@ export function InternacaoMetasTable(props: InternacaoMetasTableProps): ReactEle
   }
 
   if (state.status === "loading") {
-    return <GerencialLoadPanel progress={state.progress} message={rotatingLoadMessage} />;
+    return <GerencialLoadPanel progress={metasLoadProgress} message={metasLoadMessage} />;
   }
 
   if (state.data.units.length === 0 || state.data.indicators.length === 0) {

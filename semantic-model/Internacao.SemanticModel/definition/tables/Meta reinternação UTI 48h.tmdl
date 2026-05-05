@@ -1,0 +1,27 @@
+table 'Meta reinternação UTI 48h'
+	lineageTag: c1a33651-8058-41b8-9d45-d030982a255d
+
+	measure 'Valor Meta reinternação UTI 48h' = SELECTEDVALUE('Meta reinternação UTI 48h'[Meta reinternação UTI 48h])
+		lineageTag: 873d8282-4d03-4a25-86ee-f564c21b1ddb
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Meta reinternação UTI 48h'
+		formatString: 0.00%;-0.00%;0.00%
+		lineageTag: 2011ab12-c251-48ee-85a6-8b973d12fa9d
+		summarizeBy: none
+		sourceColumn: [Value]
+
+		extendedProperty ParameterMetadata =
+				{
+				  "version": 0
+				}
+
+		annotation SummarizationSetBy = User
+
+	partition 'Meta reinternação UTI 48h' = calculated
+		mode: import
+		source = GENERATESERIES(0, 1.01, 0.001)
+
+	annotation PBI_Id = dd2a34140743439b8711e7b5b974de9f
+

@@ -33,14 +33,14 @@ export function buildMedicacaoPsDashboard(
     !EXCLUDED_MATERIAL_IDS.has(v.cdMaterial)
   );
 
-  // 2. Filtrar Farmácia (Não Padrão)
+  // 2. Filtrar Farmácia (Não Padrão) — mesma janela temporal das vias (DT_LIBERACAO vs DATA)
   const filteredFarmacia = farmacia.filter(f => {
     const p = (f.padrao || "").trim().toUpperCase();
     const isNaoPadrao = p.startsWith("N");
-    // Garantir que a comparação de CD seja numérica
     const fCd = Number(f.cd);
-    const isUnitSelected = Array.from(cds).some(c => Number(c) === fCd);
-    return isNaoPadrao && isUnitSelected;
+    if (!cds.has(fCd) || !isNaoPadrao) return false;
+    if (!Number.isFinite(f.dataMs) || f.dataMs < m.startMs || f.dataMs > m.endMs) return false;
+    return true;
   });
 
   const stats = {

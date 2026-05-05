@@ -15,7 +15,7 @@ import {
 } from "recharts";
 import { fetchInternacaoVariados } from "../../jornada/api";
 import type { PeriodDays } from "../../../lib/gerencialFiltersStorage";
-import { useRotatingGerencialLoadPhrases } from "../../../lib/gerencialLoadPhrases";
+import { useDashboardLoadBar } from "../../../lib/useDashboardLoadBar";
 import { GerencialLoadPanel } from "../../gerencial/components/GerencialLoadPanel";
 
 type InternacaoGraficosVariadosProps = {
@@ -46,7 +46,7 @@ type VariadosPayload = {
 };
 
 type VariadosState =
-  | { status: "loading"; loadSession: number; progress: number }
+  | { status: "loading"; loadSession: number }
   | { status: "error"; message: string }
   | { status: "ready"; data: VariadosPayload };
 
@@ -122,15 +122,14 @@ export function InternacaoGraficosVariados(props: InternacaoGraficosVariadosProp
   const loadSessionRef = useRef(0);
   const [state, setState] = useState<VariadosState>({
     status: "loading",
-    loadSession: 0,
-    progress: 10
+    loadSession: 0
   });
 
   useEffect(() => {
     const controller = new AbortController();
     const loadSession = ++loadSessionRef.current;
     const startedAt = Date.now();
-    setState({ status: "loading", loadSession, progress: 12 });
+    setState({ status: "loading", loadSession });
 
     fetchInternacaoVariados({
       period,
@@ -159,30 +158,14 @@ export function InternacaoGraficosVariados(props: InternacaoGraficosVariadosProp
     return () => controller.abort();
   }, [period, regional, unidade]);
 
-  const loadProgressKey = state.status === "loading" ? state.loadSession : -1;
-  const rotatingLoadMessage = useRotatingGerencialLoadPhrases(
-    state.status === "loading",
-    state.status === "loading" ? `internacao-variados-${state.loadSession}` : "internacao-variados-idle"
+  const variadosLoading = state.status === "loading";
+  const variadosLoadWaveKey = variadosLoading
+    ? `internacao-variados-${state.loadSession}`
+    : "internacao-variados-idle";
+  const { progress: variadosLoadProgress, message: variadosLoadMessage } = useDashboardLoadBar(
+    variadosLoading,
+    variadosLoadWaveKey
   );
-
-  useEffect(() => {
-    if (state.status !== "loading") return;
-    const session = state.loadSession;
-    const id1 = window.setTimeout(() => {
-      setState((s) => (s.status === "loading" && s.loadSession === session ? { ...s, progress: 46 } : s));
-    }, 340);
-    const id2 = window.setTimeout(() => {
-      setState((s) => (s.status === "loading" && s.loadSession === session ? { ...s, progress: 74 } : s));
-    }, 800);
-    const id3 = window.setTimeout(() => {
-      setState((s) => (s.status === "loading" && s.loadSession === session ? { ...s, progress: 91 } : s));
-    }, 1250);
-    return () => {
-      window.clearTimeout(id1);
-      window.clearTimeout(id2);
-      window.clearTimeout(id3);
-    };
-  }, [loadProgressKey]);
 
   const procedenciaCharts = useMemo(() => {
     if (state.status !== "ready") return { pie: [] as ProcSliceChart[], legend: [] as ProcSliceChart[] };
@@ -257,7 +240,7 @@ export function InternacaoGraficosVariados(props: InternacaoGraficosVariadosProp
   }
 
   if (state.status === "loading") {
-    return <GerencialLoadPanel progress={state.progress} message={rotatingLoadMessage} />;
+    return <GerencialLoadPanel progress={variadosLoadProgress} message={variadosLoadMessage} />;
   }
 
   if (sexoChartData.length === 0 && faixaEtariaChartData.length === 0 && procedenciaCharts.legend.length === 0) {
@@ -269,7 +252,7 @@ export function InternacaoGraficosVariados(props: InternacaoGraficosVariadosProp
       <article className="internacao-var-card">
         <h3 className="internacao-var-title">Internações por sexo</h3>
         <div className="internacao-var-chart-tall">
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={240}>
             <PieChart margin={{ top: 18, right: 28, left: 28, bottom: 20 }}>
               <Pie
                 data={sexoChartData}
@@ -296,7 +279,7 @@ export function InternacaoGraficosVariados(props: InternacaoGraficosVariadosProp
       <article className="internacao-var-card">
         <h3 className="internacao-var-title">Internações por faixa etária</h3>
         <div className="internacao-var-chart-tall">
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={240}>
             <BarChart data={faixaEtariaChartData} margin={{ top: 40, right: 12, left: 4, bottom: 8 }}>
               <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" vertical={false} />
               <XAxis dataKey="faixa" tick={{ fill: "#334155", fontSize: 12 }} axisLine={false} tickLine={false} />
@@ -334,7 +317,7 @@ export function InternacaoGraficosVariados(props: InternacaoGraficosVariadosProp
         <h3 className="internacao-var-title">Internações por procedência</h3>
         <div className="internacao-var-proc-body">
           <div className="internacao-var-proc-chart">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={240}>
               <PieChart margin={{ top: 16, right: 20, left: 20, bottom: 16 }}>
                 <Pie
                   data={procedenciaCharts.pie}
@@ -382,7 +365,7 @@ export function InternacaoGraficosVariados(props: InternacaoGraficosVariadosProp
       <article className="internacao-var-card">
         <h3 className="internacao-var-title">Reinternações</h3>
         <div className="internacao-var-chart-tall">
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={240}>
             <BarChart data={reinternacoesChartData} margin={{ top: 28, right: 24, left: 24, bottom: 16 }}>
               <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" vertical={false} />
               <XAxis dataKey="label" tick={{ fill: "#334155", fontSize: 12 }} axisLine={false} tickLine={false} />

@@ -38,7 +38,7 @@ export type InternacaoOptions = {
   unidade?: string;
 };
 
-const INTERNACAO_UNIDADES_HABILITADAS = [
+export const INTERNACAO_UNIDADES_HABILITADAS = [
   "DF - AGUAS CLARAS",
   "DF - PS SIG",
   "DF - PS TAGUATINGA",
@@ -107,7 +107,7 @@ function toSqlList(values: readonly string[]): string {
   return values.map((v) => `'${esc(v)}'`).join(", ");
 }
 
-function buildUnitsFilterSql(options: InternacaoOptions): string {
+export function buildUnitsFilterSql(options: InternacaoOptions): string {
   const clauses: string[] = [`TRIM(nome) IN (${toSqlList(INTERNACAO_UNIDADES_HABILITADAS)})`];
   if (options.regional) clauses.push(`UPPER(TRIM(uf)) = '${esc(options.regional.toUpperCase())}'`);
   if (options.unidade) clauses.push(`UPPER(TRIM(nome)) = UPPER('${esc(options.unidade)}')`);
@@ -119,32 +119,183 @@ function internacaoFactsRetentionDays(periodDays: InternacaoOptions["periodDays"
   return Math.min(env.gerencialStoreRetentionDays, Math.max(90, periodDays));
 }
 
-function duckPeriodWhere(col: string, periodDays: InternacaoOptions["periodDays"]): string {
+export function duckPeriodWhere(col: string, periodDays: InternacaoOptions["periodDays"]): string {
   if (periodDays === 1) {
     return `${col} IS NOT NULL AND cast(${col} AS DATE) = cast(CURRENT_DATE AS DATE) - INTERVAL 1 DAY`;
   }
   return `${col} IS NOT NULL AND (max_dt IS NULL OR ${col} BETWEEN (max_dt - INTERVAL '${periodDays - 1} DAY') AND max_dt)`;
 }
 
+/**
+ * Coluna de data/hora em facts (VARCHAR ou timestamp): ISO com espaço, ou pt-BR dd/MM/yyyy.
+ * Usado em movimentações e onde o parquet/CSV não normalizou para ISO.
+ */
+export function duckSqlFlexTimestamp(expr: string): string {
+  const v = `trim(cast(${expr} AS VARCHAR))`;
+  return `COALESCE(
+    TRY_CAST(REPLACE(${v}, ' ', 'T') AS TIMESTAMP),
+    TRY_STRPTIME(${v}, '%d/%m/%Y %H:%M:%S'),
+    TRY_STRPTIME(${v}, '%d/%m/%Y %H:%M'),
+    TRY_STRPTIME(${v}, '%d/%m/%Y'),
+    TRY_STRPTIME(${v}, '%Y-%m-%d %H:%M:%S'),
+    TRY_STRPTIME(${v}, '%Y-%m-%d %H:%M'),
+    TRY_STRPTIME(${v}, '%Y-%m-%d')
+  )`;
+}
+
+/** Datas em `tbl_intern_internacoes` (alias `i.`): **iguais** ao `getInternacaoTopoPayload`. */
+export const SQL_INTERN_I_DT_ENTRADA = "try_cast(replace(i.dt_entrada, ' ', 'T') AS TIMESTAMP)";
+export const SQL_INTERN_I_DT_ALTA = "try_cast(replace(i.dt_alta, ' ', 'T') AS TIMESTAMP)";
+/** Parquet do modelo expõe `DT_ALTA_MEDICO` (maiúsculas). Identificador sem aspas falha no DuckDB. */
+export const SQL_INTERN_I_DT_ALTA_MEDICO =
+  "try_cast(replace(trim(cast(i.\"DT_ALTA_MEDICO\" AS VARCHAR)), ' ', 'T') AS TIMESTAMP)";
+
 /** Dias do calendário do mesmo recorte do topo (para Paciente-dia no período, alinhado ao Power BI). */
-function duckTopoPeriodDaysCTE(periodDays: InternacaoOptions["periodDays"]): string {
+export function duckTopoPeriodDaysCTE(periodDays: InternacaoOptions["periodDays"]): string {
   if (periodDays === 1) {
     return `period_days AS (
       SELECT (CAST(current_date AS DATE) - INTERVAL 1 DAY) AS ref_day
     )`;
   }
-  return `period_days AS (
-    SELECT unnest(generate_series(
-      (SELECT CAST(max_dt AS DATE) - INTERVAL '${periodDays - 1}' DAY FROM alta_window),
-      (SELECT CAST(max_dt AS DATE) FROM alta_window),
-      INTERVAL 1 DAY
-    ))::DATE AS ref_day
-  )`;
+  return `period_anchor AS (
+      SELECT COALESCE(
+        (SELECT max_dt FROM alta_window),
+        (SELECT max_dt FROM intern_window),
+        CURRENT_TIMESTAMP
+      ) AS anchor
+    ),
+    period_days AS (
+      SELECT unnest(generate_series(
+        CAST((SELECT anchor FROM period_anchor) AS DATE) - INTERVAL '${periodDays - 1}' DAY,
+        CAST((SELECT anchor FROM period_anchor) AS DATE),
+        INTERVAL 1 DAY
+      ))::DATE AS ref_day
+    )`;
 }
 
 function toNum(value: unknown): number {
   const n = Number(value ?? 0);
   return Number.isFinite(n) ? n : 0;
+}
+
+/** DuckDB / drivers podem devolver aliases com casing diferente do esperado. */
+function rowField(row: Record<string, unknown>, canonical: string): unknown {
+  if (Object.prototype.hasOwnProperty.call(row, canonical)) return row[canonical];
+  const want = canonical.toLowerCase();
+  for (const key of Object.keys(row)) {
+    if (key.toLowerCase() === want) return row[key];
+  }
+  return undefined;
+}
+
+function mapTopoNullablePct1(raw: unknown): number | null {
+  if (raw == null || raw === "") return null;
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return null;
+  return Number(n.toFixed(1));
+}
+
+function mapTaxaMortalidadeGeralPct(row: Record<string, unknown>, altasTotal: number, obitosTotal: number): number | null {
+  if (altasTotal <= 0) return null;
+  const raw = rowField(row, "taxa_mortalidade_geral_pct");
+  let n = raw === null || raw === undefined || raw === "" ? NaN : Number(raw);
+  if (!Number.isFinite(n)) {
+    n = (100 * obitosTotal) / altasTotal;
+  }
+  if (!Number.isFinite(n)) return null;
+  return Number(n.toFixed(2));
+}
+
+function buildInternacaoTargetUnitsForTopo(options: InternacaoOptions): string[] {
+  const regionalTarget = options.regional?.trim().toUpperCase();
+  const unidadeTarget = options.unidade?.trim();
+  return INTERNACAO_UNIDADES_HABILITADAS.filter((unit) =>
+    regionalTarget ? unit.split("-")[0]?.trim().toUpperCase() === regionalTarget : true
+  ).filter((unit) => (unidadeTarget ? normalizeUnitKey(unit) === normalizeUnitKey(unidadeTarget) : true));
+}
+
+/** Taxa de ocupação no topo: Σ leitos ocupados / Σ leitos (snapshot tbl_intern_leitos), mesmo recorte dos filtros. */
+function aggregateOcupacaoInternacaoFromSupplement(
+  targetUnits: string[],
+  supplement: Map<string, InternacaoSupplement>
+): number | null {
+  let sumOcup = 0;
+  let sumTot = 0;
+  for (const unit of targetUnits) {
+    const sup = supplement.get(normalizeUnitKey(unit));
+    if (!sup || sup.ocupacao_leitos_total == null || sup.ocupacao_leitos_total <= 0) continue;
+    sumOcup += sup.ocupacao_leitos_ocupados ?? 0;
+    sumTot += sup.ocupacao_leitos_total;
+  }
+  if (sumTot <= 0) return null;
+  return Number(((sumOcup * 100) / sumTot).toFixed(1));
+}
+
+/**
+ * Taxa de ocupação lida diretamente das views DuckDB (Parquet), alinhada ao snapshot por unidade do supplement.
+ * Vários variantes de nome de coluna por causa de parquet/csv.
+ */
+async function queryOcupacaoInternacaoPctFromDuckDb(options: InternacaoOptions): Promise<number | null> {
+  if (env.dataGateway !== "duckdb") return null;
+
+  const unitsWhere = buildUnitsFilterSql(options);
+
+  const buildSql = (cu: string, cs: string, ca: string, cd: string, cc: string) => `
+    WITH base AS (
+      SELECT
+        upper(trim(cast(l.${cu} AS VARCHAR))) AS uk,
+        upper(trim(cast(l.${cs} AS VARCHAR))) AS st,
+        COALESCE(
+          ${duckSqlFlexTimestamp(`l.${ca}`)},
+          ${duckSqlFlexTimestamp(`l.${cd}`)},
+          ${duckSqlFlexTimestamp(`l.${cc}`)}
+        ) AS dt
+      FROM tbl_intern_leitos l
+      WHERE upper(trim(cast(l.${cu} AS VARCHAR))) IN (
+        SELECT upper(trim(cast(nome AS VARCHAR))) FROM tbl_unidades WHERE ${unitsWhere}
+      )
+    ),
+    mx AS (
+      SELECT uk, max(dt) AS max_dt
+      FROM base
+      GROUP BY uk
+    ),
+    snap AS (
+      SELECT b.uk, b.st
+      FROM base b
+      INNER JOIN mx ON b.uk = mx.uk
+      WHERE mx.max_dt IS NULL OR b.dt = mx.max_dt
+    )
+    SELECT
+      round(
+        100.0 * sum(CASE WHEN strpos(coalesce(snap.st, ''), 'LIVRE') = 0 THEN 1 ELSE 0 END) /
+        nullif(count(*), 0),
+        1
+      ) AS ocupacao_internacao_pct
+    FROM snap
+  `;
+
+  const variants = [
+    buildSql('"UNIDADE"', '"STATUS"', '"DT_ATUALIZACAO"', '"DATA"', '"DT_CRIACAO"'),
+    buildSql("UNIDADE", "STATUS", "DT_ATUALIZACAO", "DATA", "DT_CRIACAO"),
+    buildSql("unidade", "status", "dt_atualizacao", "data", "dt_criacao")
+  ];
+
+  for (const sql of variants) {
+    try {
+      const out = await queryDuckDb(sql);
+      const row = out[0] as Record<string, unknown> | undefined;
+      if (!row) continue;
+      const raw = rowField(row, "ocupacao_internacao_pct");
+      if (raw == null || raw === "") continue;
+      const n = Number(raw);
+      if (!Number.isFinite(n)) continue;
+      return Number(n.toFixed(1));
+    } catch {
+      /* tentar próximo conjunto de colunas */
+    }
+  }
+  return null;
 }
 
 /** Minutos vindos do DuckDB para TMP do topo; preserva null quando não há média válida. */
@@ -166,6 +317,15 @@ function pickField(row: Record<string, string>, ...keys: string[]): string {
     if (row[lowerKey] !== undefined) return row[lowerKey] ?? "";
     const upperKey = key.toUpperCase();
     if (row[upperKey] !== undefined) return row[upperKey] ?? "";
+  }
+  return "";
+}
+
+/** Parquet costuma trazer nomes em maiúsculas (UNIDADE, STATUS); CSV pode misturar casing. */
+function pickFieldCi(row: Record<string, string>, logical: string): string {
+  const want = logical.toLowerCase();
+  for (const [k, v] of Object.entries(row)) {
+    if (k.toLowerCase() === want) return v ?? "";
   }
   return "";
 }
@@ -462,12 +622,14 @@ async function loadInternacaoSupplementByUnit(options: InternacaoOptions, target
       const byUnit = new Map<string, Array<{ status: string; dt: number | null }>>();
       for (const [key] of targetCodes) byUnit.set(key, []);
       for (const row of rows) {
-        const unit = pickField(row, "unidade").trim();
+        const unit = pickFieldCi(row, "unidade").trim();
         const key = normalizeUnitKey(unit);
         if (!byUnit.has(key)) continue;
         byUnit.get(key)!.push({
-          status: normalizeUnitKey(pickField(row, "status")),
-          dt: parseDateMs(pickField(row, "dt_atualizacao") || pickField(row, "data") || pickField(row, "dt_criacao"))
+          status: normalizeUnitKey(pickFieldCi(row, "status")),
+          dt: parseDateMs(
+            pickFieldCi(row, "dt_atualizacao") || pickFieldCi(row, "data") || pickFieldCi(row, "dt_criacao")
+          )
         });
       }
       for (const [key, list] of byUnit) {
@@ -738,7 +900,7 @@ function mapRankingToMetasPayload(
   };
 }
 
-function buildPayloadBase(
+export function buildInternacaoPayloadBase(
   slug: string,
   options: InternacaoOptions,
   endpoint: InternacaoEndpointKey,
@@ -759,6 +921,15 @@ function buildPayloadBase(
       readPaths: getInternacaoDuckReadPaths(env.csvDataDir, endpoint)
     }
   };
+}
+
+function buildPayloadBase(
+  slug: string,
+  options: InternacaoOptions,
+  endpoint: InternacaoEndpointKey,
+  engine: "duckdb" | "csv-memory"
+): Pick<InternacaoQueryPayload, "ok" | "slug" | "appliedFilters" | "dependencies"> {
+  return buildInternacaoPayloadBase(slug, options, endpoint, engine);
 }
 
 export async function getInternacaoFiltrosPayload(options: InternacaoOptions): Promise<InternacaoQueryPayload> {
@@ -796,8 +967,8 @@ export async function getInternacaoFiltrosPayload(options: InternacaoOptions): P
 export async function getInternacaoTopoPayload(options: InternacaoOptions): Promise<InternacaoQueryPayload> {
   try {
     const unitsFilterSql = buildUnitsFilterSql(options);
-    const dtIntern = "try_cast(replace(i.dt_entrada, ' ', 'T') AS TIMESTAMP)";
-    const dtAlta = "try_cast(replace(i.dt_alta, ' ', 'T') AS TIMESTAMP)";
+    const dtIntern = SQL_INTERN_I_DT_ENTRADA;
+    const dtAlta = SQL_INTERN_I_DT_ALTA;
     const dtConvEnt = "try_cast(replace(c.dt_entrada, ' ', 'T') AS TIMESTAMP)";
     const dtConvAlta = "try_cast(replace(c.dt_alta, ' ', 'T') AS TIMESTAMP)";
     const periodDaysCTE = duckTopoPeriodDaysCTE(options.periodDays);
@@ -826,7 +997,9 @@ export async function getInternacaoTopoPayload(options: InternacaoOptions): Prom
           try_cast(i.cd_estabelecimento AS BIGINT) AS cd,
           trim(cast(i.nr_atendimento AS VARCHAR)) AS nr_atendimento,
           ${dtAlta} AS dt_ref,
-          ${dtIntern} AS dt_entrada
+          ${dtIntern} AS dt_entrada,
+          upper(trim(coalesce(cast(i.motivo_alta_hospitalar AS VARCHAR), ''))) AS motivo_u,
+          ${SQL_INTERN_I_DT_ALTA_MEDICO} AS dt_med_ts
         FROM tbl_intern_internacoes i
         WHERE try_cast(i.cd_estabelecimento AS BIGINT) IN (SELECT cd FROM unidades)
       ),
@@ -866,6 +1039,18 @@ export async function getInternacaoTopoPayload(options: InternacaoOptions): Prom
         FROM alta_base, alta_window
         WHERE ${duckPeriodWhere("dt_ref", options.periodDays)}
       ),
+      obitos_agg AS (
+        SELECT
+          count(DISTINCT nr_atendimento) FILTER (
+            WHERE dt_ref IS NOT NULL AND trim(nr_atendimento) <> ''
+              AND (
+                motivo_u IN ('ÓBITO', 'OBITO')
+                OR strpos(lower(replace(replace(motivo_u, 'Ó', 'O'), 'Ô', 'O')), 'obito') > 0
+              )
+          ) AS obitos_total
+        FROM alta_base, alta_window
+        WHERE ${duckPeriodWhere("dt_ref", options.periodDays)}
+      ),
       reintern_base AS (
         SELECT
           try_cast(c.cd_estab_urg AS BIGINT) AS cd,
@@ -894,6 +1079,47 @@ export async function getInternacaoTopoPayload(options: InternacaoOptions): Prom
           ) AS reintern_7d,
           count(*) FILTER (WHERE r.dt_alta IS NOT NULL) AS altas_para_reintern
         FROM reintern_periodo r
+      ),
+      alta_med_periodo AS (
+        SELECT
+          trim(cast(a.nr_atendimento AS VARCHAR)) AS nr_atendimento,
+          a.dt_ref AS dt_ref,
+          a.dt_med_ts AS dt_med_ts,
+          a.motivo_u AS motivo_u
+        FROM alta_base a, alta_window
+        WHERE ${duckPeriodWhere("a.dt_ref", options.periodDays)}
+          AND a.dt_ref IS NOT NULL
+          AND trim(cast(a.nr_atendimento AS VARCHAR)) <> ''
+      ),
+      alta_med_enriched AS (
+        SELECT
+          p.*,
+          CASE
+            WHEN p.dt_med_ts IS NULL THEN NULL
+            WHEN p.dt_med_ts > p.dt_ref THEN p.dt_ref
+            ELSE p.dt_med_ts
+          END AS dt_medica_condic,
+          NOT (
+            p.motivo_u IN ('ÓBITO', 'OBITO')
+            OR strpos(lower(replace(replace(p.motivo_u, 'Ó', 'O'), 'Ô', 'O')), 'obito') > 0
+          ) AS nao_obito
+        FROM alta_med_periodo p
+      ),
+      alta_med_agg AS (
+        SELECT
+          count(DISTINCT nr_atendimento) FILTER (WHERE nao_obito AND dt_med_ts IS NOT NULL) AS den_10h,
+          count(DISTINCT nr_atendimento) FILTER (
+            WHERE nao_obito
+              AND dt_medica_condic IS NOT NULL
+              AND cast(dt_medica_condic AS TIME) <= cast('10:00:00' AS TIME)
+          ) AS num_10h,
+          count(DISTINCT nr_atendimento) FILTER (WHERE dt_med_ts IS NOT NULL AND dt_ref IS NOT NULL) AS den_2h,
+          count(DISTINCT nr_atendimento) FILTER (
+            WHERE dt_medica_condic IS NOT NULL
+              AND dt_ref IS NOT NULL
+              AND dt_ref <= dt_medica_condic + interval '2 hours'
+          ) AS num_2h
+        FROM alta_med_enriched
       )
       SELECT
         coalesce((SELECT internacoes_total FROM internacoes_agg), 0) AS internacoes_total,
@@ -910,20 +1136,50 @@ export async function getInternacaoTopoPayload(options: InternacaoOptions): Prom
             nullif((SELECT altas_para_reintern FROM reintern_calc), 0),
             1
           )
-        END AS taxa_conversao_internacao_pct
+        END AS taxa_conversao_internacao_pct,
+        coalesce((SELECT obitos_total FROM obitos_agg), 0) AS obitos_total,
+        CASE
+          WHEN coalesce((SELECT altas_total FROM altas_agg), 0) <= 0 THEN NULL
+          ELSE round(100.0 * coalesce((SELECT obitos_total FROM obitos_agg), 0) / (SELECT altas_total FROM altas_agg), 3)
+        END AS taxa_mortalidade_geral_pct,
+        CASE
+          WHEN coalesce((SELECT den_10h FROM alta_med_agg), 0) <= 0 THEN NULL
+          ELSE round(100.0 * (SELECT num_10h FROM alta_med_agg) / (SELECT den_10h FROM alta_med_agg), 1)
+        END AS pct_altas_medicas_10h,
+        CASE
+          WHEN coalesce((SELECT den_2h FROM alta_med_agg), 0) <= 0 THEN NULL
+          ELSE round(100.0 * (SELECT num_2h FROM alta_med_agg) / (SELECT den_2h FROM alta_med_agg), 1)
+        END AS pct_altas_hosp_2h
     `);
+
+    const targetUnitsTopo = buildInternacaoTargetUnitsForTopo(options);
+    let ocupacaoTopoPct = await queryOcupacaoInternacaoPctFromDuckDb(options);
+    if (ocupacaoTopoPct === null) {
+      const supplementTopo = await loadInternacaoSupplementByUnit(options, targetUnitsTopo);
+      ocupacaoTopoPct = aggregateOcupacaoInternacaoFromSupplement(targetUnitsTopo, supplementTopo);
+    }
 
     const base = buildPayloadBase("internacao-topo", options, "topo", "duckdb");
     return {
       ...base,
       sourceView: "duckdb:tbl_intern_internacoes+tbl_intern_conversoes",
       rowCount: rows.length,
-      rows: rows.map((row) => ({
-        internacoes_total: Math.round(toNum(row.internacoes_total)),
-        altas_total: Math.round(toNum(row.altas_total)),
-        tempo_medio_alta_min: nullableTopoMinutes(row.tempo_medio_alta_min),
-        taxa_conversao_internacao_pct: Number(toNum(row.taxa_conversao_internacao_pct).toFixed(1))
-      }))
+      rows: rows.map((row) => {
+        const r = row as Record<string, unknown>;
+        const altasTotal = Math.round(toNum(rowField(r, "altas_total")));
+        const obitosTotal = Math.round(toNum(rowField(r, "obitos_total")));
+        return {
+          internacoes_total: Math.round(toNum(rowField(r, "internacoes_total"))),
+          altas_total: altasTotal,
+          tempo_medio_alta_min: nullableTopoMinutes(rowField(r, "tempo_medio_alta_min")),
+          taxa_conversao_internacao_pct: Number(toNum(rowField(r, "taxa_conversao_internacao_pct")).toFixed(1)),
+          obitos_total: obitosTotal,
+          taxa_mortalidade_geral_pct: mapTaxaMortalidadeGeralPct(r, altasTotal, obitosTotal),
+          ocupacao_internacao_pct: ocupacaoTopoPct,
+          pct_altas_medicas_10h: mapTopoNullablePct1(rowField(r, "pct_altas_medicas_10h")),
+          pct_altas_hosp_2h: mapTopoNullablePct1(rowField(r, "pct_altas_hosp_2h"))
+        };
+      })
     };
   } catch {
     const fallback = await getDashboardQueryPayload("gerencial-kpis-topo", {
@@ -933,6 +1189,20 @@ export async function getInternacaoTopoPayload(options: InternacaoOptions): Prom
       unidade: options.unidade
     });
     const row = normalizeRowsArray(fallback.rows)[0] ?? {};
+    const r = row as Record<string, unknown>;
+    const altasFb = Math.round(toNum(rowField(r, "altas_total")));
+    const obitosFb = Math.round(toNum(rowField(r, "obitos_total")));
+    const targetUnitsTopo = buildInternacaoTargetUnitsForTopo(options);
+    const rawOcu = rowField(r, "ocupacao_internacao_pct");
+    let ocupacaoFb: number | null =
+      rawOcu != null && rawOcu !== "" && Number.isFinite(Number(rawOcu)) ? Number(toNum(rawOcu).toFixed(1)) : null;
+    if (ocupacaoFb === null) {
+      ocupacaoFb = await queryOcupacaoInternacaoPctFromDuckDb(options);
+    }
+    if (ocupacaoFb === null) {
+      const supplementTopo = await loadInternacaoSupplementByUnit(options, targetUnitsTopo);
+      ocupacaoFb = aggregateOcupacaoInternacaoFromSupplement(targetUnitsTopo, supplementTopo);
+    }
     const base = buildPayloadBase("internacao-topo", options, "topo", "csv-memory");
     return {
       ...base,
@@ -940,10 +1210,15 @@ export async function getInternacaoTopoPayload(options: InternacaoOptions): Prom
       rowCount: 1,
       rows: [
         {
-          internacoes_total: Math.round(toNum(row.internacoes_total)),
-          altas_total: Math.round(toNum(row.altas_total)),
-          tempo_medio_alta_min: nullableTopoMinutes(row.tempo_medio_alta_min),
-          taxa_conversao_internacao_pct: Number(toNum(row.taxa_conversao_internacao_pct).toFixed(1))
+          internacoes_total: Math.round(toNum(rowField(r, "internacoes_total"))),
+          altas_total: altasFb,
+          tempo_medio_alta_min: nullableTopoMinutes(rowField(r, "tempo_medio_alta_min")),
+          taxa_conversao_internacao_pct: Number(toNum(rowField(r, "taxa_conversao_internacao_pct")).toFixed(1)),
+          obitos_total: obitosFb,
+          taxa_mortalidade_geral_pct: mapTaxaMortalidadeGeralPct(r, altasFb, obitosFb),
+          ocupacao_internacao_pct: ocupacaoFb,
+          pct_altas_medicas_10h: mapTopoNullablePct1(rowField(r, "pct_altas_medicas_10h")),
+          pct_altas_hosp_2h: mapTopoNullablePct1(rowField(r, "pct_altas_hosp_2h"))
         }
       ]
     };

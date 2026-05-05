@@ -1,0 +1,597 @@
+table Internacao
+	lineageTag: eb81b025-8eeb-41d8-90a6-f8013f19a5ed
+
+	column UNIDADE
+		dataType: string
+		lineageTag: 25f3e2ac-e235-45ba-a8f7-ae452a67c72e
+		summarizeBy: none
+		sourceColumn: UNIDADE
+
+		changedProperty = IsHidden
+
+		annotation SummarizationSetBy = Automatic
+
+	column CD_ESTABELECIMENTO
+		dataType: double
+		lineageTag: 8d7a0ff8-a018-46c7-b4d5-93bb80e900d3
+		summarizeBy: none
+		sourceColumn: CD_ESTABELECIMENTO
+
+		changedProperty = IsHidden
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column CD_PESSOA_FISICA
+		dataType: double
+		lineageTag: fd74f933-5313-4b28-b94b-2b48a60befa3
+		summarizeBy: sum
+		sourceColumn: CD_PESSOA_FISICA
+
+		changedProperty = IsHidden
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column NR_ATENDIMENTO
+		dataType: int64
+		lineageTag: 49ed93b3-943f-48eb-a277-74259ffc8c07
+		summarizeBy: none
+		sourceColumn: NR_ATENDIMENTO
+
+		changedProperty = IsHidden
+
+		changedProperty = DataType
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column PACIENTE
+		dataType: string
+		lineageTag: 7663ffdc-4c78-48cb-a542-1c61bae1c055
+		summarizeBy: none
+		sourceColumn: PACIENTE
+
+		changedProperty = IsHidden
+
+		annotation SummarizationSetBy = Automatic
+
+	column IDADE
+		dataType: double
+		lineageTag: f761cc4a-e965-4c5e-a9de-42df7de62311
+		summarizeBy: sum
+		sourceColumn: IDADE
+
+		changedProperty = IsHidden
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column SEXO
+		dataType: string
+		lineageTag: 293de860-0481-4abe-9d15-50c10b98975c
+		summarizeBy: none
+		sourceColumn: SEXO
+
+		changedProperty = IsHidden
+
+		annotation SummarizationSetBy = Automatic
+
+	column CIDADE
+		dataType: string
+		lineageTag: 4d9153bf-486a-4797-82d3-8feeb1754f95
+		summarizeBy: none
+		sourceColumn: CIDADE
+
+		changedProperty = IsHidden
+
+		annotation SummarizationSetBy = Automatic
+
+	column ESTADO
+		dataType: string
+		lineageTag: bb1b5d75-0c97-4f2c-97a1-11b1493233cb
+		summarizeBy: none
+		sourceColumn: ESTADO
+
+		changedProperty = IsHidden
+
+		annotation SummarizationSetBy = Automatic
+
+	column LOCALIZACAO_PAC
+		dataType: string
+		lineageTag: 04ba45e1-681d-48af-8d23-7a64bdb4b439
+		summarizeBy: none
+		sourceColumn: LOCALIZACAO_PAC
+
+		changedProperty = IsHidden
+
+		annotation SummarizationSetBy = Automatic
+
+	column PROCEDENCIA
+		dataType: string
+		lineageTag: 56097d9e-07dd-42c2-bb5c-0bffa04bd2b3
+		summarizeBy: none
+		sourceColumn: PROCEDENCIA
+
+		changedProperty = IsHidden
+
+		annotation SummarizationSetBy = Automatic
+
+	column CD_CID
+		dataType: string
+		lineageTag: a7417ac4-cc2d-4850-b691-70c9cb6cc448
+		summarizeBy: none
+		sourceColumn: CD_CID
+
+		changedProperty = IsHidden
+
+		annotation SummarizationSetBy = Automatic
+
+	column CID
+		dataType: string
+		lineageTag: 967319f9-69f4-4a25-827d-02ddaa424b68
+		summarizeBy: none
+		sourceColumn: CID
+
+		changedProperty = IsHidden
+
+		annotation SummarizationSetBy = Automatic
+
+	column GRUPO_CID
+		dataType: string
+		lineageTag: 791dfae7-cd0f-4c4a-83f1-59438595690d
+		summarizeBy: none
+		sourceColumn: GRUPO_CID
+
+		changedProperty = IsHidden
+
+		annotation SummarizationSetBy = Automatic
+
+	column DATA
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: fa1eb7ec-b9d0-4d8d-9e92-bf45c581d913
+		summarizeBy: none
+		sourceColumn: DATA
+
+		changedProperty = IsHidden
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column DT_ENTRADA
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: 076b5d10-563d-499a-a025-4972dc395dbf
+		summarizeBy: none
+		sourceColumn: DT_ENTRADA
+
+		variation Variation
+			isDefault
+			relationship: fbdede85-dbf3-4ec3-9e62-7488e1261b8d
+			defaultHierarchy: LocalDateTable_9caf37ef-da25-416a-913c-b77fed96ff2e.'Hierarquia de datas'
+
+		changedProperty = IsHidden
+
+		annotation SummarizationSetBy = Automatic
+
+	column MEDICO_RESPONSAVEL
+		dataType: string
+		lineageTag: 75a9068f-29f7-4c05-a532-9bb9ce7bc37a
+		summarizeBy: none
+		sourceColumn: MEDICO_RESPONSAVEL
+
+		changedProperty = IsHidden
+
+		annotation SummarizationSetBy = Automatic
+
+	column DS_SETOR_ATENDIMENTO
+		dataType: string
+		lineageTag: 06beaf18-80b3-4a36-8a12-f5c14825c5a8
+		summarizeBy: none
+		sourceColumn: DS_SETOR_ATENDIMENTO
+
+		changedProperty = IsHidden
+
+		annotation SummarizationSetBy = Automatic
+
+	column DS_TIPO_ACOMODACAO
+		dataType: string
+		lineageTag: 10c00d11-46e9-41ef-9204-f716b3b6c9b9
+		summarizeBy: none
+		sourceColumn: DS_TIPO_ACOMODACAO
+
+		changedProperty = IsHidden
+
+		annotation SummarizationSetBy = Automatic
+
+	column CD_UNIDADE_BASICA
+		dataType: string
+		lineageTag: 147f325b-8ccd-4984-9732-55675018c38a
+		summarizeBy: none
+		sourceColumn: CD_UNIDADE_BASICA
+
+		changedProperty = IsHidden
+
+		annotation SummarizationSetBy = Automatic
+
+	column CD_UNIDADE_COMPL
+		dataType: string
+		lineageTag: 291b40f3-dc9f-4276-80b1-c6413c76d1e1
+		summarizeBy: none
+		sourceColumn: CD_UNIDADE_COMPL
+
+		changedProperty = IsHidden
+
+		annotation SummarizationSetBy = Automatic
+
+	column DT_ALTA_MEDICO
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: adb705bb-674b-418d-939f-4539d8b44e54
+		summarizeBy: none
+		sourceColumn: DT_ALTA_MEDICO
+
+		variation Variation
+			isDefault
+			relationship: df6c3373-454c-4163-bec4-2ab2daefeea3
+			defaultHierarchy: LocalDateTable_52e4558e-4ee4-4112-b3ce-dd1a281ef963.'Hierarquia de datas'
+
+		changedProperty = IsHidden
+
+		annotation SummarizationSetBy = Automatic
+
+	column MOTIVO_ALTA_MEDICA
+		dataType: string
+		lineageTag: f6b895d9-a813-4d1d-9691-2c08abb0aad4
+		summarizeBy: none
+		sourceColumn: MOTIVO_ALTA_MEDICA
+
+		changedProperty = IsHidden
+
+		annotation SummarizationSetBy = Automatic
+
+	column MEDICO_ALTA
+		dataType: string
+		lineageTag: 8ce789fa-bab4-4f4b-bb01-d81690d181f5
+		summarizeBy: none
+		sourceColumn: MEDICO_ALTA
+
+		changedProperty = IsHidden
+
+		annotation SummarizationSetBy = Automatic
+
+	column DT_ALTA
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: 47e31503-38a0-4405-82a6-960fd9796c17
+		summarizeBy: none
+		sourceColumn: DT_ALTA
+
+		variation Variation
+			isDefault
+			relationship: e11887ca-8771-4ae2-af2f-88f01fe79c4f
+			defaultHierarchy: LocalDateTable_6c6d41c2-860c-4af1-8fc2-dfc51bac43d2.'Hierarquia de datas'
+
+		changedProperty = IsHidden
+
+		annotation SummarizationSetBy = Automatic
+
+	column MOTIVO_ALTA_HOSPITALAR
+		dataType: string
+		lineageTag: 80b54980-9330-4c5a-b9db-f19baa3179d3
+		summarizeBy: none
+		sourceColumn: MOTIVO_ALTA_HOSPITALAR
+
+		changedProperty = IsHidden
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'UF unidade' =
+			
+			VAR Texto = TRIM ( Internacao[UNIDADE] )
+			RETURN
+			IF (
+			    LEN ( Texto ) >= 2,
+			    LEFT ( Texto, 2 ),
+			    BLANK ()
+			)
+		lineageTag: be353a44-fe2f-4969-81ec-49931997df8c
+		summarizeBy: none
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Data alta anterior' =
+			
+			VAR PacienteAtual = Internacao[CD_PESSOA_FISICA]
+			VAR DtEntradaAtual = Internacao[DT_ENTRADA]
+			RETURN
+			CALCULATE (
+			    MAX ( Internacao[DT_ALTA] ),
+			    FILTER (
+			        Internacao,
+			        Internacao[CD_PESSOA_FISICA] = PacienteAtual
+			            && Internacao[DT_ALTA] < DtEntradaAtual
+			            && NOT ISBLANK ( Internacao[DT_ALTA] )
+			    )
+			)
+		formatString: General Date
+		lineageTag: dc39489f-d9b7-4ed9-9293-2b476f891974
+		summarizeBy: none
+
+		variation Variation
+			isDefault
+			relationship: ea5bfd35-9802-4bc8-9976-4036ae86d749
+			defaultHierarchy: LocalDateTable_bc6269c6-27d8-49d5-86da-bddf3b84e212.'Hierarquia de datas'
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Dias desde alta anterior' = ```
+			
+			VAR DtAltaAnterior = Internacao[Data alta anterior]
+			VAR DtEntradaAtual = Internacao[DT_ENTRADA]
+			RETURN
+			IF (
+			    ISBLANK ( DtAltaAnterior ),
+			    BLANK(),
+			    DATEDIFF ( DtAltaAnterior, DtEntradaAtual, DAY )
+			)
+			
+			```
+		formatString: 0
+		lineageTag: a2cddbc1-1b97-4257-817c-891c52ea2cac
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+	column DT_ALTA_DATA
+		dataType: dateTime
+		formatString: Short Date
+		lineageTag: 6307f0b0-1ce6-425b-95d9-ccebca037ebe
+		summarizeBy: none
+		sourceColumn: DT_ALTA_DATA
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column Faixa_Etaria =
+			
+			SWITCH(
+			    TRUE(),
+			    VALUE(Internacao[IDADE]) < 0, "Idade inválida",
+			    VALUE(Internacao[IDADE]) <= 19, "0-19",
+			    VALUE(Internacao[IDADE]) <= 39, "20-39",
+			    VALUE(Internacao[IDADE]) <= 59, "40-59",
+			    VALUE(Internacao[IDADE]) <= 79, "60-79",
+			    VALUE(Internacao[IDADE]) <= 99, "80-99",
+			    VALUE(Internacao[IDADE]) <= 119, "100-119",
+			    VALUE(Internacao[IDADE]) >= 120, "120+"
+			)
+		lineageTag: 8e2f245f-209d-4dd1-84dc-e13b16c56224
+		summarizeBy: none
+		sortByColumn: Faixa_Etaria_Ordem
+
+		changedProperty = SortByColumn
+
+		annotation SummarizationSetBy = Automatic
+
+	column Faixa_Etaria_Ordem =
+			
+			SWITCH(
+			    TRUE(),
+			    VALUE(Internacao[IDADE]) >= 0 && VALUE(Internacao[IDADE]) <= 19, 1,
+			    VALUE(Internacao[IDADE]) >= 20 && VALUE(Internacao[IDADE]) <= 39, 2,
+			    VALUE(Internacao[IDADE]) >= 40 && VALUE(Internacao[IDADE]) <= 59, 3,
+			    VALUE(Internacao[IDADE]) >= 60 && VALUE(Internacao[IDADE]) <= 79, 4,
+			    VALUE(Internacao[IDADE]) >= 80 && VALUE(Internacao[IDADE]) <= 99, 5,
+			    VALUE(Internacao[IDADE]) >= 100 && VALUE(Internacao[IDADE]) <= 119, 6,
+			    VALUE(Internacao[IDADE]) >= 120, 7,
+			    0
+			)
+		formatString: 0
+		lineageTag: 67ac6185-85d1-44ad-95e2-ef47b55ba0cf
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Difer minutos alta medicaXhosp' = ```
+			
+			IF(
+			    ISBLANK(Internacao[DT_ALTA_MEDICA_CONDIC]),
+			    BLANK(),   
+			    (Internacao[DT_ALTA] - Internacao[DT_ALTA_MEDICA_CONDIC]) * 24 * 60
+			)
+			```
+		lineageTag: 864976f4-31a2-41fe-a963-69f2c37a47bd
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Reinternacao 7d mesmo CID' = ```
+			
+			VAR Paciente   = Internacao[CD_PESSOA_FISICA]
+			VAR CIDAtual   = Internacao[CID]          -- ou Internacao[CD_CID], se preferir
+			VAR DataAlta   = Internacao[DT_ALTA]
+			RETURN
+			IF(
+			    NOT ISBLANK( DataAlta ),
+			    VAR ProxInternacao =
+			        CALCULATE(
+			            MIN( Internacao[DT_ENTRADA] ),   -- data da próxima internação
+			            FILTER(
+			                ALL( Internacao ),
+			                Internacao[CD_PESSOA_FISICA] = Paciente &&
+			                Internacao[CID]              = CIDAtual &&
+			                Internacao[DT_ENTRADA]       >  DataAlta &&
+			                Internacao[DT_ENTRADA]       <= DataAlta + 7
+			            )
+			        )
+			    RETURN IF( NOT ISBLANK( ProxInternacao ), 1, 0 ),
+			    BLANK()
+			)
+			
+			```
+		formatString: 0
+		lineageTag: d30b3528-94cd-4c29-b029-c70721c34936
+		summarizeBy: count
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Reinternacao 30d mesmo CID' = ```
+			
+			VAR Paciente = Internacao[CD_PESSOA_FISICA]
+			VAR CIDAtual = Internacao[CID]              -- ou Internacao[CD_CID], se preferir
+			VAR DataAlta = Internacao[DT_ALTA]
+			RETURN
+			IF(
+			    NOT ISBLANK( DataAlta ),
+			    VAR ProxInternacao =
+			        CALCULATE(
+			            MIN( Internacao[DT_ENTRADA] ),  -- data da próxima internação
+			            FILTER(
+			                ALL( Internacao ),
+			                Internacao[CD_PESSOA_FISICA] = Paciente &&
+			                Internacao[CID]              = CIDAtual &&   -- mesmo CID
+			                Internacao[DT_ENTRADA]       >  DataAlta &&
+			                Internacao[DT_ENTRADA]       <= DataAlta + 30
+			            )
+			        )
+			    RETURN IF( NOT ISBLANK( ProxInternacao ), 1, 0 ),
+			    BLANK()
+			)
+			
+			```
+		formatString: 0
+		lineageTag: bede2161-62ee-46a0-b994-1f9e2f57d3b3
+		summarizeBy: count
+
+		annotation SummarizationSetBy = Automatic
+
+	column PERFIL
+		dataType: string
+		lineageTag: 27bcc986-7768-478d-828f-d0a17ae52778
+		summarizeBy: none
+		sourceColumn: PERFIL
+
+		annotation SummarizationSetBy = Automatic
+
+	column DT_ALTA_REGISTRADA
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: c285490b-61d8-49dd-adb8-cffe70978b2e
+		summarizeBy: none
+		sourceColumn: DT_ALTA_REGISTRADA
+
+		variation Variation
+			isDefault
+			relationship: be686d01-3611-456f-b7d7-ec3c30c0948d
+			defaultHierarchy: LocalDateTable_d32c9c06-fb23-4c4c-91dc-9a35f87adfda.'Hierarquia de datas'
+
+		annotation SummarizationSetBy = Automatic
+
+	column DT_ALTA_MEDICA_CONDIC = ```
+			-- para trazer a data da alta hospitalar, quando a data da alta médica for maior que a data da alta hospitalar
+			VAR AltaMedico = 'Internacao'[DT_ALTA_MEDICO]
+			VAR Alta       = 'Internacao'[DT_ALTA]
+			RETURN
+			IF(
+			    ISBLANK(AltaMedico),
+			    BLANK(),
+			    IF(
+			        AltaMedico > Alta,
+			        Alta,
+			        AltaMedico
+			    )
+			)
+			
+			```
+		formatString: General Date
+		lineageTag: e3ab7911-3ebc-458c-80a5-55342ee9502a
+		summarizeBy: none
+
+		variation Variation
+			isDefault
+			relationship: 521e5286-0abe-4e38-9f7b-487b2397f385
+			defaultHierarchy: LocalDateTable_5ccf10af-f288-4fc8-8560-d8d2afb960d1.'Hierarquia de datas'
+
+		annotation SummarizationSetBy = Automatic
+
+	column ATEND_URGENCIA
+		dataType: double
+		lineageTag: 47a3b43a-d05e-4a06-9380-ac6f05c84874
+		summarizeBy: sum
+		sourceColumn: ATEND_URGENCIA
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column DT_ENTRADA_URGENCIA
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: 74d4ea37-9d65-4d9a-a075-4b13dc3e2bef
+		summarizeBy: none
+		sourceColumn: DT_ENTRADA_URGENCIA
+
+		variation Variation
+			isDefault
+			relationship: 6f967908-fc5c-4b30-b71e-f656bac2e864
+			defaultHierarchy: LocalDateTable_c10852b3-74d3-4fa7-9118-d09f80ae0710.'Hierarquia de datas'
+
+		annotation SummarizationSetBy = Automatic
+
+	column CLASSIF_SETOR
+		dataType: string
+		lineageTag: 29c52cd4-d49e-4c57-ba00-a5fb0e791373
+		summarizeBy: none
+		sourceColumn: CLASSIF_SETOR
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Óbito > 24h' =
+			
+			IF(
+			    NOT ISBLANK( Internacao[DT_ENTRADA] ) &&
+			    NOT ISBLANK( Internacao[DT_ALTA] ) &&
+			    Internacao[MOTIVO_ALTA_HOSPITALAR] = "Óbito" &&
+			    DATEDIFF(
+			        Internacao[DT_ENTRADA],
+			        Internacao[DT_ALTA],
+			        HOUR
+			    ) >= 24,
+			    "SIM",
+			    BLANK()
+			)
+		lineageTag: 37042509-e3a6-4e1a-bdfa-6cfc812fa348
+		summarizeBy: none
+
+		annotation SummarizationSetBy = Automatic
+
+	partition Internacao = m
+		mode: import
+		source =
+				let
+				    Fonte = PostgreSQL.Database("10.250.50.151:6433", "db"),
+				    cmc_hospital_tbl_internacao = Fonte{[Schema="cmc_hospital",Item="tbl_intern_internacoes"]}[Data],
+				    #"Tipo Alterado" = Table.TransformColumnTypes(cmc_hospital_tbl_internacao,{{"DATA", type date}, {"IDADE", type number}}),
+				    #"Coluna Duplicada" = Table.DuplicateColumn(#"Tipo Alterado", "DT_ALTA", "DT_ALTA - Copiar"),
+				    #"Colunas Renomeadas" = Table.RenameColumns(#"Coluna Duplicada",{{"DT_ALTA - Copiar", "DT_ALTA_ALTA"}}),
+				    #"Tipo Alterado1" = Table.TransformColumnTypes(#"Colunas Renomeadas",{{"DT_ALTA_ALTA", type date}}),
+				    #"Colunas Renomeadas1" = Table.RenameColumns(#"Tipo Alterado1",{{"DT_ALTA_ALTA", "DT_ALTA_DATA"}})
+				in
+				    #"Colunas Renomeadas1"
+
+	changedProperty = IsHidden
+
+	annotation PBI_NavigationStepName = Navegação
+
+	annotation PBI_ResultType = Table
+

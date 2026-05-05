@@ -1,8 +1,9 @@
 import ReactECharts from "echarts-for-react";
-import { Bell, Loader2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import { fetchDashboardRows, fetchPsHeatmapChegadas } from "../../jornada/api";
 import type { PeriodDays } from "../../../lib/gerencialFiltersStorage";
+import { useDashboardLoadBar } from "../../../lib/useDashboardLoadBar";
+import { GerencialLoadPanel } from "./GerencialLoadPanel";
 import { analyzePsHeatmapRows, type HeatmapRow } from "./psChegadasHeatmapAnalysis";
 import { PsChegadasHeatmapReport } from "./PsChegadasHeatmapReport";
 
@@ -178,10 +179,18 @@ export function PsChegadasHeatmap(props: PsChegadasHeatmapProps): ReactElement {
   }, [unidadePainelEspecifica, unidadeMapaLocal, unidadesLista]);
 
   const [rows, setRows] = useState<HeatmapRow[]>([]);
-  const [isStale, setIsStale] = useState(false);
-  const [pendingRows, setPendingRows] = useState<HeatmapRow[] | null>(null);
   const [dataLoading, setDataLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const heatmapLoading = filtrosLoading || (canQuery && dataLoading);
+  const heatmapLoadWaveKey = useMemo(
+    () => [period, regional, unidade, mes, unidadeMapaLocal, unidadePainelEspecifica ? "1" : "0"].join("|"),
+    [period, regional, unidade, mes, unidadeMapaLocal, unidadePainelEspecifica]
+  );
+  const { progress: heatmapLoadProgress, message: heatmapLoadMessage } = useDashboardLoadBar(
+    heatmapLoading,
+    heatmapLoadWaveKey
+  );
 
   useEffect(() => {
     if (!canQuery) {
@@ -191,19 +200,8 @@ export function PsChegadasHeatmap(props: PsChegadasHeatmapProps): ReactElement {
       return;
     }
     const controller = new AbortController();
-    const cacheKey = `heatmap-cache-${unidadeParaApi}-${mes}`;
-    const cached = localStorage.getItem(cacheKey);
-    if (cached) {
-      try {
-        const parsed = JSON.parse(cached) as HeatmapRow[];
-        setRows(parsed);
-        setIsStale(true);
-      } catch { /* skip */ }
-    }
-
-    setDataLoading(!cached); // Só mostra loader se não tiver cache
+    setDataLoading(true);
     setError(null);
-    setPendingRows(null);
 
     void fetchPsHeatmapChegadas({
       mes: mes.trim(),
@@ -213,15 +211,7 @@ export function PsChegadasHeatmap(props: PsChegadasHeatmapProps): ReactElement {
       signal: controller.signal
     })
       .then((p) => {
-        const nextRows = toHeatmapRows(p.rows);
-        localStorage.setItem(cacheKey, JSON.stringify(nextRows));
-        
-        if (cached) {
-          setPendingRows(nextRows);
-        } else {
-          setRows(nextRows);
-          setIsStale(false);
-        }
+        setRows(toHeatmapRows(p.rows));
       })
       .catch((e: unknown) => {
         if (e instanceof Error && e.name === "AbortError") return;
@@ -415,54 +405,25 @@ export function PsChegadasHeatmap(props: PsChegadasHeatmapProps): ReactElement {
             </select>
           </label>
         )}
-
-        {canQuery && pendingRows && (
-          <button
-            type="button"
-            className="flex items-center gap-2 rounded-full border border-[var(--dash-live)] bg-[color-mix(in_srgb,var(--dash-live)_15%,transparent)] px-4 py-1.5 text-[11px] font-bold uppercase tracking-tight text-[var(--dash-live)] shadow-[0_0_15px_rgba(45,224,185,0.3)] transition-all hover:bg-[var(--dash-live)] hover:text-white active:scale-95 animate-bounce-subtle z-30"
-            onClick={() => {
-              setRows(pendingRows);
-              setPendingRows(null);
-              setIsStale(false);
-            }}
-          >
-            <Bell size={13} className="animate-bell-shake" />
-            Novos dados disponíveis
-          </button>
-        )}
       </div>
 
-      {canQuery && isStale && !pendingRows && (
-        <div className="flex items-center gap-2 px-4 py-1 text-[10px] font-bold uppercase tracking-widest text-[var(--dash-accent-urgent)] animate-pulse">
-          <Loader2 size={10} className="animate-spin" />
-          <span>Sincronizando dados em tempo real...</span>
+      {heatmapLoading && (
+        <div className="min-w-0">
+          <GerencialLoadPanel progress={heatmapLoadProgress} message={heatmapLoadMessage} />
         </div>
       )}
 
-      {!canQuery && (
+      {!heatmapLoading && !canQuery && (
         <div className="rounded-2xl border border-dashed border-[var(--table-grid)] bg-[var(--app-elevated)]/40 py-16 text-center text-sm text-[var(--app-muted)]">
-          {filtrosLoading ? (
-            <span className="inline-flex items-center justify-center gap-2">
-              <Loader2 className="h-5 w-5 animate-spin opacity-70" aria-hidden />
-              Carregando unidades…
-            </span>
-          ) : (
-            <>{faltaUnidadeMsg}</>
-          )}
+          {faltaUnidadeMsg}
         </div>
       )}
 
-      {canQuery && dataLoading && (
-        <div className="flex min-h-[240px] items-center justify-center rounded-2xl border border-[var(--table-grid)] bg-[color-mix(in_srgb,var(--app-elevated)_92%,transparent)]">
-          <Loader2 className="h-8 w-8 animate-spin text-[var(--dash-live)] opacity-70" aria-hidden />
-        </div>
-      )}
-
-      {canQuery && !dataLoading && error !== null && (
+      {!heatmapLoading && canQuery && error !== null && (
         <div className="rounded-xl border border-[var(--dash-critical)]/30 p-3 text-center text-xs text-[var(--dash-critical)]">{error}</div>
       )}
 
-      {canQuery && !dataLoading && error === null && chart !== null && (
+      {!heatmapLoading && canQuery && error === null && chart !== null && (
         <div
           ref={chartWrapRef}
           className="w-full min-w-0 overflow-hidden rounded-2xl border border-[var(--table-grid)] bg-[color-mix(in_srgb,var(--app-elevated)_92%,transparent)] p-2 md:p-3"
@@ -480,7 +441,7 @@ export function PsChegadasHeatmap(props: PsChegadasHeatmapProps): ReactElement {
         </div>
       )}
 
-      {canQuery && !dataLoading && error === null && analysis !== null && (
+      {!heatmapLoading && canQuery && error === null && analysis !== null && (
         <PsChegadasHeatmapReport unidade={unidadeParaApi} mesLabel={mesLabel} analysis={analysis} />
       )}
     </div>

@@ -12,7 +12,7 @@ const sampleData = [
 export function MiniBarChart(): ReactElement {
   return (
     <div style={{ width: "100%", height: 240 }}>
-      <ResponsiveContainer>
+      <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={200}>
         <BarChart data={sampleData} margin={{ top: 16, right: 8, left: -20, bottom: 6 }}>
           <XAxis dataKey="name" stroke="var(--table-header-muted)" />
           <YAxis stroke="var(--table-header-muted)" />

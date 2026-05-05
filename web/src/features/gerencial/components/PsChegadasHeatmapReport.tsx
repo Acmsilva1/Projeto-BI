@@ -26,7 +26,8 @@ export function PsChegadasHeatmapReport(props: PsChegadasHeatmapReportProps): Re
       splitLine: { show: true, lineStyle: { color: "rgba(148, 163, 184, 0.25)", type: "dashed" } }
     },
     yAxis: { 
-      type: "value", 
+      type: "value",
+      alignTicks: false,
       axisLabel: { color: "#94a3b8", fontSize: 10 }, 
       splitLine: { show: true, lineStyle: { color: "rgba(148, 163, 184, 0.25)", type: "dashed" } }
     },
@@ -85,7 +86,8 @@ export function PsChegadasHeatmapReport(props: PsChegadasHeatmapReportProps): Re
       axisLabel: { color: "#94a3b8", fontSize: 9 }
     },
     yAxis: { 
-      type: "value", 
+      type: "value",
+      alignTicks: false,
       axisLabel: { color: "#94a3b8", fontSize: 9, formatter: "{value}%" }, 
       splitLine: { show: true, lineStyle: { color: "rgba(71, 85, 105, 0.15)", type: "dashed" } }
     },
@@ -94,7 +96,7 @@ export function PsChegadasHeatmapReport(props: PsChegadasHeatmapReportProps): Re
         name: "Distribuição",
         type: "bar",
         data: analysis.hourlySeries.map((h, i) => {
-          const val = hourlyRawData[i];
+          const val = hourlyRawData[i] ?? 0;
           return {
             value: val,
             rawCount: h.avg.toFixed(1),
@@ -115,11 +117,13 @@ export function PsChegadasHeatmapReport(props: PsChegadasHeatmapReportProps): Re
 
   // --- Lógica "Camaleão" para o Gráfico de Radar ---
   const weekdayData = analysis.weekdaySeries.map(w => parseFloat(w.avg.toFixed(1)));
-  const maxWeekday = Math.max(...weekdayData, 1);
+  const maxWeekday = Math.max(...weekdayData, 0);
+  const radarAxisMax = Math.max(1, Math.ceil(maxWeekday * 1.15));
   const avgWeekday = weekdayData.reduce((a, b) => a + b, 0) / 7;
   const weekdayLabelsShort = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"];
 
-  const pctVariation = ((maxWeekday - avgWeekday) / avgWeekday) * 100;
+  const pctVariation =
+    avgWeekday > 0 ? ((maxWeekday - avgWeekday) / avgWeekday) * 100 : 0;
   const isCritical = pctVariation > 30;
   const isAlert = pctVariation > 15;
 
@@ -136,10 +140,11 @@ export function PsChegadasHeatmapReport(props: PsChegadasHeatmapReportProps): Re
     tooltip: { trigger: "item" },
     radar: {
       indicator: weekdayLabelsShort.map((name, i) => {
-        const isPeak = weekdayData[i] === maxWeekday;
+        const isPeak = weekdayData[i] === maxWeekday && maxWeekday > 0;
         return {
           name: isPeak ? `{peak|${name}}` : name,
-          max: Math.ceil(maxWeekday * 1.15),
+          min: 0,
+          max: radarAxisMax,
           color: isPeak ? baseColor : "#2de0b9" // Segue a cor do camaleão se for pico
         };
       }),
@@ -193,8 +198,9 @@ export function PsChegadasHeatmapReport(props: PsChegadasHeatmapReportProps): Re
   let alertDays = 0;
   let criticalDays = 0;
 
-  analysis.dailySeries.forEach(d => {
-    const variation = ((d.total - avgWeekday) / avgWeekday) * 100;
+  analysis.dailySeries.forEach((d) => {
+    const variation =
+      avgWeekday > 0 ? ((d.total - avgWeekday) / avgWeekday) * 100 : 0;
     if (variation > 30) criticalDays++;
     else if (variation > 15) alertDays++;
     else stableDays++;

@@ -3,7 +3,8 @@ import {
   getInternacaoFiltrosPayload,
   getInternacaoMetasPayload,
   getInternacaoTopoPayload,
-  getInternacaoVariadosPayload
+  getInternacaoVariadosPayload,
+  type InternacaoOptions
 } from "../services/internacaoDashboard.service.js";
 
 function readLimit(value: string | string[] | undefined): number {
@@ -35,12 +36,7 @@ function readText(value: string | string[] | undefined): string | undefined {
   return normalized;
 }
 
-function readCommonOptions(request: Request): {
-  limit: number;
-  periodDays: 1 | 7 | 15 | 30 | 60 | 90 | 180 | 365;
-  regional?: string;
-  unidade?: string;
-} {
+function readCommonOptions(request: Request): InternacaoOptions {
   return {
     limit: readLimit(request.query.limit as string | string[] | undefined),
     periodDays: readPeriod(request.query.period as string | string[] | undefined),
@@ -88,4 +84,3 @@ export async function internacaoVariadosController(request: Request, response: R
     response.status(400).json({ ok: false, error: message });
   }
 }
-

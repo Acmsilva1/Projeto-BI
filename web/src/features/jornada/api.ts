@@ -167,12 +167,21 @@ async function fetchInternacaoEndpoint(
   const query = queryParams.toString() ? `?${queryParams.toString()}` : "";
   const response = await fetch(buildApiUrl(`/api/v1/internacao/${path}${query}`), {
     signal: options?.signal,
+    cache: "no-store",
     headers: { Accept: "application/json" }
   });
+  const raw = await response.text();
   if (!response.ok) {
-    throw new Error(`Falha ao consultar internacao "${path}" (${response.status})`);
+    let detail = "";
+    try {
+      const j = JSON.parse(raw) as { error?: string };
+      if (typeof j?.error === "string" && j.error.length > 0) detail = ` — ${j.error}`;
+    } catch {
+      if (raw.length > 0 && raw.length < 400) detail = ` — ${raw}`;
+    }
+    throw new Error(`Falha ao consultar internacao "${path}" (${response.status})${detail}`);
   }
-  const body: unknown = await response.json();
+  const body: unknown = JSON.parse(raw);
   return normalizeDashboardJsonBody(body, `internacao-${path}`);
 }
 

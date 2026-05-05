@@ -1,0 +1,148 @@
+table Movimentacao_leitos
+	lineageTag: b1ad19a0-bf8f-4734-bbc8-664b7b2dcc56
+
+	column CD_ESTABELECIMENTO
+		dataType: double
+		lineageTag: 8790a846-0b44-4202-8f9a-6227a9cc93b3
+		summarizeBy: sum
+		sourceColumn: CD_ESTABELECIMENTO
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column UNIDADE
+		dataType: string
+		lineageTag: af7e1f1e-822b-4f41-8748-6ae052fa5b5c
+		summarizeBy: none
+		sourceColumn: UNIDADE
+
+		annotation SummarizationSetBy = Automatic
+
+	column NR_SEQUENCIA
+		dataType: double
+		lineageTag: 728011ec-3662-476b-b31d-d74656dcd21d
+		summarizeBy: sum
+		sourceColumn: NR_SEQUENCIA
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column CD_LEITO
+		dataType: double
+		lineageTag: f544ba9f-14da-4dc0-b941-be91aeeca481
+		summarizeBy: none
+		sourceColumn: CD_LEITO
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column IE_SITUACAO
+		dataType: string
+		lineageTag: e608c75a-d4a8-42d7-9077-3cc90fbfb731
+		summarizeBy: none
+		sourceColumn: IE_SITUACAO
+
+		annotation SummarizationSetBy = Automatic
+
+	column CD_STATUS
+		dataType: string
+		lineageTag: bfb15595-da8a-4b83-9ee2-a4e4fc0e51b3
+		summarizeBy: none
+		sourceColumn: CD_STATUS
+
+		annotation SummarizationSetBy = Automatic
+
+	column STATUS
+		dataType: string
+		lineageTag: db6bc657-78ba-4a7a-9449-0555450064a0
+		summarizeBy: none
+		sourceColumn: STATUS
+
+		annotation SummarizationSetBy = Automatic
+
+	column DT_CRIACAO
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: b9ecde5b-748a-40d1-bd35-11ae8bad390d
+		summarizeBy: none
+		sourceColumn: DT_CRIACAO
+
+		variation Variation
+			isDefault
+			relationship: 6c595451-4fb5-42cf-8568-8f4e98423737
+			defaultHierarchy: LocalDateTable_84974838-d204-4332-85d4-c357a74b86bd.'Hierarquia de datas'
+
+		annotation SummarizationSetBy = Automatic
+
+	column DT_HISTORICO
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: 937ee6be-42e7-40bb-9959-12e5fba14caf
+		summarizeBy: none
+		sourceColumn: DT_HISTORICO
+
+		variation Variation
+			isDefault
+			relationship: 35c6ab11-6526-4695-9669-d72887ef0607
+			defaultHierarchy: LocalDateTable_c126b1da-95b4-45b8-bb61-870f2c6cd1cf.'Hierarquia de datas'
+
+		annotation SummarizationSetBy = Automatic
+
+	column DT_FIM_HISTORICO
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: 44007b3f-7f06-4af1-bba4-439d016f44e3
+		summarizeBy: none
+		sourceColumn: DT_FIM_HISTORICO
+
+		variation Variation
+			isDefault
+			relationship: 2325e13a-0a9d-43f1-b6bb-c3cb0838d14f
+			defaultHierarchy: LocalDateTable_d2e6c2e3-6924-4fe7-83ce-db08e35f4815.'Hierarquia de datas'
+
+		annotation SummarizationSetBy = Automatic
+
+	column DT_ATUALIZACAO
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: 5c557726-549e-4123-b3fe-221af501b534
+		summarizeBy: none
+		sourceColumn: DT_ATUALIZACAO
+
+		variation Variation
+			isDefault
+			relationship: b92922ea-dec3-405f-a45c-91cbb17de959
+			defaultHierarchy: LocalDateTable_09ef541b-d043-4833-b01c-fed2ea10621b.'Hierarquia de datas'
+
+		annotation SummarizationSetBy = Automatic
+
+	column DT_CARGA
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: 13ec3003-f1c3-41e2-a6b9-7c188eeb91fd
+		summarizeBy: none
+		sourceColumn: DT_CARGA
+
+		variation Variation
+			isDefault
+			relationship: 3f619a30-d342-40a2-a9f5-9a1b83c1ede9
+			defaultHierarchy: LocalDateTable_1d9abd33-9e65-476b-9268-60bf2008311c.'Hierarquia de datas'
+
+		annotation SummarizationSetBy = Automatic
+
+	partition Movimentacao_leitos = m
+		mode: import
+		source =
+				let
+				    Fonte = PostgreSQL.Database("10.250.50.151:6433", "db"),
+				    cmc_hospital_intern_movimentacoes = Fonte{[Schema="cmc_hospital", Item="tbl_intern_movimentacoes_leitos"]}[Data]
+				in
+				    #"cmc_hospital_intern_movimentacoes"
+
+	annotation PBI_NavigationStepName = Navegação
+
+	annotation PBI_ResultType = Table
+

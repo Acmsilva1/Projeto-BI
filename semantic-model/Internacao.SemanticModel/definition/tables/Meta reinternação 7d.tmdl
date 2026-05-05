@@ -1,0 +1,28 @@
+table 'Meta reinternação 7d'
+	lineageTag: ef42f435-ca6c-4627-902b-2cb5a0d77ca6
+
+	measure 'Valor Meta reinternação 7d' = SELECTEDVALUE('Meta reinternação 7d'[Meta reinternação 7d])
+		lineageTag: e112befd-a406-449a-93a6-2f15f3e0c9f5
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Meta reinternação 7d'
+		dataType: double
+		formatString: 0.00%;-0.00%;0.00%
+		lineageTag: 2c52ae9b-d402-441b-bd28-a816a86d077e
+		summarizeBy: none
+		sourceColumn: [Value]
+
+		extendedProperty ParameterMetadata =
+				{
+				  "version": 0
+				}
+
+		annotation SummarizationSetBy = User
+
+	partition 'Meta reinternação 7d' = calculated
+		mode: import
+		source = GENERATESERIES(0, 1.01, 0.001)
+
+	annotation PBI_Id = 4b1b1602a5e046feb9a38a5c4749226e
+

@@ -458,7 +458,13 @@ async function loadDataStoreIntoCache(factsRetentionDays: number): Promise<DataS
     const farmaciaPenRows = loaded[13] ?? [];
 
   const unidades = unidadesRows
-    .filter((row) => ["true", "1", "t"].includes((pick(row, "ps") ?? "").toLowerCase()))
+    .filter((row) => {
+      // Tenta chave minúscula e maiúscula; aceita boolean true (parquet nativo) ou strings "true/1/t"
+      const raw = pick(row, "ps", "PS");
+      if (raw === undefined || raw === "") return false;
+      const lower = raw.toLowerCase().trim();
+      return lower === "true" || lower === "1" || lower === "t";
+    })
     .map((row) => ({
       cd: toNumber(pick(row, "cd_estabelecimento", "CD_ESTABELECIMENTO")),
       unidade: pick(row, "nome", "NOME") ?? "",
@@ -786,7 +792,7 @@ async function loadDataStoreIntoCache(factsRetentionDays: number): Promise<DataS
       ? new Date(cutoffMs).toISOString().replace("T", " ").slice(0, 16) + "Z"
       : "n/d";
   console.log(
-    `[data] store em RAM: unidades=${unidades.length} tempos=${tempos.length} fluxo=${fluxoVolume.length} intern=${internacoes.length} exames=${exames.length} altas=${altas.length} med=${medicacaoVolume.length} lab=${laboratorioVolume.length} tcUs=${tcUsVolume.length} reav=${reavaliacaoVolume.length} vias=${viasMedicamentos.length} | maior=${maxEvtHint}. Recorte facts desta carga=${retentionDays}d (env GERENCIAL_STORE_RETENTION_DAYS=${env.gerencialStoreRetentionDays} é teto opcional; pills 1–60d usam bootstrap 90d; 180/365 expandem). ref. pill≤${PS_DASHBOARD_RETENTION_DAYS.gerencialResumoPillMax}d metas≤${PS_DASHBOARD_RETENTION_DAYS.metasPorVolumes}d heatmap≤${PS_DASHBOARD_RETENTION_DAYS.mapaCalorPs}d | ancora≈${anchorHint} minRetido≈${cutoffHint}. DuckDB lê ficheiros inteiros; fora da janela descarta-se ao montar o store.`
+    `[data] store em RAM: unidades=${unidades.length} tempos=${tempos.length} fluxo=${fluxoVolume.length} intern=${internacoes.length} exames=${exames.length} altas=${altas.length} med=${medicacaoVolume.length} lab=${laboratorioVolume.length} tcUs=${tcUsVolume.length} reav=${reavaliacaoVolume.length} vias=${viasMedicamentos.length} farmacia=${farmacia.length} | maior=${maxEvtHint}. Recorte facts desta carga=${retentionDays}d (env GERENCIAL_STORE_RETENTION_DAYS=${env.gerencialStoreRetentionDays} é teto opcional; pills 1–60d usam bootstrap 90d; 180/365 expandem). ref. pill≤${PS_DASHBOARD_RETENTION_DAYS.gerencialResumoPillMax}d metas≤${PS_DASHBOARD_RETENTION_DAYS.metasPorVolumes}d heatmap≤${PS_DASHBOARD_RETENTION_DAYS.mapaCalorPs}d | ancora≈${anchorHint} minRetido≈${cutoffHint}. DuckDB lê ficheiros inteiros; fora da janela descarta-se ao montar o store.`
   );
   return storeCache;
   });
@@ -818,7 +824,7 @@ function computeContext(store: DataStore, options: { periodDays: 1 | 7 | 15 | 30
   if (cached) return cached;
 
   const unidadesSelecionadas = store.unidades.filter((u) => {
-    if (options.regional && u.regional !== options.regional.toUpperCase()) return false;
+    if (options.regional && options.regional !== "ALL" && u.regional !== options.regional.toUpperCase()) return false;
     if (options.unidade && u.unidade !== options.unidade) return false;
     return true;
   });

@@ -116,12 +116,16 @@ export function buildMedicacaoPsDashboard(
     })
     .sort((a, b) => (b.lenta + b.rapida) - (a.lenta + a.rapida));
 
-  // Formatar Ranking Não Padrão (Garantir que usamos o nome da unidade se disponível)
-  const rankingNaoPadrao = Array.from(stats.farmaciaMap.entries())
-    .map(([cd, qtd]) => ({
-      unidade: unidadesMap.get(cd) || `Unidade ${cd}`,
-      qtd
-    }))
+  // Formatar Ranking Não Padrão (Incluir todas as unidades do PS, mesmo com 0)
+  const rankingNaoPadrao = Array.from(cds)
+    .map(cd => {
+      const fCd = Number(cd);
+      const unitName = unidadesMap.get(fCd);
+      return {
+        unidade: unitName || `Unidade ${fCd}`,
+        qtd: stats.farmaciaMap.get(fCd) || 0
+      };
+    })
     .sort((a, b) => b.qtd - a.qtd);
 
   return {

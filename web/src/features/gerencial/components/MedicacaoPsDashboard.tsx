@@ -34,9 +34,8 @@ type MedicacaoState =
   | { status: "ready"; data: MedicacaoData; isStale?: boolean; pendingData?: MedicacaoData };
 
 const COLORS = {
-  RAPIDA: "#3fa34d", // Verde
-  LENTA: "#dd9031",  // Laranja
-  NEUTRO: "#94a3b8"
+  LENTA: '#22c55e', // green-500
+  RAPIDA: '#ef4444', // red-500
 };
 
 const CHART_HEIGHT = 320;
@@ -127,7 +126,6 @@ export function MedicacaoPsDashboard(props: MedicacaoPsDashboardProps): ReactEle
       name: v.via,
       value: v.qtd,
       percent: total > 0 ? (v.qtd / total) * 100 : 0,
-      // Usar cores rotativas ou fixas para vias? Vou usar tons de azul/cinza para não competir com Lenta/Rápida
       fill: `hsl(${210 + idx * 25}, 60%, ${45 + (idx % 3) * 10}%)`
     }));
   }, [state]);
@@ -240,7 +238,6 @@ export function MedicacaoPsDashboard(props: MedicacaoPsDashboardProps): ReactEle
                   paddingAngle={2}
                   labelLine
                   label={({ name, percent }) => {
-                    // Mostrar labels com percentual para as vias principais ou fatias significativas
                     const mainVias = ["EV", "IM", "VO", "EV BOLUS", "IN", "SC", "OUTROS"];
                     if (mainVias.includes(name) || percent > 10) {
                       return `${name} - ${formatPercent(percent)}`;
@@ -274,7 +271,7 @@ export function MedicacaoPsDashboard(props: MedicacaoPsDashboardProps): ReactEle
                 data={data.topLenta}
                 margin={{ top: 5, right: 45, left: 20, bottom: 5 }}
               >
-                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" />
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#94a3b8" />
                 <XAxis type="number" hide />
                 <YAxis 
                   dataKey="nome" 
@@ -305,7 +302,7 @@ export function MedicacaoPsDashboard(props: MedicacaoPsDashboardProps): ReactEle
                 data={data.topRapida}
                 margin={{ top: 5, right: 45, left: 20, bottom: 5 }}
               >
-                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" />
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#94a3b8" />
                 <XAxis type="number" hide />
                 <YAxis 
                   dataKey="nome" 
@@ -328,19 +325,19 @@ export function MedicacaoPsDashboard(props: MedicacaoPsDashboardProps): ReactEle
 
         {/* Gráfico 5: Ranking Não Padrão (Vertical Column) */}
         <article className="internacao-var-card">
-          <h3 className="internacao-var-title mb-8 text-center">Utilização de Medicações Não Padrão por Unidade ({data.rankingNaoPadrao.length})</h3>
+          <h3 className="internacao-var-title mb-8 text-center">Utilização de Medicações Não Padrão por Unidade</h3>
           <div className="internacao-var-chart-tall mt-4" style={{ height: '350px' }}>
-            {data.rankingNaoPadrao.length === 0 ? (
+            {(data.rankingNaoPadrao?.length || 0) === 0 ? (
               <div className="flex h-full items-center justify-center text-sm font-medium text-slate-400 italic">
                 Nenhum dado não padrão no período
               </div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
-                  data={data.rankingNaoPadrao}
+                  data={data.rankingNaoPadrao || []}
                   margin={{ top: 20, right: 30, left: 20, bottom: 70 }}
                 >
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#94a3b8" />
                   <XAxis 
                     dataKey="unidade" 
                     fontSize={10} 

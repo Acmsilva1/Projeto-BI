@@ -1,134 +1,177 @@
 # Especificações Técnicas: CSS Global e Pipeline Adaptativo
 
-Esta documentação descreve a arquitetura de estilos vigente no módulo web principal, usada como base de compatibilidade para migração do BI.
+Esta documentação detalha a arquitetura de estilos que permite que as aplicações do sistema se ajustem automaticamente, utilizando variáveis CSS, o espaço de cor OKLCH e técnicas de escalonamento dinâmico.
 
-## Implementação no projeto (referência atual)
+## 1. Fundação: Design Tokens (OKLCH)
 
-| Peça | Caminho no repositório |
-| :--- | :--- |
-| Tokens e temas (dark/light/green/blue), classes visuais e estados | `NOVO BI/web/src/index.css` |
-| Registro de temas e aplicação da classe no `<html>` | `NOVO BI/web/src/theme/tokens.ts` |
-| Entrada React (aplica tema padrão no bootstrap) | `NOVO BI/web/src/main.tsx` |
-| Classe inicial de tema no HTML | `NOVO BI/web/index.html` |
-| Gráficos (containers e wrappers atuais) | `NOVO BI/web/src/components/charts/BICanvasContainer.tsx`, `EChartCanvas.tsx`, `MiniBarChart.tsx` |
-| Exemplo de consumo dos tokens no shell gerencial | `NOVO BI/web/src/components/gerencial/*` |
+O sistema utiliza o padrão **Tailwind 4** com variáveis no espaço de cor **OKLCH**, que é superior ao HSL/RGB por manter a percepção de brilho constante entre diferentes matizes.
 
-`index.html` inicia com `class="theme-dark"` e o bootstrap (`main.tsx`) reaplica `defaultTheme` via `applyTheme(...)`.
+### Variáveis Core (:root)
+```css
+:root {
+  /* Cores Base em OKLCH */
+  --background: oklch(0.975 0.003 240);
+  --foreground: oklch(0.248 0.010 260);
+  --primary: oklch(0.690 0.140 145); /* Verde Hospitalar */
+  --accent: oklch(0.930 0.020 200);
+  
+  /* Tokens de UI */
+  --radius: 0.75rem;
+  --font-sans: Inter, sans-serif;
+  --tracking-normal: 0em;
+}
+```
 
----
-
-## 1. Fundação: Design Tokens (OKLCH + semântica)
-
-Os tokens centrais ficam em `NOVO BI/web/src/index.css`, com base em OKLCH para cores estruturais e hex quando necessário.
-
-### Variáveis core
-
-Definidas em `:root, .theme-dark` e sobrescritas por tema (`.theme-light`, `.theme-green`, `.theme-blue`):
-
-- `--background`, `--foreground`, `--primary`, `--accent`
-- **Pipeline (dashboard):** `--dash-panel`, `--dash-live`, `--dash-critical`, `--dash-accent-urgent`
-- **App shell:** `--app-bg`, `--app-surface`, `--app-elevated`, `--app-border`, `--app-fg`, `--app-muted`
-- **Tabela/grade:** `--table-grid`, `--table-grid-strong`, `--table-row-sep`, `--table-header-from`, `--table-header-to`, `--table-header-fg`, `--table-header-muted`
-
-### Por que funciona
-
-Os componentes renderizam com `var(--*)`, e a troca da classe no `<html>` (`theme-dark` ↔ `theme-light` etc.) muda o tema sem reescrever os componentes.
+### Por que isto funciona?
+Ao usar variáveis no `:root`, qualquer componente que utilize `var(--primary)` será atualizado instantaneamente quando o tema mudar na tag `<html>`.
 
 ---
 
-## 2. Orquestração de temas (vigente)
+## 2. Orquestração de Temas (Theming)
 
-O controle de tema fica em `NOVO BI/web/src/theme/tokens.ts`:
+O ThemeProvider em web/useTheme.jsx gerencia as classes no `document.documentElement`.
 
-| Tema | Classe HTML | Efeito principal |
+| Tema | Classe HTML | Efeito Principal |
 | :--- | :--- | :--- |
-| Dark (padrão) | `.theme-dark` | Base escura do BI operacional. |
-| Light | `.theme-light` | Fundo claro com alto contraste textual. |
-| Green | `.theme-green` | Acentos verdes em `primary/accent`. |
-| Blue | `.theme-blue` | Acentos azuis em `primary/accent`. |
+| **Light** | `.light` | Fundo branco (`#ffffff`), variáveis claras. |
+| **Dark (Padrão)** | `.dark` | Fundo OKLCH escuro, alto contraste. |
+| **Dark Green** | `.dark-green` | Gradiente verde profundo (estilo PS). |
+| **Dark Blue** | `.dark-blue` | Tons de azul marinho (estilo Leitos). |
 
-`main.tsx` aplica `defaultTheme` no carregamento inicial. No estado atual, o módulo não depende de `ThemeProvider`/`ThemeContext` nem de persistência por `localStorage`.
-
----
-
-## 3. Padrão "Pipeline" (dashboard)
-
-Paleta operacional do pipeline, tokenizada:
-
-- **Painel:** `--dash-panel` (`#1e2030` no tema dark)
-- **Live (teal):** `--dash-live` (`#2de0b9`)
-- **Crítico (red):** `--dash-critical` (`#e02d5f`)
-- **Urgente (amber):** `--dash-accent-urgent` (`#e0b92d`)
-
-A classe `.dashboard-panel` usa estes tokens para fundo/borda e mantém consistência visual entre tabelas e cards de gerência.
+### Técnica de Sobrescrita
+```css
+.dark-green {
+  --background: oklch(0.176 0.031 151);
+  --primary: oklch(0.704 0.164 146);
+  /* Outras variáveis aqui... */
+}
+```
 
 ---
 
-## 3.1 Gráficos (estado atual)
+## 3. O Padrão "Pipeline" (Dashboard Dashboard View)
 
-| Peça | Função |
-| :--- | :--- |
-| `EChartCanvas` | Wrapper de `echarts-for-react` para line chart de referência. |
-| `MiniBarChart` | Exemplo Recharts usando tokens (`var(--primary)`). |
-| `BICanvasContainer` | Container de dashboard com cards e integração dos dois gráficos de preview. |
+O "Pipeline" de alertas visualizado no **Controle Diário** utiliza uma paleta específica que pode ser replicada usando o arquivo web/features/controle-diario/styles/controle-diario-dashboard.css.
 
-Padrão recomendado para novos gráficos:
+### Especificações do Pipeline:
+*   **Fundo do Painel**: `#1e2030` (Dark Navy)
+*   **Acento Live (Teal)**: `#2DE0B9`
+*   **Acento Crítico (Red)**: `#E02D5F`
+*   **Acento Urgente (Amber)**: `#E0B92D`
 
-1. Consumir tokens via `var(--*)` (`--table-grid`, `--dash-live`, `--app-muted`, etc.).
-2. Evitar hardcode de cor quando existir token semântico equivalente.
-3. Manter o gráfico dentro de containers semânticos (`dashboard-panel`, `glass-card`).
+### Herança Automática
+O CSS do Pipeline não redefine fontes; ele herda `--font-sans` do app principal, garantindo unidade visual mesmo sendo um módulo "independente".
 
 ---
 
-## 4. Adaptação de tela e layout
+## 4. Adaptação Automática de Tela (Responsive Scale)
 
-Em `index.css`:
+Para garantir que a aplicação se ajuste a monitores de diferentes tamanhos (Kiosk/Wallboards), o sistema usa duas técnicas:
 
-- `html`, `body` e `#root` com `max-width: 100%` e `overflow-x: clip`
-- fundo global unificado por `var(--app-bg)` para evitar quebra de tom entre áreas
-- cards e painéis com blur/sombra graduais via `color-mix(...)`
-
-Opcional em módulos de wallboard:
-
+### A. Tipografia Fluida (Clamp)
+Em vez de media queries fixas, usa-se `clamp()` para que o texto cresça proporcionalmente à largura da tela.
 ```css
 .multi-monitor-extended-view {
   font-size: clamp(16px, 1.5vw, 24px) !important;
 }
 ```
 
----
-
-## 5. Estados de interface
-
-Estados visuais recomendados (com tokens):
-
-- **Carregamento:** usar acento `--dash-live`
-- **Erro:** usar `--dash-critical`
-- **Ênfase de ação:** usar `--primary` com variações por `color-mix`
-- **Cards urgentes:** priorizar `--dash-accent-urgent`
+### B. Variável de Escala Local (`--unit-card-scale`)
+Para redimensionar componentes inteiros (cards de unidade) em dashboards densos:
+```css
+.unit-card-typography {
+  font-size: calc(1rem * var(--unit-card-scale, 1));
+}
+```
 
 ---
 
-## 6. Acessibilidade e movimento reduzido
+## 5. Como Replicar para Novos Projetos
 
-Manter `@media (prefers-reduced-motion: reduce)` no `index.css` para reduzir efeitos não essenciais e transições longas, preservando legibilidade e foco operacional.
+1.  **Copie o index.css**: Ele contém todo o motor de Tailwind 4 e os tokens base.
+2.  **Implemente o ThemeContext**: Crie um provider que alterne as classes no `<html>`.
+3.  **Use Variáveis Semantic**: Nunca use cores fixas (ex: `bg-white`). Use `bg-[var(--background)]`.
+4.  **Layout "Clip"**: Adote a regra de ouro:
+    ```css
+    html, body {
+      max-width: 100vw;
+      overflow-x: clip;
+    }
+    #root {
+      min-width: 0; /* Essencial para flex/grid encolherem */
+    }
+    ```
 
----
+## 6. Gadgets e Micro-Interações (O "Pulo do Gato")
 
-## 7. Compatibilidade para migração BI -> aplicação principal (VM)
+Para replicar os "gadgets" visuais (efeitos de status, pulsações e ícones vivos), utilize os seguintes padrões de animação e componentes:
 
-Para evitar conflito de tema na migração:
+### A. Ícones de Status Vivos (Foguinho e Raio)
+Usados nos badges de alerta para atrair a atenção sem causar fadiga visual.
 
-1. Consumir apenas tokens semânticos (`var(--*)`), nunca cores fixas como base do layout.
-2. Usar classes de tema vigentes (`theme-dark`, `theme-light`, `theme-green`, `theme-blue`).
-3. Não depender de `ThemeContext`, `ThemeProvider` ou `tailwind.config.js` legado.
-4. Em gráficos, priorizar tokens de contraste/eixos e reservar hardcode apenas para escalas analíticas específicas.
+```css
+/* Animação para alertas Críticos (Flame/Foguinho) */
+@keyframes foguinho {
+  0%, 100% { opacity: 1; transform: scale(1); filter: brightness(1); }
+  50% { opacity: 0.9; transform: scale(1.2); filter: brightness(1.25); }
+}
+.anim-foguinho {
+  animation: foguinho 1s ease-in-out infinite;
+  display: inline-block;
+}
 
----
+/* Animação para alertas Urgentes (Bolt/Raio) */
+@keyframes raio {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.85; transform: scale(1.25); }
+}
+.anim-raio {
+  animation: raio 0.9s ease-in-out infinite;
+  display: inline-block;
+}
+```
 
-## 8. Como estender sem quebrar padrão
+### B. Cards de Alerta (Pipeline Style)
+Os cards utilizam bordas duplas (esquerda e baixo) para indicar severidade.
 
-1. Novos tokens: editar `NOVO BI/web/src/index.css`.
-2. Novos temas: incluir classe em `index.css` e registrar em `NOVO BI/web/src/theme/tokens.ts`.
-3. Novos componentes: preferir classes e tokens semânticos (`dashboard-panel`, `glass-card`, `var(--app-surface)`).
-4. Revisar contraste em tema claro e escuro antes de publicar.
+*   **Crítico**: Fundo vermelho sólido (`bg-red-700`) + Sombra interna (`black/25`).
+*   **Urgente**: Fundo escuro + Borda grossa em Amarelo/Âmbar (`#E0B92D`).
+
+```css
+/* Exemplo de estrutura para card Urgente */
+.card-urgente {
+  background: var(--dash-panel);
+  border-left: 4px solid var(--dash-accent-urgent);
+  border-bottom: 4px solid var(--dash-accent-urgent);
+  border-radius: 1rem;
+}
+```
+
+### C. Efeitos de Pulso e Glow
+Para destacar itens que precisam de atenção imediata ou novos dados.
+
+```css
+/* Pulso de borda azul para novos itens */
+@keyframes alertas-preview-pulsar-azul {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.45); }
+  50% { box-shadow: 0 0 16px 4px rgba(96, 165, 250, 0.7); }
+}
+
+/* Brilho pulsante para cards inteiros */
+@keyframes glow-pulse {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.15); }
+}
+```
+
+### D. Relógio de Alta (Spin)
+Ponteiro que gira indicando "tempo correndo" desde a alta.
+```css
+@keyframes alta-status-clock-hand-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.animate-spin-slow {
+  animation: alta-status-clock-hand-spin 2.5s linear infinite;
+}
+```

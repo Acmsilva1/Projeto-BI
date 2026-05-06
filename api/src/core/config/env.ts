@@ -8,10 +8,18 @@ function defaultDataDir(): string {
   const cwd = process.cwd();
   const bancoLocal = path.resolve(cwd, "..", "banco local");
   const dados = path.resolve(cwd, "..", "dados");
+  const datalakeGlobal = path.resolve(cwd, "..", "..", "..", "datalake", "hospital");
+  const datalakeRepo = path.resolve(cwd, "..", "..", "datalake", "hospital");
   const markerPq = "tbl_tempos_entrada_consulta_saida.parquet";
   const markerCsv = "tbl_tempos_entrada_consulta_saida.csv";
   if (fs.existsSync(path.join(bancoLocal, markerPq)) || fs.existsSync(path.join(bancoLocal, markerCsv))) {
     return bancoLocal;
+  }
+  if (fs.existsSync(path.join(datalakeGlobal, markerPq)) || fs.existsSync(path.join(datalakeGlobal, markerCsv))) {
+    return datalakeGlobal;
+  }
+  if (fs.existsSync(path.join(datalakeRepo, markerPq)) || fs.existsSync(path.join(datalakeRepo, markerCsv))) {
+    return datalakeRepo;
   }
   return dados;
 }

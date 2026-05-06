@@ -7,6 +7,8 @@ export default defineConfig({
   server: {
     port: 5175,
     strictPort: true,
+    /** Com Docker, tem de ouvir em todas as interfaces; só 127.0.0.1 bloqueia o mapeamento host:5175 → contentor. */
+    host: true,
     proxy: {
       "/api": {
         target: "http://127.0.0.1:3333",

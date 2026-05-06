@@ -1,5 +1,5 @@
-﻿/**
- * Testes pontuais de paridade (lÃ³gica de calendÃ¡rio e agregador Metas por volume).
+/**
+ * Testes pontuais de paridade (lógica de calendário e agregador Metas por volume).
  * Executar: npm run test:parity-metas (a partir de NOVO BI/api)
  */
 import assert from "node:assert/strict";

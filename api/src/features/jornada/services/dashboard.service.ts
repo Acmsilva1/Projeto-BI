@@ -1346,7 +1346,7 @@ function toText(value: unknown): string {
 }
 
 function buildUnitsFilterSql(options: { regional?: string; unidade?: string }): string {
-  const clauses = ["lower(coalesce(ps,'')) IN ('true','1','t')"];
+  const clauses = ["lower(cast(coalesce(ps, false) as varchar)) IN ('true','1','t')"];
   if (options.regional) clauses.push(`upper(uf) = upper(${sqlQuote(options.regional)})`);
   if (options.unidade) clauses.push(`nome = ${sqlQuote(options.unidade)}`);
   return clauses.join(" AND ");
@@ -1435,24 +1435,24 @@ async function buildGerencialKpisTopoDuckDbPayload(options: {
         );
 
   const labDt = `coalesce(
-    try_cast(replace(l.dt_exame, ' ', 'T') AS TIMESTAMP),
-    try_cast(replace(l.dt_solicitacao, ' ', 'T') AS TIMESTAMP),
-    try_cast(replace(l.data, ' ', 'T') AS TIMESTAMP)
+    try_cast(replace(cast(l.dt_exame AS VARCHAR), ' ', 'T') AS TIMESTAMP),
+    try_cast(replace(cast(l.dt_solicitacao AS VARCHAR), ' ', 'T') AS TIMESTAMP),
+    try_cast(replace(cast(l.data AS VARCHAR), ' ', 'T') AS TIMESTAMP)
   )`;
   const rxDt = `coalesce(
-    try_cast(replace(r.dt_exame, ' ', 'T') AS TIMESTAMP),
-    try_cast(replace(r.dt_solicitacao, ' ', 'T') AS TIMESTAMP)
+    try_cast(replace(cast(r.dt_exame AS VARCHAR), ' ', 'T') AS TIMESTAMP),
+    try_cast(replace(cast(r.dt_solicitacao AS VARCHAR), ' ', 'T') AS TIMESTAMP)
   )`;
   const tcDt = `coalesce(
-    try_cast(replace(t.dt_exame, ' ', 'T') AS TIMESTAMP),
-    try_cast(replace(t.dt_realizado, ' ', 'T') AS TIMESTAMP)
+    try_cast(replace(cast(t.dt_exame AS VARCHAR), ' ', 'T') AS TIMESTAMP),
+    try_cast(replace(cast(t.dt_realizado AS VARCHAR), ' ', 'T') AS TIMESTAMP)
   )`;
   const medDt = `coalesce(
-    try_cast(replace(m.dt_administracao, ' ', 'T') AS TIMESTAMP),
-    try_cast(replace(m.dt_prescricao, ' ', 'T') AS TIMESTAMP),
-    try_cast(replace(m.data, ' ', 'T') AS TIMESTAMP)
+    try_cast(replace(cast(m.dt_administracao AS VARCHAR), ' ', 'T') AS TIMESTAMP),
+    try_cast(replace(cast(m.dt_prescricao AS VARCHAR), ' ', 'T') AS TIMESTAMP),
+    try_cast(replace(cast(m.data AS VARCHAR), ' ', 'T') AS TIMESTAMP)
   )`;
-  const reavDt = `try_cast(replace(v.data, ' ', 'T') AS TIMESTAMP)`;
+  const reavDt = `try_cast(replace(cast(v.data AS VARCHAR), ' ', 'T') AS TIMESTAMP)`;
 
   const wLab = duckVolumeTimeWhere(labDt, mVol);
   const wRx = duckVolumeTimeWhere(rxDt, mVol);
@@ -1603,7 +1603,7 @@ async function getDashboardPayloadFromDuckDb(
         SELECT
           try_cast(cd_estabelecimento AS BIGINT) AS cd,
           nr_atendimento,
-          try_cast(replace(dt_entrada, ' ', 'T') AS TIMESTAMP) AS dt_ref,
+          try_cast(replace(cast(dt_entrada AS VARCHAR), ' ', 'T') AS TIMESTAMP) AS dt_ref,
           try_cast(min_entrada_x_consulta AS DOUBLE) AS min_consulta,
           try_cast(min_entrada_x_alta AS DOUBLE) AS min_alta
         FROM tbl_tempos_entrada_consulta_saida
@@ -1627,7 +1627,7 @@ async function getDashboardPayloadFromDuckDb(
       intern_base AS (
         SELECT
           try_cast(cd_estab_urg AS BIGINT) AS cd,
-          try_cast(replace(dt_entrada, ' ', 'T') AS TIMESTAMP) AS dt_ref
+          try_cast(replace(cast(dt_entrada AS VARCHAR), ' ', 'T') AS TIMESTAMP) AS dt_ref
         FROM tbl_intern_conversoes
         WHERE try_cast(cd_estab_urg AS BIGINT) IN (SELECT cd FROM unidades)
       ),
@@ -1641,7 +1641,7 @@ async function getDashboardPayloadFromDuckDb(
       exames_base AS (
         SELECT
           try_cast(cd_estabelecimento AS BIGINT) AS cd,
-          try_cast(replace(dt_exame, ' ', 'T') AS TIMESTAMP) AS dt_ref,
+          try_cast(replace(cast(dt_exame AS VARCHAR), ' ', 'T') AS TIMESTAMP) AS dt_ref,
           try_cast(minutos AS DOUBLE) AS minutos
         FROM tbl_tempos_rx_e_ecg
         WHERE try_cast(cd_estabelecimento AS BIGINT) IN (SELECT cd FROM unidades)
@@ -1649,8 +1649,8 @@ async function getDashboardPayloadFromDuckDb(
         SELECT
           try_cast(cd_estabelecimento AS BIGINT) AS cd,
           coalesce(
-            try_cast(replace(dt_exame, ' ', 'T') AS TIMESTAMP),
-            try_cast(replace(dt_realizado, ' ', 'T') AS TIMESTAMP)
+            try_cast(replace(cast(dt_exame AS VARCHAR), ' ', 'T') AS TIMESTAMP),
+            try_cast(replace(cast(dt_realizado AS VARCHAR), ' ', 'T') AS TIMESTAMP)
           ) AS dt_ref,
           try_cast(minutos AS DOUBLE) AS minutos
         FROM tbl_tempos_tc_e_us
@@ -1667,8 +1667,8 @@ async function getDashboardPayloadFromDuckDb(
         SELECT
           try_cast(cd_estabelecimento AS BIGINT) AS cd,
           coalesce(
-            try_cast(replace(dt_alta, ' ', 'T') AS TIMESTAMP),
-            try_cast(replace(dt_entrada, ' ', 'T') AS TIMESTAMP)
+            try_cast(replace(cast(dt_alta AS VARCHAR), ' ', 'T') AS TIMESTAMP),
+            try_cast(replace(cast(dt_entrada AS VARCHAR), ' ', 'T') AS TIMESTAMP)
           ) AS dt_ref,
           lower(coalesce(tipo_desfecho, '')) AS tipo,
           lower(coalesce(ds_motivo_alta, '')) AS motivo,
@@ -2058,11 +2058,11 @@ export async function getPsChegadasHeatmapPayload(options: {
           SELECT
             try_cast(cd_estabelecimento AS BIGINT) AS cd,
             nr_atendimento,
-            try_cast(replace(dt_entrada, ' ', 'T') AS TIMESTAMP) AS dt_ref
+            try_cast(replace(cast(dt_entrada AS VARCHAR), ' ', 'T') AS TIMESTAMP) AS dt_ref
           FROM tbl_tempos_entrada_consulta_saida
           WHERE try_cast(cd_estabelecimento AS BIGINT) IN (SELECT cd FROM unidades)
-            AND try_cast(replace(dt_entrada, ' ', 'T') AS TIMESTAMP) IS NOT NULL
-            AND strftime(try_cast(replace(dt_entrada, ' ', 'T') AS TIMESTAMP), '%Y-%m') = ${sqlQuote(mes)}
+            AND try_cast(replace(cast(dt_entrada AS VARCHAR), ' ', 'T') AS TIMESTAMP) IS NOT NULL
+            AND strftime(try_cast(replace(cast(dt_entrada AS VARCHAR), ' ', 'T') AS TIMESTAMP), '%Y-%m') = ${sqlQuote(mes)}
         )
         SELECT
           cast(dt_ref AS DATE) AS data_chegada,

@@ -1,0 +1,40 @@
+services:
+  api:
+    image: node:22
+    container_name: projeto-bi-api
+    working_dir: /app
+    command: sh -lc "[ -d api/node_modules ] || npm install --prefix api; npm run dev --prefix api"
+    environment:
+      - CSV_DATA_DIR=/datalake/hospital
+      - DATA_GATEWAY=duckdb
+      - NODE_OPTIONS=--max-old-space-size=3072
+      - AGENT_RULES_DIR=/regras-agente
+    volumes:
+      - ./:/app
+      - /app/node_modules
+      - /app/api/node_modules
+      - /app/web/node_modules
+      - ../../../datalake:/datalake:ro
+      - "../../../regras do agente de IA:/regras-agente:ro"
+    ports:
+      - "3333:3333"
+    restart: unless-stopped
+
+  web:
+    image: node:22
+    container_name: projeto-bi-web
+    working_dir: /app
+    command: sh -lc "[ -d web/node_modules ] || npm install --prefix web; npm run dev --prefix web -- --host 0.0.0.0 --port 5175"
+    environment:
+      # Browser no host fala com a API publicada em localhost:3333 (o proxy do Vite para 127.0.0.1 não serve dentro do contentor).
+      - VITE_API_URL=http://localhost:3333
+    volumes:
+      - ./:/app
+      - /app/node_modules
+      - /app/api/node_modules
+      - /app/web/node_modules
+    ports:
+      - "5175:5175"
+    depends_on:
+      - api
+    restart: unless-stopped

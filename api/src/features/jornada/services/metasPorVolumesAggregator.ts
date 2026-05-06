@@ -64,6 +64,7 @@ export type ViasVolumeRow = {
 export type FarmaciaRow = {
   cd: number;
   unidade: string;
+  medicamento: string;
   padrao: string;
   dataMs: number;
 };

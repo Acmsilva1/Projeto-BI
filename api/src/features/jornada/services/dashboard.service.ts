@@ -260,7 +260,26 @@ function toNumber(value: string | undefined): number {
 
 function parseDateMs(value: string | undefined): number {
   if (!value) return Number.NaN;
-  const normalized = value.trim().replace(" ", "T");
+  const raw = value.trim();
+  if (raw.length === 0) return Number.NaN;
+
+  // dd/MM/yyyy[ HH:mm[:ss]] (comum nos parquets/csv da farmácia)
+  const br = raw.match(
+    /^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?$/
+  );
+  if (br) {
+    const day = Number(br[1]);
+    const month = Number(br[2]);
+    const year = Number(br[3]);
+    const hour = Number(br[4] ?? "0");
+    const minute = Number(br[5] ?? "0");
+    const second = Number(br[6] ?? "0");
+    const dt = new Date(year, month - 1, day, hour, minute, second, 0);
+    const msBr = dt.getTime();
+    if (Number.isFinite(msBr)) return msBr;
+  }
+
+  const normalized = raw.replace(" ", "T");
   const ms = Date.parse(normalized);
   return Number.isFinite(ms) ? ms : Number.NaN;
 }
@@ -758,6 +777,7 @@ async function loadDataStoreIntoCache(factsRetentionDays: number): Promise<DataS
     farmacia.push({
       cd,
       unidade: pick(row, "UNIDADE", "unidade") ?? "",
+      medicamento: (pick(row, "MEDICAMENTO", "medicamento", "MED_REDUZ", "med_reduz") ?? "N/D").trim(),
       padrao: (pick(row, "PADRAO", "padrao") ?? "S").trim().toUpperCase(),
       dataMs
     });
@@ -1065,6 +1085,9 @@ function maxMsVolumeDataForCds(store: DataStore, cds: Set<number>): number {
     if (cds.has(r.cd) && r.dtMs > max) max = r.dtMs;
   }
   for (const r of store.viasMedicamentos) {
+    if (cds.has(r.cd) && r.dataMs > max) max = r.dataMs;
+  }
+  for (const r of store.farmacia) {
     if (cds.has(r.cd) && r.dataMs > max) max = r.dataMs;
   }
   return max;
@@ -2132,12 +2155,14 @@ export async function getPsMedicacaoPayload(options: {
   const { unidadesSelecionadas } = computeContext(store, options);
   const cds = new Set(unidadesSelecionadas.map((u) => u.cd));
   const unidadesMap = new Map(unidadesSelecionadas.map((u) => [u.cd, u.unidade]));
+  const anchorFallback = maxMsVolumeDataForCds(store, cds);
 
   const window = rollingWindowForGerencial(
     store.unitMaxEventMs,
     store.maxEventMs,
     cds,
-    options.periodDays
+    options.periodDays,
+    anchorFallback
   );
 
   if (!window) {
@@ -2148,7 +2173,8 @@ export async function getPsMedicacaoPayload(options: {
       topLenta: [],
       topRapida: [],
       porUnidade: [],
-      rankingNaoPadrao: []
+      rankingNaoPadrao: [],
+      topNaoPadrao: []
     };
   }
 

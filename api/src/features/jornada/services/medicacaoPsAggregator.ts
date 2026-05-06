@@ -16,6 +16,7 @@ export type MedicacaoPsDashboardData = {
     pctLenta: number 
   }>;
   rankingNaoPadrao: Array<{ unidade: string; qtd: number }>;
+  topNaoPadrao: Array<{ nome: string; qtd: number }>;
 };
 
 export function buildMedicacaoPsDashboard(
@@ -50,6 +51,7 @@ export function buildMedicacaoPsDashboard(
     viasMap: new Map<string, number>(),
     topLentaMap: new Map<string, number>(),
     topRapidaMap: new Map<string, number>(),
+    topNaoPadraoMap: new Map<string, number>(),
     unidadeMap: new Map<number, { lenta: number; rapida: number }>(),
     farmaciaMap: new Map<number, number>()
   };
@@ -82,6 +84,8 @@ export function buildMedicacaoPsDashboard(
   for (const f of filteredFarmacia) {
     const fCd = Number(f.cd);
     stats.farmaciaMap.set(fCd, (stats.farmaciaMap.get(fCd) || 0) + 1);
+    const med = (f.medicamento || "N/D").trim().toUpperCase();
+    stats.topNaoPadraoMap.set(med, (stats.topNaoPadraoMap.get(med) || 0) + 1);
   }
 
   // Formatar Vias
@@ -128,6 +132,11 @@ export function buildMedicacaoPsDashboard(
     })
     .sort((a, b) => b.qtd - a.qtd);
 
+  const topNaoPadrao = Array.from(stats.topNaoPadraoMap.entries())
+    .map(([nome, qtd]) => ({ nome, qtd }))
+    .sort((a, b) => b.qtd - a.qtd)
+    .slice(0, 10);
+
   return {
     totalMedicacoes: stats.total,
     infusao: {
@@ -138,6 +147,7 @@ export function buildMedicacaoPsDashboard(
     topLenta: formatTop(stats.topLentaMap),
     topRapida: formatTop(stats.topRapidaMap),
     porUnidade,
-    rankingNaoPadrao
+    rankingNaoPadrao,
+    topNaoPadrao
   };
 }

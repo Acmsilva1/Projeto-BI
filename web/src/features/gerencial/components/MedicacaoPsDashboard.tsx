@@ -159,6 +159,9 @@ export function MedicacaoPsDashboard(props: MedicacaoPsDashboardProps): ReactEle
   }
 
   const data = state.data;
+  const rankingNaoPadrao = data.rankingNaoPadrao || [];
+  const rankingNaoPadraoSemValores =
+    rankingNaoPadrao.length > 0 && rankingNaoPadrao.every((item) => Number(item.qtd) <= 0);
 
   return (
     <motion.section
@@ -335,14 +338,14 @@ export function MedicacaoPsDashboard(props: MedicacaoPsDashboardProps): ReactEle
         <article className="internacao-var-card">
           <h3 className="internacao-var-title mb-8 text-center">Utilização de Medicações Não Padrão por Unidade</h3>
           <div className="internacao-var-chart-tall mt-4" style={{ height: '350px' }}>
-            {(data.rankingNaoPadrao?.length || 0) === 0 ? (
+            {(rankingNaoPadrao.length || 0) === 0 || rankingNaoPadraoSemValores ? (
               <div className="flex h-full items-center justify-center text-sm font-medium text-slate-400 italic">
-                Nenhum dado não padrão no período
+                Nenhum registro de medicacao nao padrao no periodo/filtros
               </div>
             ) : (
               <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={240}>
                 <BarChart
-                  data={data.rankingNaoPadrao || []}
+                  data={rankingNaoPadrao}
                   margin={{ top: 22, right: 30, left: 8, bottom: 70 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#94a3b8" />
@@ -378,7 +381,45 @@ export function MedicacaoPsDashboard(props: MedicacaoPsDashboardProps): ReactEle
             )}
           </div>
         </article>
+
+        {/* Gráfico 6: Top 10 Não Padrão (Horizontal Bar) */}
+        <article className="internacao-var-card">
+          <h3 className="internacao-var-title mb-6">Top 10 - Não Padrão</h3>
+          <div className="internacao-var-chart-tall">
+            {(data.topNaoPadrao?.length || 0) === 0 ? (
+              <div className="flex h-full items-center justify-center text-sm font-medium text-slate-400 italic">
+                Sem medicações não padrão no período/filtros
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={240}>
+                <BarChart
+                  layout="vertical"
+                  data={data.topNaoPadrao}
+                  margin={{ top: 5, right: 45, left: 20, bottom: 5 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#94a3b8" />
+                  <XAxis type="number" hide />
+                  <YAxis
+                    dataKey="nome"
+                    type="category"
+                    width={140}
+                    fontSize={10}
+                    fontWeight={600}
+                    axisLine={false}
+                    tickLine={false}
+                    tickFormatter={(v) => v.length > 20 ? v.substring(0, 18) + "..." : v}
+                  />
+                  <Tooltip />
+                  <Bar dataKey="qtd" fill="#f97316" radius={[0, 4, 4, 0]} barSize={18}>
+                    <LabelList dataKey="qtd" position="right" fontSize={11} fontWeight={800} fill="#334155" />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        </article>
       </div>
     </motion.section>
   );
 }
+

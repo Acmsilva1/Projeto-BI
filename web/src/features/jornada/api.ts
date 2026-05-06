@@ -368,6 +368,7 @@ export type PsMedicacaoResponse = {
       pctLenta: number;
     }>;
     rankingNaoPadrao: Array<{ unidade: string; qtd: number }>;
+    topNaoPadrao: Array<{ nome: string; qtd: number }>;
   };
 };
 
